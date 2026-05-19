@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use plutus_core::audit::Actor;
 
-use crate::auth::{password, session};
+use crate::auth::session;
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
 
@@ -24,16 +24,15 @@ pub async fn login(
     cookies: CookieJar,
     Json(input): Json<LoginIn>,
 ) -> ApiResult<(CookieJar, Json<LoginOut>)> {
-    if state.master_password_hash.is_empty() {
+    if state.master_password.is_empty() {
         return Err(ApiError::Internal(
-            "PLUTUS_MASTER_PASSWORD_HASH is not configured".into(),
+            "PLUTUS_MASTER_PASSWORD is not configured".into(),
         ));
     }
-    if !password::verify(&input.password, &state.master_password_hash) {
+    if input.password != state.master_password {
         return Err(ApiError::Unauthorized);
     }
-    let signed = session::sign(&state.cookie_secret, "ok");
-    let cookie = Cookie::build((session::COOKIE_NAME, signed))
+    let cookie = Cookie::build((session::COOKIE_NAME, session::VALUE))
         .http_only(true)
         .same_site(SameSite::Lax)
         .path("/")

@@ -18,8 +18,6 @@ plutus-api = { workspace = true }
 tokio = { workspace = true }
 clap = { workspace = true }
 dotenvy = { workspace = true }
-argon2 = { workspace = true }
-rand = { workspace = true }
 axum = { workspace = true }
 serde = { workspace = true }
 anyhow = { workspace = true }
