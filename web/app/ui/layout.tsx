@@ -69,7 +69,7 @@ const NAV: NavEntry[] = [
   link('holdings', 'Holdings', Wallet),
   link('stocks', 'Stocks', TrendingUp),
   link('transactions', 'Transactions', ArrowLeftRight),
-  link('watchlists', 'Watchlists', Bookmark),
+  link('watchlists', 'Watchlist', Bookmark),
   divider('Calendar'),
   link('news', 'News', Newspaper),
   link('briefs', 'Briefs', FileText),

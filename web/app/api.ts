@@ -73,14 +73,6 @@ export interface Holding {
   realized_pnl_base: string
 }
 
-export interface Watchlist {
-  id: number
-  name: string
-  description: string | null
-  sort_order: number
-  created_at: string
-}
-
 /// Append `?locale=` to a path when the caller passed a non-default locale.
 /// Default ('en' / undefined) returns the path unchanged.
 function withLocale(path: string, locale?: string): string {
@@ -126,7 +118,7 @@ export interface StockTranslation {
 }
 
 export interface WatchlistItem {
-  watchlist_id: number
+  id: number
   stock_id: number
   added_at: string
   notes: string | null
@@ -205,7 +197,6 @@ export interface Sector {
 
 export interface WatchlistReport {
   id: number
-  watchlist_id: number
   kind: string
   period_start: string
   period_end: string
@@ -453,10 +444,10 @@ export const api = {
     return get<Holding[]>(`/holdings${suffix}`)
   },
   transactions: () => get<Transaction[]>('/transactions'),
-  watchlists: () => get<Watchlist[]>('/watchlists'),
-  watchlist: (id: number) => get<Watchlist>(`/watchlists/${id}`),
-  watchlistItems: (id: number) =>
-    get<WatchlistItem[]>(`/watchlists/${id}/items`),
+  watchlistItems: (country?: string) => {
+    let suffix = country ? `?country=${country}` : ''
+    return get<WatchlistItem[]>(`/watchlist/items${suffix}`)
+  },
   news: (locale?: string) => get<NewsItem[]>(withLocale('/news', locale)),
   newsItem: (id: number, locale?: string) =>
     get<NewsItem>(withLocale(`/news/${id}`, locale)),
@@ -492,12 +483,12 @@ export const api = {
     return get<MacroEvent[]>(`/macro/events${suffix}`)
   },
   macroIndicators: () => get<MacroIndicator[]>('/macro/indicators'),
-  watchlistReportsFor: (watchlistId: number, params: { kind?: string; locale?: string } = {}) => {
+  watchlistReports: (params: { kind?: string; locale?: string } = {}) => {
     let q = new URLSearchParams()
     if (params.kind) q.set('kind', params.kind)
     if (params.locale) q.set('locale', params.locale)
     let suffix = q.toString() ? `?${q.toString()}` : ''
-    return get<WatchlistReport[]>(`/watchlists/${watchlistId}/reports${suffix}`)
+    return get<WatchlistReport[]>(`/watchlist/reports${suffix}`)
   },
   earningsForStock: (stockId: number) =>
     get<EarningsEvent[]>(`/stocks/${stockId}/earnings`),

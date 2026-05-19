@@ -9,7 +9,6 @@ export const routes = route({
   stocks: '/stocks',
   stockDetail: '/stocks/:id',
   watchlists: '/watchlists',
-  watchlistDetail: '/watchlists/:id',
   transactions: '/transactions',
   news: '/news',
   newsDetail: '/news/:id',

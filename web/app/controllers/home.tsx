@@ -20,13 +20,13 @@ export const home: BuildAction<'GET', typeof routes.home> = {
   async handler({ request }) {
     let url = new URL(request.url)
     let locale = resolveLocale(request, url.searchParams)
-    let [markets, brokers, accounts, stocks, watchlists, transactions, holdings] =
+    let [markets, brokers, accounts, stocks, watchlistItems, transactions, holdings] =
       await Promise.all([
         api.markets().catch(() => []),
         api.brokers().catch(() => []),
         api.accounts().catch(() => []),
         api.stocks().catch(() => []),
-        api.watchlists().catch(() => []),
+        api.watchlistItems().catch(() => []),
         api.transactions().catch(() => []),
         api.holdings().catch(() => []),
       ])
@@ -40,7 +40,7 @@ export const home: BuildAction<'GET', typeof routes.home> = {
           brokers: brokers.length,
           accounts: accounts.length,
           stocks: stocks.length,
-          watchlists: watchlists.length,
+          watchlist: watchlistItems.length,
           transactions: transactions.length,
           holdings: holdings.length,
         }}
@@ -79,7 +79,7 @@ function DashboardPage() {
         <Stat label="Brokers" value={String(counts.brokers)} caption="active" />
         <Stat label="Accounts" value={String(counts.accounts)} caption="total" />
         <Stat label="Stocks" value={String(counts.stocks)} caption="tracked" />
-        <Stat label="Watchlists" value={String(counts.watchlists)} caption="created" />
+        <Stat label="Watchlist" value={String(counts.watchlist)} caption="stocks" />
         <Stat label="Transactions" value={String(counts.transactions)} caption="recorded" />
         <Stat label="Open Positions" value={String(counts.holdings)} caption="current" />
       </div>

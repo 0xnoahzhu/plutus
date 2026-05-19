@@ -20,7 +20,6 @@ import { selfExams } from './controllers/self-exams.tsx'
 import { stockDetail } from './controllers/stock-detail.tsx'
 import { stocks } from './controllers/stocks.tsx'
 import { transactions } from './controllers/transactions.tsx'
-import { watchlistDetail } from './controllers/watchlist-detail.tsx'
 import { watchlists } from './controllers/watchlists.tsx'
 import { routes } from './routes.ts'
 
@@ -40,7 +39,6 @@ router.map(routes.stocks, stocks)
 router.map(routes.stockDetail, stockDetail)
 router.map(routes.transactions, transactions)
 router.map(routes.watchlists, watchlists)
-router.map(routes.watchlistDetail, watchlistDetail)
 router.map(routes.news, news)
 router.map(routes.newsDetail, newsDetail)
 router.map(routes.briefs, briefs)
