@@ -3,7 +3,17 @@ import { css } from 'remix/ui'
 
 import { api, type Stock, type Watchlist, type WatchlistItem } from '../api.ts'
 import type { routes } from '../routes.ts'
-import { Layout, resolveLocale } from '../ui/layout.tsx'
+import {
+  Badge,
+  Card,
+  color,
+  EmptyState,
+  font,
+  Layout,
+  radius,
+  resolveLocale,
+  space,
+} from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
 interface LoadedGroup {
@@ -21,8 +31,6 @@ export const watchlists: BuildAction<'GET', typeof routes.watchlists> = {
     ])
     let stockMap = new Map<number, Stock>(allStocks.map((s) => [s.id, s]))
 
-    // Fetch items per group only to show counts and market badges on the list
-    // view. The detail page hits the items endpoint again — fine at this scale.
     let groups: LoadedGroup[] = await Promise.all(
       lists.map(async (w) => ({
         watchlist: w,
@@ -45,31 +53,31 @@ interface WatchlistsProps {
 }
 
 // Watchlists are user-curated themed groups (e.g. "AI 芯片股" spanning
-// US/HK/CN) so the country chip is intentionally absent here — filtering
-// would defeat the cross-market grouping that's the whole point.
+// US/HK/CN) so the country chip is intentionally absent here.
 function WatchlistsPage() {
   return ({ groups, stocks, locale }: WatchlistsProps) => (
-    <Layout title="Watchlists" locale={locale}>
-      <p
-        mix={css({
-          fontSize: '13px',
-          color: '#64748b',
-          marginBottom: '16px',
-        })}
-      >
-        Click a group to see the stocks inside. Groups and items are created via
-        the API:{' '}
-        <code>POST /api/v1/watchlists</code>,{' '}
-        <code>POST /api/v1/watchlists/:id/items</code>.
-      </p>
+    <Layout
+      title="Watchlists"
+      subtitle="User-curated themed groups across markets"
+      locale={locale}
+    >
       {groups.length === 0 ? (
-        <p mix={css({ color: '#64748b' })}>No groups yet.</p>
+        <Card>
+          <EmptyState
+            title="No watchlists yet"
+            hint={
+              <>
+                Create one with <code>POST /api/v1/watchlists</code>.
+              </>
+            }
+          />
+        </Card>
       ) : (
         <div
           mix={css({
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-            gap: '12px',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+            gap: space[3],
           })}
         >
           {groups
@@ -88,15 +96,15 @@ function WatchlistsPage() {
                   href={`/watchlists/${w.id}`}
                   mix={css({
                     display: 'block',
-                    background: '#fff',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px',
-                    padding: '16px 20px',
+                    background: color.surface,
+                    border: `1px solid ${color.border}`,
+                    borderRadius: radius.lg,
+                    padding: `${space[4]} ${space[5]}`,
                     textDecoration: 'none',
                     color: 'inherit',
                     transition: 'border-color 120ms ease, transform 120ms ease',
                     '&:hover': {
-                      borderColor: '#1d4ed8',
+                      borderColor: color.brand,
                       transform: 'translateY(-1px)',
                     },
                   })}
@@ -106,32 +114,38 @@ function WatchlistsPage() {
                       display: 'flex',
                       alignItems: 'baseline',
                       justifyContent: 'space-between',
-                      gap: '12px',
+                      gap: space[3],
                     })}
                   >
                     <div
                       mix={css({
                         fontWeight: 600,
-                        fontSize: '15px',
-                        color: '#0f172a',
+                        fontSize: font.md,
+                        color: color.text,
                       })}
                     >
                       {w.name}
                     </div>
                     <div
                       mix={css({
-                        fontSize: '12px',
+                        fontSize: font.sm,
                         fontWeight: 600,
-                        color: '#1d4ed8',
+                        color: color.brandHover,
                         whiteSpace: 'nowrap',
                       })}
                     >
-                      {items.length}{' '}
-                      {items.length === 1 ? 'symbol' : 'symbols'}
+                      {items.length} {items.length === 1 ? 'symbol' : 'symbols'}
                     </div>
                   </div>
                   {w.description && (
-                    <div mix={css({ fontSize: '13px', color: '#64748b', marginTop: '6px' })}>
+                    <div
+                      mix={css({
+                        fontSize: font.sm,
+                        color: color.textMuted,
+                        marginTop: space[2],
+                        lineHeight: 1.5,
+                      })}
+                    >
                       {w.description}
                     </div>
                   )}
@@ -139,34 +153,23 @@ function WatchlistsPage() {
                     <div
                       mix={css({
                         display: 'flex',
-                        gap: '6px',
-                        marginTop: '10px',
+                        gap: space[1],
+                        marginTop: space[3],
                         flexWrap: 'wrap',
                       })}
                     >
                       {marketsPresent.map((m) => (
-                        <span
-                          mix={css({
-                            fontSize: '10px',
-                            fontWeight: 600,
-                            padding: '1px 6px',
-                            borderRadius: '999px',
-                            background: '#e0e7ff',
-                            color: '#3730a3',
-                          })}
-                        >
-                          {m}
-                        </span>
+                        <Badge tone="brand">{m}</Badge>
                       ))}
                     </div>
                   )}
                   <div
                     mix={css({
-                      fontSize: '11px',
-                      color: '#94a3b8',
-                      marginTop: '10px',
+                      fontSize: font.xs,
+                      color: color.textDim,
+                      marginTop: space[3],
                       textTransform: 'uppercase',
-                      letterSpacing: '0.06em',
+                      letterSpacing: '0.08em',
                     })}
                   >
                     created {w.created_at.slice(0, 10)}

@@ -3,7 +3,18 @@ import { css } from 'remix/ui'
 
 import { api, type PortfolioReview } from '../api.ts'
 import type { routes } from '../routes.ts'
-import { Layout, resolveLocale } from '../ui/layout.tsx'
+import {
+  Badge,
+  type BadgeTone,
+  Card,
+  color,
+  EmptyState,
+  font,
+  Layout,
+  radius,
+  resolveLocale,
+  space,
+} from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
 export const portfolioReviews: BuildAction<'GET', typeof routes.portfolioReviews> = {
@@ -28,12 +39,18 @@ interface ReviewsProps {
 
 function PortfolioReviewsPage() {
   return ({ reviews, locale }: ReviewsProps) => (
-    <Layout title="Portfolio reviews" locale={locale}>
+    <Layout
+      title="Portfolio reviews"
+      subtitle={`${reviews.length} ${reviews.length === 1 ? 'review' : 'reviews'}`}
+      locale={locale}
+    >
       <p
         mix={css({
-          fontSize: '13px',
-          color: '#64748b',
-          marginBottom: '16px',
+          fontSize: font.sm,
+          color: color.textMuted,
+          marginTop: 0,
+          marginBottom: space[4],
+          lineHeight: 1.55,
         })}
       >
         Weekly and monthly portfolio reviews from the agent. Each review covers
@@ -43,11 +60,18 @@ function PortfolioReviewsPage() {
         period_start).
       </p>
       {reviews.length === 0 ? (
-        <p mix={css({ color: '#94a3b8', fontStyle: 'italic', fontSize: '13px' })}>
-          No reviews recorded yet.
-        </p>
+        <Card>
+          <EmptyState
+            title="No reviews recorded yet"
+            hint={
+              <>
+                Agent writes via <code>POST /api/v1/portfolio-reviews</code>.
+              </>
+            }
+          />
+        </Card>
       ) : (
-        <div mix={css({ display: 'flex', flexDirection: 'column', gap: '16px' })}>
+        <div mix={css({ display: 'flex', flexDirection: 'column', gap: space[4] })}>
           {reviews.map((r) => (
             <ReviewCard review={r} />
           ))}
@@ -61,80 +85,74 @@ function ReviewCard() {
   return ({ review }: { review: PortfolioReview }) => (
     <div
       mix={css({
-        background: '#fff',
-        border: '1px solid #e2e8f0',
-        borderLeft: `3px solid ${kindAccent(review.kind)}`,
-        borderRadius: '8px',
-        padding: '16px 20px',
+        background: color.surface,
+        border: `1px solid ${color.border}`,
+        borderLeft: `3px solid ${color.brand}`,
+        borderRadius: radius.lg,
+        padding: `${space[4]} ${space[5]}`,
       })}
     >
       <div
         mix={css({
           display: 'flex',
           alignItems: 'baseline',
-          gap: '8px',
-          marginBottom: '8px',
+          gap: space[2],
+          marginBottom: space[2],
           flexWrap: 'wrap',
         })}
       >
-        <KindPill kind={review.kind} />
+        <Badge tone="brand">{review.kind}</Badge>
         <span
           mix={css({
-            fontSize: '12px',
-            color: '#64748b',
+            fontSize: font.sm,
+            color: color.textMuted,
             fontVariantNumeric: 'tabular-nums',
           })}
         >
           {review.period_start} → {review.period_end}
         </span>
-        {review.sentiment && <SentimentChip sentiment={review.sentiment} />}
-        <span mix={css({ marginLeft: 'auto', fontSize: '11px', color: '#94a3b8' })}>
+        {review.sentiment && (
+          <Badge tone={sentimentTone(review.sentiment)}>{review.sentiment}</Badge>
+        )}
+        <span
+          mix={css({
+            marginLeft: 'auto',
+            fontSize: font.xs,
+            color: color.textDim,
+          })}
+        >
           {review.source} · {review.language}
         </span>
       </div>
       <div
         mix={css({
-          fontSize: '16px',
+          fontSize: font.md,
           fontWeight: 600,
-          color: '#0f172a',
-          marginBottom: '10px',
+          color: color.text,
+          marginBottom: space[2],
           lineHeight: 1.4,
         })}
       >
         {review.headline}
       </div>
-      {review.summary_md && (
-        <Block label="Summary" body={review.summary_md} accent="#475569" />
-      )}
-      {review.content_md && (
-        <Block label="Full content" body={review.content_md} accent="#1f2937" />
-      )}
-      {review.decisions_md && (
-        <Block label="Decisions" body={review.decisions_md} accent="#7c3aed" />
-      )}
+      {review.summary_md && <Block label="Summary" body={review.summary_md} />}
+      {review.content_md && <Block label="Full content" body={review.content_md} />}
+      {review.decisions_md && <Block label="Decisions" body={review.decisions_md} />}
     </div>
   )
 }
 
 function Block() {
-  return ({
-    label,
-    body,
-    accent,
-  }: {
-    label: string
-    body: string
-    accent: string
-  }) => (
-    <div mix={css({ marginTop: '10px' })}>
+  return ({ label, body }: { label: string; body: string }) => (
+    <div mix={css({ marginTop: space[3] })}>
       <div
         mix={css({
-          fontSize: '10px',
+          fontSize: font.xs,
           fontWeight: 700,
           textTransform: 'uppercase',
           letterSpacing: '0.08em',
-          color: accent,
-          marginBottom: '4px',
+          color: color.textMuted,
+          marginBottom: space[1],
         })}
       >
         {label}
@@ -142,13 +160,13 @@ function Block() {
       <pre
         mix={css({
           margin: 0,
-          padding: '10px 12px',
-          background: '#f8fafc',
-          border: '1px solid #e2e8f0',
-          borderRadius: '4px',
-          fontSize: '13px',
+          padding: `${space[2]} ${space[3]}`,
+          background: color.bg,
+          border: `1px solid ${color.borderSoft}`,
+          borderRadius: radius.md,
+          fontSize: font.sm,
           lineHeight: 1.6,
-          color: '#1f2937',
+          color: color.text,
           whiteSpace: 'pre-wrap',
           wordBreak: 'break-word',
           fontFamily: 'inherit',
@@ -160,62 +178,9 @@ function Block() {
   )
 }
 
-function kindAccent(kind: string): string {
-  return kind === 'weekly'
-    ? '#1d4ed8'
-    : kind === 'monthly'
-      ? '#7c3aed'
-      : kind === 'quarterly'
-        ? '#0891b2'
-        : '#64748b'
-}
-
-function KindPill() {
-  return ({ kind }: { kind: string }) => {
-    let bg = kindAccent(kind)
-    return (
-      <span
-        mix={css({
-          padding: '1px 8px',
-          borderRadius: '4px',
-          background: bg,
-          color: '#fff',
-          fontSize: '10px',
-          fontWeight: 700,
-          textTransform: 'uppercase',
-          letterSpacing: '0.05em',
-        })}
-      >
-        {kind}
-      </span>
-    )
-  }
-}
-
-function SentimentChip() {
-  return ({ sentiment }: { sentiment: string }) => {
-    let palette: Record<string, [string, string]> = {
-      bullish: ['#dcfce7', '#166534'],
-      positive: ['#dcfce7', '#166534'],
-      bearish: ['#fee2e2', '#991b1b'],
-      negative: ['#fee2e2', '#991b1b'],
-      neutral: ['#e2e8f0', '#475569'],
-      cautious: ['#fef3c7', '#92400e'],
-    }
-    let [bg, fg] = palette[sentiment] ?? ['#e2e8f0', '#475569']
-    return (
-      <span
-        mix={css({
-          padding: '1px 8px',
-          borderRadius: '4px',
-          fontSize: '11px',
-          fontWeight: 600,
-          background: bg,
-          color: fg,
-        })}
-      >
-        {sentiment}
-      </span>
-    )
-  }
+function sentimentTone(s: string): BadgeTone {
+  if (s === 'positive' || s === 'bullish') return 'success'
+  if (s === 'negative' || s === 'bearish') return 'danger'
+  if (s === 'cautious') return 'warn'
+  return 'neutral'
 }

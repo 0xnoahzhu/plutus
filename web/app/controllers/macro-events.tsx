@@ -1,9 +1,22 @@
 import type { BuildAction } from 'remix/fetch-router'
-import { css } from 'remix/ui'
+import { css, type RemixNode } from 'remix/ui'
 
 import { api, type MacroEvent, type MacroIndicator } from '../api.ts'
 import type { routes } from '../routes.ts'
-import { Layout, parseCountry, resolveLocale } from '../ui/layout.tsx'
+import {
+  Badge,
+  type BadgeTone,
+  Card,
+  color,
+  EmptyState,
+  font,
+  Layout,
+  parseCountry,
+  radius,
+  resolveLocale,
+  SectionTitle,
+  space,
+} from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
 interface DayGroup {
@@ -71,82 +84,41 @@ interface MacroEventsProps {
 
 function MacroEventsPage() {
   return ({ upcoming, past, indicators, country, locale, today }: MacroEventsProps) => (
-    <Layout title="Macro calendar" country={country} locale={locale}>
-      <p
-        mix={css({
-          fontSize: '13px',
-          color: '#64748b',
-          marginBottom: '16px',
-        })}
-      >
-        Discrete macro / policy events for <strong>{country}</strong> — FOMC
-        decisions, CPI releases, LPR moves, etc. Agent writes via{' '}
-        <code>POST /api/v1/macro/events</code>. Daily continuous series (yields,
-        effective rates) live in <code>/api/v1/macro/observations</code>.
-      </p>
+    <Layout
+      title="Macro calendar"
+      subtitle={`Discrete macro and policy events for ${country}`}
+      country={country}
+      locale={locale}
+    >
+      <SectionTitle hint={`from ${today}`}>Upcoming</SectionTitle>
+      {upcoming.length === 0 ? (
+        <Card>
+          <EmptyState
+            title="No upcoming events"
+            hint={
+              <>
+                Agent writes via <code>POST /api/v1/macro/events</code>. Daily
+                continuous series (yields, effective rates) live in{' '}
+                <code>/api/v1/macro/observations</code>.
+              </>
+            }
+          />
+        </Card>
+      ) : (
+        <DayList groups={upcoming} indicators={indicators} />
+      )}
 
-      <Section label="Upcoming" sub={`from ${today}`}>
-        {upcoming.length === 0 ? (
-          <Empty>No upcoming events.</Empty>
-        ) : (
-          <DayList groups={upcoming} indicators={indicators} />
-        )}
-      </Section>
-
-      <Section label="Past" sub={`before ${today}`}>
-        {past.length === 0 ? (
-          <Empty>No past events recorded.</Empty>
-        ) : (
-          <DayList groups={past} indicators={indicators} />
-        )}
-      </Section>
-    </Layout>
-  )
-}
-
-function Section() {
-  return ({
-    label,
-    sub,
-    children,
-  }: {
-    label: string
-    sub: string
-    children: import('remix/ui').RemixNode
-  }) => (
-    <div mix={css({ marginTop: '16px' })}>
-      <div
-        mix={css({
-          display: 'flex',
-          alignItems: 'baseline',
-          justifyContent: 'space-between',
-          marginBottom: '8px',
-        })}
-      >
-        <h3
-          mix={css({
-            margin: 0,
-            fontSize: '12px',
-            fontWeight: 700,
-            textTransform: 'uppercase',
-            letterSpacing: '0.08em',
-            color: '#0f172a',
-          })}
-        >
-          {label}
-        </h3>
-        <span mix={css({ fontSize: '11px', color: '#94a3b8' })}>{sub}</span>
+      <div mix={css({ marginTop: space[6] })}>
+        <SectionTitle hint={`before ${today}`}>Past</SectionTitle>
       </div>
-      {children}
-    </div>
-  )
-}
-
-function Empty() {
-  return ({ children }: { children: string }) => (
-    <p mix={css({ color: '#94a3b8', fontStyle: 'italic', fontSize: '13px', margin: 0 })}>
-      {children}
-    </p>
+      {past.length === 0 ? (
+        <Card>
+          <EmptyState title="No past events recorded" />
+        </Card>
+      ) : (
+        <DayList groups={past} indicators={indicators} />
+      )}
+    </Layout>
   )
 }
 
@@ -158,32 +130,28 @@ function DayList() {
     groups: DayGroup[]
     indicators: Map<string, MacroIndicator>
   }) => (
-    <div mix={css({ display: 'flex', flexDirection: 'column', gap: '12px' })}>
+    <div mix={css({ display: 'flex', flexDirection: 'column', gap: space[3] })}>
       {groups.map((g) => (
-        <div
-          mix={css({
-            background: '#fff',
-            border: '1px solid #e2e8f0',
-            borderRadius: '8px',
-            overflow: 'hidden',
-          })}
-        >
+        <Card padding="0">
           <div
             mix={css({
-              background: '#f8fafc',
-              padding: '6px 14px',
-              fontSize: '12px',
+              padding: `${space[2]} ${space[4]}`,
+              fontSize: font.sm,
               fontWeight: 600,
-              color: '#0f172a',
-              borderBottom: '1px solid #e2e8f0',
+              color: color.text,
+              background: color.bg,
+              borderBottom: `1px solid ${color.borderSoft}`,
+              borderRadius: `${radius.lg} ${radius.lg} 0 0`,
             })}
           >
             {g.date}
           </div>
-          {g.events.map((e) => (
-            <EventRow event={e} indicator={indicators.get(e.indicator_code)} />
-          ))}
-        </div>
+          <div>
+            {g.events.map((e) => (
+              <EventRow event={e} indicator={indicators.get(e.indicator_code)} />
+            ))}
+          </div>
+        </Card>
       ))}
     </div>
   )
@@ -195,46 +163,55 @@ function EventRow() {
     return (
       <div
         mix={css({
-          padding: '12px 16px',
-          borderTop: '1px solid #f1f5f9',
+          padding: `${space[3]} ${space[4]}`,
+          borderTop: `1px solid ${color.borderSoft}`,
           '&:first-child': { borderTop: 'none' },
         })}
       >
         <div
           mix={css({
             display: 'flex',
-            alignItems: 'baseline',
-            gap: '8px',
-            marginBottom: '6px',
+            alignItems: 'center',
+            gap: space[2],
+            marginBottom: space[2],
+            flexWrap: 'wrap',
           })}
         >
           <code
             mix={css({
-              fontSize: '11px',
-              fontFamily: 'ui-monospace, monospace',
-              color: '#1d4ed8',
+              fontSize: font.xs,
+              fontFamily: font.mono,
+              color: color.brandSoftText,
               fontWeight: 600,
             })}
           >
             {event.indicator_code}
           </code>
-          <EventKindPill kind={event.event_kind} />
-          {event.decision && <DecisionPill decision={event.decision} bps={event.decision_bps} />}
+          <Badge tone={eventKindTone(event.event_kind)}>{event.event_kind}</Badge>
+          {event.decision && (
+            <DecisionBadge decision={event.decision} bps={event.decision_bps} />
+          )}
           {indicator && (
-            <span mix={css({ fontSize: '11px', color: '#94a3b8' })}>
+            <span mix={css({ fontSize: font.xs, color: color.textDim })}>
               {indicator.unit} · {indicator.frequency}
             </span>
           )}
-          <span mix={css({ marginLeft: 'auto', fontSize: '11px', color: '#94a3b8' })}>
+          <span
+            mix={css({
+              marginLeft: 'auto',
+              fontSize: font.xs,
+              color: color.textDim,
+            })}
+          >
             {event.source}
           </span>
         </div>
         <div
           mix={css({
-            fontSize: '14px',
+            fontSize: font.base,
             fontWeight: 600,
-            color: '#0f172a',
-            marginBottom: '4px',
+            color: color.text,
+            marginBottom: space[1],
             lineHeight: 1.4,
           })}
         >
@@ -244,36 +221,38 @@ function EventRow() {
           <div
             mix={css({
               display: 'flex',
-              gap: '14px',
+              gap: space[4],
               flexWrap: 'wrap',
-              fontSize: '12px',
-              color: '#475569',
+              fontSize: font.sm,
+              color: color.textMuted,
               fontVariantNumeric: 'tabular-nums',
-              marginTop: '6px',
+              marginTop: space[2],
             })}
           >
-            <Stat label="actual" value={event.new_value ?? '—'} accent="#0f172a" />
+            <StatItem label="actual" value={event.new_value ?? '—'} strong />
             {event.consensus_estimate && (
-              <Stat label="consensus" value={event.consensus_estimate} />
+              <StatItem label="consensus" value={event.consensus_estimate} />
             )}
             {event.previous_value && (
-              <Stat label="prev" value={event.previous_value} />
+              <StatItem label="prev" value={event.previous_value} />
             )}
-            {event.surprise && <SurprisePill surprise={event.surprise} unit={indicator?.unit} />}
-            {event.vote && <Stat label="vote" value={event.vote} />}
+            {event.surprise && (
+              <SurpriseBadge surprise={event.surprise} unit={indicator?.unit} />
+            )}
+            {event.vote && <StatItem label="vote" value={event.vote} />}
           </div>
         )}
         {event.summary_md && (
           <pre
             mix={css({
-              marginTop: '8px',
-              padding: '8px 10px',
-              background: '#f8fafc',
-              border: '1px solid #e2e8f0',
-              borderRadius: '4px',
-              fontSize: '12px',
-              lineHeight: 1.55,
-              color: '#1f2937',
+              margin: `${space[2]} 0 0`,
+              padding: `${space[2]} ${space[3]}`,
+              background: color.bg,
+              border: `1px solid ${color.borderSoft}`,
+              borderRadius: radius.md,
+              fontSize: font.sm,
+              lineHeight: 1.6,
+              color: color.text,
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
               fontFamily: 'inherit',
@@ -287,45 +266,36 @@ function EventRow() {
   }
 }
 
-function EventKindPill() {
-  return ({ kind }: { kind: string }) => {
-    let palette: Record<string, [string, string]> = {
-      fomc_decision: ['#fef3c7', '#92400e'],
-      ecb_decision: ['#fef3c7', '#92400e'],
-      boj_decision: ['#fef3c7', '#92400e'],
-      lpr_decision: ['#fef3c7', '#92400e'],
-      cpi_release: ['#dbeafe', '#1e40af'],
-      ppi_release: ['#dbeafe', '#1e40af'],
-      nfp_release: ['#dbeafe', '#1e40af'],
-      gdp_release: ['#dbeafe', '#1e40af'],
-      pmi_release: ['#dbeafe', '#1e40af'],
-    }
-    let [bg, fg] = palette[kind] ?? ['#e2e8f0', '#475569']
-    return (
-      <span
-        mix={css({
-          padding: '1px 8px',
-          borderRadius: '999px',
-          background: bg,
-          color: fg,
-          fontSize: '10px',
-          fontWeight: 600,
-        })}
-      >
-        {kind}
-      </span>
-    )
+function eventKindTone(kind: string): BadgeTone {
+  // Policy decisions get a warning tone — they're rate-setting actions.
+  if (
+    kind === 'fomc_decision' ||
+    kind === 'ecb_decision' ||
+    kind === 'boj_decision' ||
+    kind === 'lpr_decision'
+  ) {
+    return 'warn'
   }
+  // Data releases get an info tone.
+  if (
+    kind === 'cpi_release' ||
+    kind === 'ppi_release' ||
+    kind === 'nfp_release' ||
+    kind === 'gdp_release' ||
+    kind === 'pmi_release'
+  ) {
+    return 'info'
+  }
+  return 'neutral'
 }
 
-function DecisionPill() {
+function DecisionBadge() {
   return ({ decision, bps }: { decision: string; bps: number | null }) => {
-    let palette: Record<string, [string, string]> = {
-      hike: ['#fee2e2', '#991b1b'],
-      cut: ['#dcfce7', '#166534'],
-      hold: ['#e2e8f0', '#475569'],
-    }
-    let [bg, fg] = palette[decision] ?? ['#e2e8f0', '#475569']
+    let tone: BadgeTone =
+      decision === 'hike' ? 'danger'
+      : decision === 'cut' ? 'success'
+      : decision === 'hold' ? 'neutral'
+      : 'neutral'
     let label =
       decision === 'hike' && bps
         ? `+${bps} bps`
@@ -334,72 +304,55 @@ function DecisionPill() {
           : decision === 'hold'
             ? 'HOLD'
             : decision
-    return (
-      <span
-        mix={css({
-          padding: '1px 8px',
-          borderRadius: '4px',
-          background: bg,
-          color: fg,
-          fontSize: '11px',
-          fontWeight: 700,
-          textTransform: 'uppercase',
-        })}
-      >
-        {label}
-      </span>
-    )
+    return <Badge tone={tone}>{label}</Badge>
   }
 }
 
-function Stat() {
+function StatItem() {
   return ({
     label,
     value,
-    accent,
+    strong,
   }: {
     label: string
-    value: string
-    accent?: string
+    value: RemixNode
+    strong?: boolean
   }) => (
     <span>
       <span
         mix={css({
-          fontSize: '10px',
+          fontSize: font.xs,
           textTransform: 'uppercase',
           letterSpacing: '0.06em',
-          color: '#94a3b8',
-          marginRight: '4px',
+          color: color.textDim,
+          marginRight: space[1],
         })}
       >
         {label}
       </span>
-      <strong mix={css({ color: accent ?? '#475569', fontWeight: 600 })}>{value}</strong>
+      <strong
+        mix={css({
+          color: strong ? color.text : color.textMuted,
+          fontWeight: strong ? 700 : 600,
+        })}
+      >
+        {value}
+      </strong>
     </span>
   )
 }
 
-function SurprisePill() {
+function SurpriseBadge() {
   return ({ surprise, unit }: { surprise: string; unit?: string }) => {
     let n = parseFloat(surprise)
-    let pos = n > 0
-    let color = pos ? '#166534' : n < 0 ? '#991b1b' : '#475569'
-    let bg = pos ? '#dcfce7' : n < 0 ? '#fee2e2' : '#e2e8f0'
-    let sign = pos ? '+' : ''
+    let tone: BadgeTone = n > 0 ? 'success' : n < 0 ? 'danger' : 'neutral'
+    let sign = n > 0 ? '+' : ''
     return (
-      <span
-        mix={css({
-          padding: '1px 8px',
-          borderRadius: '4px',
-          background: bg,
-          color,
-          fontSize: '11px',
-          fontWeight: 700,
-        })}
-        title="surprise = actual − consensus"
-      >
-        Δ {sign}{surprise}{unit ? ` ${unit}` : ''}
-      </span>
+      <Badge tone={tone} title="surprise = actual − consensus">
+        Δ {sign}
+        {surprise}
+        {unit ? ` ${unit}` : ''}
+      </Badge>
     )
   }
 }

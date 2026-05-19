@@ -3,15 +3,26 @@ import { css } from 'remix/ui'
 
 import { api, type MarketBrief } from '../api.ts'
 import type { routes } from '../routes.ts'
-import { Layout, parseCountry, resolveLocale } from '../ui/layout.tsx'
+import {
+  Badge,
+  type BadgeTone,
+  Card,
+  color,
+  EmptyState,
+  font,
+  Layout,
+  parseCountry,
+  radius,
+  resolveLocale,
+  space,
+} from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
 interface DayGroup {
   date: string
   pre: MarketBrief | null
   post: MarketBrief | null
-  /// Smart-money scan output for the day (insider buys, southbound flows,
-  /// activist filings, etc.). Written by the agent's daily scanner job.
+  /// Smart-money scan output for the day.
   scan: MarketBrief | null
 }
 
@@ -52,26 +63,25 @@ interface BriefsProps {
 
 function BriefsPage() {
   return ({ days, country, locale }: BriefsProps) => (
-    <Layout title="Market Briefs" country={country} locale={locale}>
-      <p
-        mix={css({
-          fontSize: '13px',
-          color: '#64748b',
-          marginBottom: '16px',
-        })}
-      >
-        Daily pre-market analysis and post-market summary for{' '}
-        <strong>{country}</strong>. Agent writes via{' '}
-        <code>POST /api/v1/market-briefs</code>.
-      </p>
+    <Layout
+      title="Market Briefs"
+      subtitle={`Daily pre/post-market analysis for ${country}`}
+      country={country}
+      locale={locale}
+    >
       {days.length === 0 ? (
-        <p mix={css({ color: '#64748b' })}>
-          No briefs yet for {country}. Push one with{' '}
-          <code>POST /api/v1/market-briefs</code> using kind <code>pre_market</code>{' '}
-          or <code>post_market</code>.
-        </p>
+        <Card>
+          <EmptyState
+            title="No briefs yet"
+            hint={
+              <>
+                Push one with <code>POST /api/v1/market-briefs</code>.
+              </>
+            }
+          />
+        </Card>
       ) : (
-        <div mix={css({ display: 'flex', flexDirection: 'column', gap: '20px' })}>
+        <div mix={css({ display: 'flex', flexDirection: 'column', gap: space[5] })}>
           {days.map((d) => (
             <DayRow date={d.date} country={country} pre={d.pre} post={d.post} scan={d.scan} />
           ))}
@@ -98,30 +108,27 @@ function DayRow() {
     <div>
       <div
         mix={css({
-          fontSize: '13px',
+          fontSize: font.sm,
           fontWeight: 600,
-          color: '#0f172a',
-          marginBottom: '8px',
+          color: color.text,
+          marginBottom: space[2],
         })}
       >
-        {date} · {country}
+        {date} <span mix={css({ color: color.textDim })}>· {country}</span>
       </div>
       <div
         mix={css({
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
-          gap: '12px',
+          gap: space[3],
           '@media (max-width: 720px)': { gridTemplateColumns: '1fr' },
         })}
       >
         <BriefCard kind="pre_market" brief={pre} />
         <BriefCard kind="post_market" brief={post} />
       </div>
-      {/* Smart-money scan is its own full-width card below the pre/post pair.
-          Only rendered when present so the layout doesn't grow a permanent
-          dashed placeholder for users who don't run the scanner. */}
       {scan && (
-        <div mix={css({ marginTop: '12px' })}>
+        <div mix={css({ marginTop: space[3] })}>
           <BriefCard kind="smart_money_scan" brief={scan} />
         </div>
       )}
@@ -129,47 +136,38 @@ function DayRow() {
   )
 }
 
+const KIND_META: Record<string, { label: string; accent: string }> = {
+  pre_market: { label: 'Pre-market', accent: color.info },
+  post_market: { label: 'Post-market', accent: '#7c3aed' },
+  smart_money_scan: { label: 'Smart-money scan', accent: color.warn },
+}
+
 function BriefCard() {
   return ({ kind, brief }: { kind: string; brief: MarketBrief | null }) => {
-    let label =
-      kind === 'pre_market'
-        ? 'Pre-market'
-        : kind === 'post_market'
-          ? 'Post-market'
-          : kind === 'smart_money_scan'
-            ? 'Smart-money scan'
-            : kind
-    let accent =
-      kind === 'pre_market'
-        ? '#1d4ed8'
-        : kind === 'post_market'
-          ? '#7c3aed'
-          : kind === 'smart_money_scan'
-            ? '#d97706' // amber — distinct from pre/post
-            : '#64748b'
+    let meta = KIND_META[kind] ?? { label: kind, accent: color.textMuted }
     if (!brief) {
       return (
         <div
           mix={css({
-            background: '#fff',
-            border: '1px dashed #cbd5e1',
-            borderRadius: '8px',
-            padding: '16px 20px',
-            color: '#94a3b8',
-            fontSize: '13px',
+            background: color.surface,
+            border: `1px dashed ${color.border}`,
+            borderRadius: radius.lg,
+            padding: `${space[4]} ${space[5]}`,
+            color: color.textDim,
+            fontSize: font.sm,
           })}
         >
           <div
             mix={css({
-              fontSize: '10px',
+              fontSize: font.xs,
               fontWeight: 700,
               textTransform: 'uppercase',
               letterSpacing: '0.08em',
-              color: '#94a3b8',
-              marginBottom: '6px',
+              color: color.textDim,
+              marginBottom: space[1],
             })}
           >
-            {label}
+            {meta.label}
           </div>
           <em>(no brief recorded)</em>
         </div>
@@ -178,38 +176,41 @@ function BriefCard() {
     return (
       <div
         mix={css({
-          background: '#fff',
-          border: '1px solid #e2e8f0',
-          borderLeft: `3px solid ${accent}`,
-          borderRadius: '8px',
-          padding: '16px 20px',
+          background: color.surface,
+          border: `1px solid ${color.border}`,
+          borderLeft: `3px solid ${meta.accent}`,
+          borderRadius: radius.lg,
+          padding: `${space[4]} ${space[5]}`,
         })}
       >
         <div
           mix={css({
             display: 'flex',
             alignItems: 'baseline',
-            gap: '8px',
-            marginBottom: '8px',
+            gap: space[2],
+            marginBottom: space[2],
+            flexWrap: 'wrap',
           })}
         >
           <span
             mix={css({
-              fontSize: '10px',
+              fontSize: font.xs,
               fontWeight: 700,
               textTransform: 'uppercase',
               letterSpacing: '0.08em',
-              color: accent,
+              color: meta.accent,
             })}
           >
-            {label}
+            {meta.label}
           </span>
-          {brief.sentiment && <SentimentChip sentiment={brief.sentiment} />}
+          {brief.sentiment && (
+            <Badge tone={sentimentTone(brief.sentiment)}>{brief.sentiment}</Badge>
+          )}
           <span
             mix={css({
               marginLeft: 'auto',
-              fontSize: '11px',
-              color: '#94a3b8',
+              fontSize: font.xs,
+              color: color.textDim,
             })}
           >
             {brief.source} · {brief.language}
@@ -217,10 +218,10 @@ function BriefCard() {
         </div>
         <div
           mix={css({
-            fontSize: '15px',
+            fontSize: font.md,
             fontWeight: 600,
-            color: '#0f172a',
-            marginBottom: '8px',
+            color: color.text,
+            marginBottom: space[2],
             lineHeight: 1.4,
           })}
         >
@@ -230,13 +231,13 @@ function BriefCard() {
           <pre
             mix={css({
               margin: 0,
-              padding: '10px 12px',
-              background: '#f8fafc',
-              border: '1px solid #e2e8f0',
-              borderRadius: '4px',
-              fontSize: '13px',
+              padding: `${space[2]} ${space[3]}`,
+              background: color.bg,
+              border: `1px solid ${color.borderSoft}`,
+              borderRadius: radius.md,
+              fontSize: font.sm,
               lineHeight: 1.6,
-              color: '#1f2937',
+              color: color.text,
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
               fontFamily: 'inherit',
@@ -250,29 +251,8 @@ function BriefCard() {
   }
 }
 
-function SentimentChip() {
-  return ({ sentiment }: { sentiment: string }) => {
-    let palette: Record<string, [string, string]> = {
-      bullish: ['#dcfce7', '#166534'],
-      positive: ['#dcfce7', '#166534'],
-      bearish: ['#fee2e2', '#991b1b'],
-      negative: ['#fee2e2', '#991b1b'],
-      neutral: ['#e2e8f0', '#475569'],
-    }
-    let [bg, fg] = palette[sentiment] ?? ['#e2e8f0', '#475569']
-    return (
-      <span
-        mix={css({
-          padding: '1px 8px',
-          borderRadius: '4px',
-          fontSize: '11px',
-          fontWeight: 600,
-          background: bg,
-          color: fg,
-        })}
-      >
-        {sentiment}
-      </span>
-    )
-  }
+function sentimentTone(s: string): BadgeTone {
+  if (s === 'positive' || s === 'bullish') return 'success'
+  if (s === 'negative' || s === 'bearish') return 'danger'
+  return 'neutral'
 }

@@ -1,5 +1,5 @@
 import type { BuildAction } from 'remix/fetch-router'
-import { css } from 'remix/ui'
+import { css, type RemixNode } from 'remix/ui'
 
 import {
   api,
@@ -9,7 +9,20 @@ import {
   type WatchlistReport,
 } from '../api.ts'
 import type { routes } from '../routes.ts'
-import { Layout, resolveLocale } from '../ui/layout.tsx'
+import {
+  Badge,
+  type BadgeTone,
+  Card,
+  color,
+  EmptyState,
+  font,
+  Layout,
+  radius,
+  resolveLocale,
+  SectionTitle,
+  space,
+  StockBadge,
+} from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
 export const watchlistDetail: BuildAction<'GET', typeof routes.watchlistDetail> = {
@@ -60,115 +73,135 @@ interface WatchlistDetailProps {
   locale: string
 }
 
-// A watchlist is a user-curated cross-market grouping — applying the country
-// filter here would defeat its purpose, so the chip is omitted.
 function WatchlistDetailPage() {
   return ({ watchlist: w, items, stocks, reports, reportTab, locale }: WatchlistDetailProps) => (
-    <Layout title={w.name} locale={locale}>
+    <Layout
+      title={w.name}
+      subtitle={w.description ?? `${items.length} ${items.length === 1 ? 'symbol' : 'symbols'}`}
+      locale={locale}
+    >
+      <Breadcrumb name={w.name} />
+
+      <div mix={css({ marginTop: space[4] })}>
+        {items.length === 0 ? (
+          <Card>
+            <EmptyState
+              title="No symbols in this group"
+              hint={
+                <>
+                  Add one with <code>{`POST /api/v1/watchlists/${w.id}/items`}</code>.
+                </>
+              }
+            />
+          </Card>
+        ) : (
+          <Card padding="0">
+            <table
+              mix={css({
+                width: '100%',
+                borderCollapse: 'collapse',
+                fontSize: font.base,
+              })}
+            >
+              <thead>
+                <tr>
+                  <Th>Symbol</Th>
+                  <Th>Market</Th>
+                  <Th>Currency</Th>
+                  <Th>Asset class</Th>
+                  <Th>Added</Th>
+                  <Th>Notes</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((it) => {
+                  let s = stocks.get(it.stock_id)
+                  return (
+                    <tr
+                      mix={css({
+                        borderTop: `1px solid ${color.borderSoft}`,
+                        '&:hover td': { background: color.bg },
+                      })}
+                    >
+                      <Td>
+                        {s ? (
+                          <a
+                            href={`/stocks/${s.id}`}
+                            mix={css({
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: space[2],
+                              textDecoration: 'none',
+                              color: color.text,
+                              '&:hover': { color: color.brandHover },
+                            })}
+                          >
+                            <StockBadge symbol={s.symbol} />
+                            <span mix={css({ fontFamily: font.mono, fontWeight: 600 })}>
+                              {s.symbol}
+                            </span>
+                          </a>
+                        ) : (
+                          <span mix={css({ color: color.textMuted })}>#{it.stock_id}</span>
+                        )}
+                      </Td>
+                      <Td>{s ? <Badge tone="neutral">{s.market_code}</Badge> : '—'}</Td>
+                      <Td>{s?.currency ?? '—'}</Td>
+                      <Td>{s?.asset_class ?? '—'}</Td>
+                      <Td>
+                        <span mix={css({ fontSize: font.sm, color: color.textMuted })}>
+                          {it.added_at.slice(0, 10)}
+                        </span>
+                      </Td>
+                      <Td>
+                        <span mix={css({ fontSize: font.sm, color: color.textMuted })}>
+                          {it.notes ?? '—'}
+                        </span>
+                      </Td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </Card>
+        )}
+      </div>
+
+      <div mix={css({ marginTop: space[6] })}>
+        <ReportsSection
+          watchlistId={w.id}
+          reports={reports}
+          active={reportTab}
+        />
+      </div>
+    </Layout>
+  )
+}
+
+function Breadcrumb() {
+  return ({ name }: { name: string }) => (
+    <div
+      mix={css({
+        display: 'flex',
+        alignItems: 'center',
+        gap: space[2],
+        fontSize: font.sm,
+        color: color.textMuted,
+      })}
+    >
       <a
         href="/watchlists"
         mix={css({
-          fontSize: '13px',
-          color: '#64748b',
+          color: color.textMuted,
           textDecoration: 'none',
-          '&:hover': { color: '#0f172a' },
+          '&:hover': { color: color.text },
         })}
       >
-        ← Back to watchlists
+        Watchlists
       </a>
-
-      {w.description && (
-        <p mix={css({ marginTop: '12px', color: '#475569', fontSize: '14px' })}>{w.description}</p>
-      )}
-
-      <div
-        mix={css({
-          marginTop: '12px',
-          fontSize: '12px',
-          color: '#64748b',
-        })}
-      >
-        {items.length} {items.length === 1 ? 'symbol' : 'symbols'}
-      </div>
-
-      {items.length === 0 ? (
-        <p mix={css({ marginTop: '16px', color: '#64748b' })}>
-          This group is empty. Add a stock with
-          <code mix={css({ marginLeft: '4px' })}>{`POST /api/v1/watchlists/${w.id}/items`}</code>
-        </p>
-      ) : (
-        <table
-          mix={css({
-            marginTop: '16px',
-            width: '100%',
-            borderCollapse: 'collapse',
-            background: '#fff',
-            border: '1px solid #e2e8f0',
-            borderRadius: '8px',
-            overflow: 'hidden',
-            fontSize: '14px',
-          })}
-        >
-          <thead mix={css({ background: '#f1f5f9' })}>
-            <tr>
-              <Th>Symbol</Th>
-              <Th>Market</Th>
-              <Th>Currency</Th>
-              <Th>Asset class</Th>
-              <Th>Added</Th>
-              <Th>Notes</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((it) => {
-              let s = stocks.get(it.stock_id)
-              return (
-                <tr mix={css({ borderTop: '1px solid #e2e8f0' })}>
-                  <Td>
-                    <a
-                      href={s ? `/stocks/${s.id}` : '#'}
-                      mix={css({
-                        fontFamily: 'ui-monospace, SFMono-Regular, monospace',
-                        fontWeight: 600,
-                        color: '#1d4ed8',
-                        textDecoration: 'none',
-                        '&:hover': { textDecoration: 'underline' },
-                      })}
-                    >
-                      {s?.symbol ?? `#${it.stock_id}`}
-                    </a>
-                  </Td>
-                  <Td>
-                    {s ? (
-                      <Badge>{s.market_code}</Badge>
-                    ) : (
-                      <span mix={css({ color: '#94a3b8' })}>—</span>
-                    )}
-                  </Td>
-                  <Td>{s?.currency ?? '—'}</Td>
-                  <Td>{s?.asset_class ?? '—'}</Td>
-                  <Td>
-                    <span mix={css({ fontSize: '12px', color: '#64748b' })}>
-                      {it.added_at.slice(0, 10)}
-                    </span>
-                  </Td>
-                  <Td>
-                    <span mix={css({ fontSize: '13px', color: '#475569' })}>
-                      {it.notes ?? '—'}
-                    </span>
-                  </Td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      )}
-
-      {/* Reports section */}
-      <div mix={css({ marginTop: '24px' })}>
-        <ReportsSection watchlistId={w.id} reports={reports} active={reportTab} />
-      </div>
-    </Layout>
+      <span>·</span>
+      <span mix={css({ color: color.text, fontWeight: 500 })}>{name}</span>
+    </div>
   )
 }
 
@@ -182,61 +215,64 @@ function ReportsSection() {
     reports: WatchlistReport[]
     active: 'daily' | 'weekly'
   }) => (
-    <div>
+    <Card>
       <div
         mix={css({
           display: 'flex',
-          alignItems: 'baseline',
-          gap: '10px',
-          marginBottom: '12px',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: space[3],
+          flexWrap: 'wrap',
+          gap: space[2],
         })}
       >
-        <h3
-          mix={css({
-            margin: 0,
-            fontSize: '12px',
-            fontWeight: 700,
-            textTransform: 'uppercase',
-            letterSpacing: '0.08em',
-            color: '#0f172a',
-          })}
-        >
-          Reports
-        </h3>
-        <div mix={css({ display: 'flex', gap: '6px' })}>
-          <ReportTab href={`/watchlists/${watchlistId}?reports=daily`} label="Daily" active={active === 'daily'} />
-          <ReportTab href={`/watchlists/${watchlistId}?reports=weekly`} label="Weekly" active={active === 'weekly'} />
+        <SectionTitle>Reports</SectionTitle>
+        <div mix={css({ display: 'inline-flex', gap: space[1] })}>
+          <Tab
+            href={`/watchlists/${watchlistId}?reports=daily`}
+            label="Daily"
+            active={active === 'daily'}
+          />
+          <Tab
+            href={`/watchlists/${watchlistId}?reports=weekly`}
+            label="Weekly"
+            active={active === 'weekly'}
+          />
         </div>
       </div>
       {reports.length === 0 ? (
-        <p mix={css({ color: '#94a3b8', fontStyle: 'italic', fontSize: '13px', margin: 0 })}>
-          No {active} reports yet. Agent writes via{' '}
-          <code>POST /api/v1/watchlist-reports</code>.
-        </p>
+        <EmptyState
+          title={`No ${active} reports`}
+          hint={
+            <>
+              Agent writes via <code>POST /api/v1/watchlist-reports</code>.
+            </>
+          }
+        />
       ) : (
-        <div mix={css({ display: 'flex', flexDirection: 'column', gap: '10px' })}>
+        <div mix={css({ display: 'flex', flexDirection: 'column', gap: space[3] })}>
           {reports.slice(0, 10).map((r) => (
             <ReportCard report={r} />
           ))}
         </div>
       )}
-    </div>
+    </Card>
   )
 }
 
-function ReportTab() {
+function Tab() {
   return ({ href, label, active }: { href: string; label: string; active: boolean }) => (
     <a
       href={href}
       mix={css({
-        padding: '3px 12px',
-        fontSize: '11px',
+        padding: `${space[1]} ${space[3]}`,
+        fontSize: font.xs,
         fontWeight: 600,
-        borderRadius: '6px',
+        borderRadius: radius.md,
         textDecoration: 'none',
-        background: active ? '#0f172a' : '#e2e8f0',
-        color: active ? '#fff' : '#475569',
-        '&:hover': { background: active ? '#0f172a' : '#cbd5e1' },
+        background: active ? color.text : color.bg,
+        color: active ? '#fff' : color.textMuted,
+        '&:hover': { background: active ? color.text : color.hover },
       })}
     >
       {label}
@@ -246,66 +282,52 @@ function ReportTab() {
 
 function ReportCard() {
   return ({ report: r }: { report: WatchlistReport }) => {
-    let palette: Record<string, [string, string]> = {
-      bullish: ['#dcfce7', '#166534'],
-      bearish: ['#fee2e2', '#991b1b'],
-      neutral: ['#e2e8f0', '#475569'],
+    let toneMap: Record<string, BadgeTone> = {
+      bullish: 'success',
+      positive: 'success',
+      bearish: 'danger',
+      negative: 'danger',
+      neutral: 'neutral',
     }
-    let [bg, fg] = r.sentiment ? palette[r.sentiment] ?? ['#e2e8f0', '#475569'] : ['#e2e8f0', '#475569']
+    let tone = r.sentiment ? toneMap[r.sentiment] ?? 'neutral' : 'neutral'
     let periodLabel =
-      r.kind === 'weekly'
-        ? `${r.period_start} → ${r.period_end}`
-        : r.period_start
+      r.kind === 'weekly' ? `${r.period_start} → ${r.period_end}` : r.period_start
     return (
       <div
         mix={css({
-          background: '#fff',
-          border: '1px solid #e2e8f0',
-          borderLeft: '3px solid #1d4ed8',
-          borderRadius: '8px',
-          padding: '14px 18px',
+          background: color.surface,
+          border: `1px solid ${color.border}`,
+          borderLeft: `3px solid ${color.brand}`,
+          borderRadius: radius.lg,
+          padding: `${space[4]} ${space[5]}`,
         })}
       >
         <div
           mix={css({
             display: 'flex',
             alignItems: 'baseline',
-            gap: '8px',
-            marginBottom: '6px',
-            fontSize: '11px',
-            color: '#64748b',
+            gap: space[2],
+            marginBottom: space[2],
+            fontSize: font.xs,
+            color: color.textMuted,
+            flexWrap: 'wrap',
           })}
         >
-          <strong mix={css({ color: '#0f172a' })}>{periodLabel}</strong>
-          <span mix={css({ textTransform: 'uppercase', letterSpacing: '0.06em' })}>
+          <strong mix={css({ color: color.text })}>{periodLabel}</strong>
+          <span mix={css({ textTransform: 'uppercase', letterSpacing: '0.08em' })}>
             {r.kind}
           </span>
-          {r.sentiment && (
-            <span
-              mix={css({
-                padding: '1px 8px',
-                borderRadius: '4px',
-                background: bg,
-                color: fg,
-                fontSize: '10px',
-                fontWeight: 700,
-                textTransform: 'uppercase',
-              })}
-            >
-              {r.sentiment}
-              {r.sentiment_score ? ` ${r.sentiment_score}` : ''}
-            </span>
-          )}
+          {r.sentiment && <Badge tone={tone}>{r.sentiment}</Badge>}
           <span mix={css({ marginLeft: 'auto' })}>
             {r.source} · {r.language}
           </span>
         </div>
         <div
           mix={css({
-            fontSize: '14px',
+            fontSize: font.md,
             fontWeight: 600,
-            color: '#0f172a',
-            marginBottom: '6px',
+            color: color.text,
+            marginBottom: space[2],
             lineHeight: 1.4,
           })}
         >
@@ -314,11 +336,10 @@ function ReportCard() {
         {r.summary_md && (
           <p
             mix={css({
-              margin: '0 0 8px',
-              fontSize: '13px',
-              color: '#475569',
+              margin: `0 0 ${space[2]}`,
+              fontSize: font.sm,
+              color: color.textMuted,
               lineHeight: 1.55,
-              fontStyle: 'italic',
             })}
           >
             {r.summary_md}
@@ -327,14 +348,14 @@ function ReportCard() {
         {r.content_md && (
           <pre
             mix={css({
-              margin: '8px 0 0',
-              padding: '10px 12px',
-              background: '#f8fafc',
-              border: '1px solid #e2e8f0',
-              borderRadius: '4px',
-              fontSize: '13px',
+              margin: `${space[2]} 0 0`,
+              padding: `${space[3]} ${space[3]}`,
+              background: color.bg,
+              border: `1px solid ${color.borderSoft}`,
+              borderRadius: radius.md,
+              fontSize: font.sm,
               lineHeight: 1.6,
-              color: '#1f2937',
+              color: color.text,
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
               fontFamily: 'inherit',
@@ -343,41 +364,24 @@ function ReportCard() {
             {r.content_md}
           </pre>
         )}
-        {r.metrics && (
-          <details mix={css({ marginTop: '8px', fontSize: '12px', color: '#64748b' })}>
-            <summary mix={css({ cursor: 'pointer' })}>metrics</summary>
-            <pre
-              mix={css({
-                margin: '6px 0 0',
-                padding: '8px 10px',
-                background: '#f1f5f9',
-                borderRadius: '4px',
-                fontSize: '11px',
-                fontFamily: 'ui-monospace, monospace',
-                overflowX: 'auto',
-                whiteSpace: 'pre-wrap',
-              })}
-            >
-              {r.metrics}
-            </pre>
-          </details>
-        )}
       </div>
     )
   }
 }
 
 function Th() {
-  return ({ children }: { children: string }) => (
+  return ({ children }: { children: RemixNode }) => (
     <th
       mix={css({
         textAlign: 'left',
-        padding: '10px 14px',
-        fontSize: '11px',
+        padding: `${space[3]} ${space[4]}`,
+        fontSize: font.xs,
         textTransform: 'uppercase',
-        letterSpacing: '0.06em',
-        color: '#64748b',
+        letterSpacing: '0.08em',
+        color: color.textMuted,
         fontWeight: 600,
+        background: color.bg,
+        borderBottom: `1px solid ${color.border}`,
       })}
     >
       {children}
@@ -386,32 +390,7 @@ function Th() {
 }
 
 function Td() {
-  return ({ children }: { children: import('remix/ui').RemixNode }) => (
-    <td
-      mix={css({
-        padding: '10px 14px',
-        fontVariantNumeric: 'tabular-nums',
-      })}
-    >
-      {children}
-    </td>
-  )
-}
-
-function Badge() {
-  return ({ children }: { children: string }) => (
-    <span
-      mix={css({
-        display: 'inline-block',
-        padding: '2px 8px',
-        background: '#e0e7ff',
-        color: '#3730a3',
-        borderRadius: '999px',
-        fontSize: '11px',
-        fontWeight: 600,
-      })}
-    >
-      {children}
-    </span>
+  return ({ children }: { children: RemixNode }) => (
+    <td mix={css({ padding: `${space[3]} ${space[4]}` })}>{children}</td>
   )
 }

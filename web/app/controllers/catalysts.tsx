@@ -3,7 +3,21 @@ import { css } from 'remix/ui'
 
 import { api, type Catalyst, type Stock } from '../api.ts'
 import type { routes } from '../routes.ts'
-import { Layout, parseCountry, resolveLocale } from '../ui/layout.tsx'
+import {
+  Badge,
+  type BadgeTone,
+  Card,
+  color,
+  EmptyState,
+  font,
+  Layout,
+  parseCountry,
+  radius,
+  resolveLocale,
+  SectionTitle,
+  space,
+  StockBadge,
+} from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
 interface DayGroup {
@@ -77,113 +91,67 @@ interface CatalystsProps {
 
 function CatalystsPage() {
   return ({ upcoming, past, country, locale, today }: CatalystsProps) => (
-    <Layout title="Catalysts" country={country} locale={locale}>
-      <p
-        mix={css({
-          fontSize: '13px',
-          color: '#64748b',
-          marginBottom: '16px',
-        })}
-      >
-        Forward-looking catalysts for <strong>{country}</strong> — investor days,
-        FDA decisions, tariff deadlines, policy meetings. Agent writes via{' '}
-        <code>POST /api/v1/catalysts</code>. Each catalyst can target a stock, a
-        sector, or a whole country.
-      </p>
+    <Layout
+      title="Catalysts"
+      subtitle={`Forward-looking catalysts for ${country}`}
+      country={country}
+      locale={locale}
+    >
+      <SectionTitle hint={`from ${today}`}>Upcoming</SectionTitle>
+      {upcoming.length === 0 ? (
+        <Card>
+          <EmptyState
+            title={`No upcoming catalysts on file for ${country}`}
+            hint={
+              <>
+                Agent writes via <code>POST /api/v1/catalysts</code>. Each
+                catalyst can target a stock, a sector, or a whole country.
+              </>
+            }
+          />
+        </Card>
+      ) : (
+        <DayList groups={upcoming} />
+      )}
 
-      <Section label="Upcoming" sub={`from ${today}`}>
-        {upcoming.length === 0 ? (
-          <Empty>No upcoming catalysts on file for {country}.</Empty>
-        ) : (
-          <DayList groups={upcoming} />
-        )}
-      </Section>
-
-      <Section label="Past" sub={`before ${today}`}>
-        {past.length === 0 ? (
-          <Empty>No past catalysts recorded.</Empty>
-        ) : (
-          <DayList groups={past} />
-        )}
-      </Section>
-    </Layout>
-  )
-}
-
-function Section() {
-  return ({
-    label,
-    sub,
-    children,
-  }: {
-    label: string
-    sub: string
-    children: import('remix/ui').RemixNode
-  }) => (
-    <div mix={css({ marginTop: '16px' })}>
-      <div
-        mix={css({
-          display: 'flex',
-          alignItems: 'baseline',
-          justifyContent: 'space-between',
-          marginBottom: '8px',
-        })}
-      >
-        <h3
-          mix={css({
-            margin: 0,
-            fontSize: '12px',
-            fontWeight: 700,
-            textTransform: 'uppercase',
-            letterSpacing: '0.08em',
-            color: '#0f172a',
-          })}
-        >
-          {label}
-        </h3>
-        <span mix={css({ fontSize: '11px', color: '#94a3b8' })}>{sub}</span>
+      <div mix={css({ marginTop: space[6] })}>
+        <SectionTitle hint={`before ${today}`}>Past</SectionTitle>
       </div>
-      {children}
-    </div>
-  )
-}
-
-function Empty() {
-  return ({ children }: { children: import('remix/ui').RemixNode }) => (
-    <p mix={css({ color: '#94a3b8', fontStyle: 'italic', fontSize: '13px', margin: 0 })}>
-      {children}
-    </p>
+      {past.length === 0 ? (
+        <Card>
+          <EmptyState title="No past catalysts recorded" />
+        </Card>
+      ) : (
+        <DayList groups={past} />
+      )}
+    </Layout>
   )
 }
 
 function DayList() {
   return ({ groups }: { groups: DayGroup[] }) => (
-    <div mix={css({ display: 'flex', flexDirection: 'column', gap: '12px' })}>
+    <div mix={css({ display: 'flex', flexDirection: 'column', gap: space[3] })}>
       {groups.map((g) => (
-        <div
-          mix={css({
-            background: '#fff',
-            border: '1px solid #e2e8f0',
-            borderRadius: '8px',
-            overflow: 'hidden',
-          })}
-        >
+        <Card padding="0">
           <div
             mix={css({
-              background: '#f8fafc',
-              padding: '6px 14px',
-              fontSize: '12px',
+              padding: `${space[2]} ${space[4]}`,
+              fontSize: font.sm,
               fontWeight: 600,
-              color: '#0f172a',
-              borderBottom: '1px solid #e2e8f0',
+              color: color.text,
+              background: color.bg,
+              borderBottom: `1px solid ${color.borderSoft}`,
+              borderRadius: `${radius.lg} ${radius.lg} 0 0`,
             })}
           >
             {g.date}
           </div>
-          {g.rows.map(({ catalyst, stock }) => (
-            <CatalystRow catalyst={catalyst} stock={stock} />
-          ))}
-        </div>
+          <div>
+            {g.rows.map(({ catalyst, stock }) => (
+              <CatalystRow catalyst={catalyst} stock={stock} />
+            ))}
+          </div>
+        </Card>
       ))}
     </div>
   )
@@ -193,35 +161,43 @@ function CatalystRow() {
   return ({ catalyst, stock }: { catalyst: Catalyst; stock: Stock | undefined }) => (
     <div
       mix={css({
-        padding: '12px 16px',
-        borderTop: '1px solid #f1f5f9',
+        padding: `${space[3]} ${space[4]}`,
+        borderTop: `1px solid ${color.borderSoft}`,
         '&:first-child': { borderTop: 'none' },
       })}
     >
       <div
         mix={css({
           display: 'flex',
-          alignItems: 'baseline',
-          gap: '8px',
-          marginBottom: '6px',
+          alignItems: 'center',
+          gap: space[2],
+          marginBottom: space[2],
           flexWrap: 'wrap',
         })}
       >
-        <TargetChip catalyst={catalyst} stock={stock} />
-        <KindPill kind={catalyst.catalyst_kind} />
-        <ImpactPill level={catalyst.impact_level} />
-        <ConfidencePill confidence={catalyst.date_confidence} />
-        <StatusPill status={catalyst.status} />
-        <span mix={css({ marginLeft: 'auto', fontSize: '11px', color: '#94a3b8' })}>
+        <Target catalyst={catalyst} stock={stock} />
+        <Badge tone="brand">{catalyst.catalyst_kind}</Badge>
+        <Badge tone={impactTone(catalyst.impact_level)}>{catalyst.impact_level}</Badge>
+        <Badge tone={confidenceTone(catalyst.date_confidence)}>
+          {catalyst.date_confidence}
+        </Badge>
+        <Badge tone={statusTone(catalyst.status)}>{catalyst.status}</Badge>
+        <span
+          mix={css({
+            marginLeft: 'auto',
+            fontSize: font.xs,
+            color: color.textDim,
+          })}
+        >
           {catalyst.source}
         </span>
       </div>
       <div
         mix={css({
-          fontSize: '14px',
+          fontSize: font.base,
           fontWeight: 600,
-          color: '#0f172a',
-          marginBottom: '4px',
+          color: color.text,
+          marginBottom: space[1],
           lineHeight: 1.4,
         })}
       >
@@ -230,14 +206,14 @@ function CatalystRow() {
       {catalyst.summary_md && (
         <pre
           mix={css({
-            marginTop: '6px',
-            padding: '8px 10px',
-            background: '#f8fafc',
-            border: '1px solid #e2e8f0',
-            borderRadius: '4px',
-            fontSize: '12px',
-            lineHeight: 1.55,
-            color: '#1f2937',
+            margin: `${space[2]} 0 0`,
+            padding: `${space[2]} ${space[3]}`,
+            background: color.bg,
+            border: `1px solid ${color.borderSoft}`,
+            borderRadius: radius.md,
+            fontSize: font.sm,
+            lineHeight: 1.6,
+            color: color.text,
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word',
             fontFamily: 'inherit',
@@ -249,10 +225,10 @@ function CatalystRow() {
       {(catalyst.bull_case_md || catalyst.bear_case_md) && (
         <div
           mix={css({
-            marginTop: '8px',
+            marginTop: space[2],
             display: 'grid',
             gridTemplateColumns: '1fr 1fr',
-            gap: '8px',
+            gap: space[2],
             '@media (max-width: 720px)': { gridTemplateColumns: '1fr' },
           })}
         >
@@ -264,172 +240,78 @@ function CatalystRow() {
   )
 }
 
-function TargetChip() {
+function Target() {
   return ({ catalyst, stock }: { catalyst: Catalyst; stock: Stock | undefined }) => {
     if (stock) {
       return (
         <a
           href={`/stocks/${stock.id}`}
           mix={css({
-            fontFamily: 'ui-monospace, monospace',
-            fontWeight: 600,
-            color: '#1d4ed8',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: space[2],
             textDecoration: 'none',
-            fontSize: '13px',
-            '&:hover': { textDecoration: 'underline' },
+            color: color.text,
+            '&:hover': { color: color.brandHover },
           })}
         >
-          {stock.symbol}
+          <StockBadge symbol={stock.symbol} size={22} />
+          <span mix={css({ fontFamily: font.mono, fontWeight: 600 })}>{stock.symbol}</span>
         </a>
       )
     }
     if (catalyst.sector_code) {
-      return (
-        <span
-          mix={css({
-            fontFamily: 'ui-monospace, monospace',
-            fontSize: '11px',
-            color: '#7c3aed',
-            fontWeight: 600,
-          })}
-        >
-          sector:{catalyst.sector_code}
-        </span>
-      )
+      return <Badge tone="brand">sector:{catalyst.sector_code}</Badge>
     }
     if (catalyst.country) {
-      return (
-        <span
-          mix={css({
-            fontFamily: 'ui-monospace, monospace',
-            fontSize: '11px',
-            color: '#0891b2',
-            fontWeight: 600,
-          })}
-        >
-          country:{catalyst.country}
-        </span>
-      )
+      return <Badge tone="info">country:{catalyst.country}</Badge>
     }
-    return <span mix={css({ fontSize: '11px', color: '#94a3b8' })}>(unspecified)</span>
+    return <Badge tone="neutral">(unspecified)</Badge>
   }
 }
 
-function KindPill() {
-  return ({ kind }: { kind: string }) => (
-    <span
-      mix={css({
-        padding: '1px 8px',
-        borderRadius: '999px',
-        background: '#e0e7ff',
-        color: '#3730a3',
-        fontSize: '10px',
-        fontWeight: 600,
-      })}
-    >
-      {kind}
-    </span>
-  )
+function impactTone(level: string): BadgeTone {
+  if (level === 'high') return 'danger'
+  if (level === 'medium') return 'warn'
+  return 'neutral'
 }
 
-function ImpactPill() {
-  return ({ level }: { level: string }) => {
-    let palette: Record<string, [string, string]> = {
-      high: ['#fee2e2', '#991b1b'],
-      medium: ['#fef3c7', '#92400e'],
-      low: ['#e2e8f0', '#475569'],
-    }
-    let [bg, fg] = palette[level] ?? ['#e2e8f0', '#475569']
-    return (
-      <span
-        mix={css({
-          padding: '1px 8px',
-          borderRadius: '4px',
-          background: bg,
-          color: fg,
-          fontSize: '10px',
-          fontWeight: 700,
-          textTransform: 'uppercase',
-        })}
-      >
-        {level}
-      </span>
-    )
-  }
+function confidenceTone(confidence: string): BadgeTone {
+  if (confidence === 'scheduled' || confidence === 'confirmed') return 'info'
+  if (confidence === 'expected') return 'warn'
+  return 'neutral'
 }
 
-function ConfidencePill() {
-  return ({ confidence }: { confidence: string }) => {
-    let palette: Record<string, [string, string]> = {
-      scheduled: ['#dbeafe', '#1e40af'],
-      expected: ['#fef3c7', '#92400e'],
-      speculative: ['#e2e8f0', '#475569'],
-    }
-    let [bg, fg] = palette[confidence] ?? ['#e2e8f0', '#475569']
-    return (
-      <span
-        mix={css({
-          padding: '1px 8px',
-          borderRadius: '4px',
-          background: bg,
-          color: fg,
-          fontSize: '10px',
-          fontWeight: 600,
-        })}
-      >
-        {confidence}
-      </span>
-    )
-  }
-}
-
-function StatusPill() {
-  return ({ status }: { status: string }) => {
-    let palette: Record<string, [string, string]> = {
-      upcoming: ['#dbeafe', '#1e40af'],
-      released: ['#dcfce7', '#166534'],
-      delayed: ['#fef3c7', '#92400e'],
-      cancelled: ['#fee2e2', '#991b1b'],
-    }
-    let [bg, fg] = palette[status] ?? ['#e2e8f0', '#475569']
-    return (
-      <span
-        mix={css({
-          padding: '1px 8px',
-          borderRadius: '999px',
-          background: bg,
-          color: fg,
-          fontSize: '11px',
-          fontWeight: 600,
-        })}
-      >
-        {status}
-      </span>
-    )
-  }
+function statusTone(status: string): BadgeTone {
+  if (status === 'upcoming' || status === 'scheduled') return 'info'
+  if (status === 'released' || status === 'happened_positive') return 'success'
+  if (status === 'happened_negative') return 'danger'
+  if (status === 'delayed') return 'warn'
+  return 'neutral'
 }
 
 function CasePane() {
   return ({ kind, body }: { kind: 'bull' | 'bear'; body: string }) => {
-    let accent = kind === 'bull' ? '#166534' : '#991b1b'
-    let bg = kind === 'bull' ? '#f0fdf4' : '#fef2f2'
+    let accent = kind === 'bull' ? color.success : color.danger
+    let bg = kind === 'bull' ? color.successSoft : color.dangerSoft
+    let fg = kind === 'bull' ? color.successText : color.dangerText
     return (
       <div
         mix={css({
-          padding: '8px 10px',
+          padding: `${space[2]} ${space[3]}`,
           background: bg,
           border: `1px solid ${accent}33`,
-          borderRadius: '4px',
+          borderRadius: radius.md,
         })}
       >
         <div
           mix={css({
-            fontSize: '10px',
+            fontSize: font.xs,
             fontWeight: 700,
             textTransform: 'uppercase',
             letterSpacing: '0.08em',
-            color: accent,
-            marginBottom: '4px',
+            color: fg,
+            marginBottom: space[1],
           })}
         >
           {kind} case
@@ -437,9 +319,9 @@ function CasePane() {
         <pre
           mix={css({
             margin: 0,
-            fontSize: '12px',
-            lineHeight: 1.55,
-            color: '#1f2937',
+            fontSize: font.sm,
+            lineHeight: 1.6,
+            color: color.text,
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word',
             fontFamily: 'inherit',

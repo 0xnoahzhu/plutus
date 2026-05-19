@@ -1,5 +1,5 @@
 import type { BuildAction } from 'remix/fetch-router'
-import { css } from 'remix/ui'
+import { css, type RemixNode } from 'remix/ui'
 
 import {
   api,
@@ -9,7 +9,18 @@ import {
   type StockTranslation,
 } from '../api.ts'
 import type { routes } from '../routes.ts'
-import { Layout, resolveLocale } from '../ui/layout.tsx'
+import {
+  Badge,
+  Card,
+  color,
+  EmptyState,
+  font,
+  Layout,
+  resolveLocale,
+  SectionTitle,
+  space,
+  StockBadge,
+} from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
 export const stockDetail: BuildAction<'GET', typeof routes.stockDetail> = {
@@ -30,7 +41,6 @@ export const stockDetail: BuildAction<'GET', typeof routes.stockDetail> = {
     if (!stock) {
       return new Response('Stock not found', { status: 404 })
     }
-    // Join links to news items, newest first.
     let newsById = new Map<number, NewsItem>(allNews.map((n) => [n.id, n]))
     let recentNews: Array<{ link: NewsStockLink; item: NewsItem }> = newsLinks
       .map((l) => ({ link: l, item: newsById.get(l.news_id)! }))
@@ -55,7 +65,6 @@ export const stockDetail: BuildAction<'GET', typeof routes.stockDetail> = {
 interface StockDetailProps {
   stock: Stock
   translations: StockTranslation[]
-  /** Active locale from the global switcher. */
   locale: string
   recentNews: Array<{ link: NewsStockLink; item: NewsItem }>
   totalNews: number
@@ -63,128 +72,110 @@ interface StockDetailProps {
 
 function StockDetailPage() {
   return ({ stock, translations, locale, recentNews, totalNews }: StockDetailProps) => {
-    // Pick the translation that matches the global locale. Fall back to the
-    // first one we have so a Chinese-only stock still renders in English mode
-    // instead of an awkward empty card.
     let current =
       translations.find((t) => t.locale === locale) ?? translations[0] ?? null
-
+    let displayName = current?.name ?? stock.symbol
     return (
-      <Layout title={`${stock.symbol} · ${stock.market_code}`} locale={locale}>
-        <a
-          href="/stocks"
-          mix={css({
-            fontSize: '13px',
-            color: '#64748b',
-            textDecoration: 'none',
-            '&:hover': { color: '#0f172a' },
-          })}
-        >
-          ← Back to stocks
-        </a>
+      <Layout title={displayName} subtitle={`${stock.symbol} · ${stock.market_code}`} locale={locale}>
+        <Breadcrumb stock={stock} />
 
         <div
           mix={css({
-            marginTop: '12px',
             display: 'grid',
             gridTemplateColumns: '2fr 1fr',
-            gap: '16px',
-            '@media (max-width: 720px)': { gridTemplateColumns: '1fr' },
+            gap: space[4],
+            marginTop: space[4],
+            '@media (max-width: 880px)': { gridTemplateColumns: '1fr' },
           })}
         >
-          <Card>
-            <h3
-              mix={css({
-                margin: '0 0 12px',
-                fontSize: '14px',
-                fontWeight: 600,
-                color: '#0f172a',
-                textTransform: 'uppercase',
-                letterSpacing: '0.06em',
-              })}
-            >
-              Company
-            </h3>
-
-            {current ? (
-              <div>
-                <div
-                  mix={css({
-                    fontSize: '22px',
-                    fontWeight: 700,
-                    color: '#0f172a',
-                  })}
-                >
-                  {current.name}
-                </div>
-                <div
-                  mix={css({
-                    fontSize: '11px',
-                    color: '#94a3b8',
-                    marginTop: '4px',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.06em',
-                  })}
-                >
-                  {current.locale} · updated {current.updated_at.slice(0, 10)}
-                </div>
-                <Description text={current.description_md} />
-              </div>
-            ) : (
-              <EmptyState stockId={stock.id} locale={locale} />
-            )}
-          </Card>
-
-          <Card>
-            <h3
-              mix={css({
-                margin: '0 0 12px',
-                fontSize: '14px',
-                fontWeight: 600,
-                color: '#0f172a',
-                textTransform: 'uppercase',
-                letterSpacing: '0.06em',
-              })}
-            >
-              Metadata
-            </h3>
-            <Metadata stock={stock} />
-          </Card>
-        </div>
-
-        {/* Recent news — full-width below the two-column row. */}
-        <div mix={css({ marginTop: '16px' })}>
           <Card>
             <div
               mix={css({
                 display: 'flex',
-                alignItems: 'baseline',
-                justifyContent: 'space-between',
-                marginBottom: '8px',
+                alignItems: 'center',
+                gap: space[3],
+                marginBottom: space[4],
               })}
             >
-              <h3
-                mix={css({
-                  margin: 0,
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  color: '#0f172a',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.06em',
-                })}
-              >
-                Recent news
-              </h3>
-              <span mix={css({ fontSize: '12px', color: '#64748b' })}>
-                {recentNews.length} of {totalNews} shown
-              </span>
+              <StockBadge symbol={stock.symbol} size={40} />
+              <div>
+                <div
+                  mix={css({
+                    fontSize: font.xl,
+                    fontWeight: 700,
+                    color: color.text,
+                    letterSpacing: '-0.01em',
+                  })}
+                >
+                  {current?.name ?? stock.symbol}
+                </div>
+                <div mix={css({ fontSize: font.sm, color: color.textMuted })}>
+                  {current
+                    ? `${current.locale} · updated ${current.updated_at.slice(0, 10)}`
+                    : 'no translation yet'}
+                </div>
+              </div>
             </div>
+
+            {current?.description_md ? (
+              <Description text={current.description_md} />
+            ) : (
+              <EmptyState
+                title="No description for this locale"
+                hint={
+                  <>
+                    Add one with{' '}
+                    <code>{`PUT /api/v1/stocks/${stock.id}/translations/${locale}`}</code>
+                  </>
+                }
+              />
+            )}
+          </Card>
+
+          <Card>
+            <SectionTitle>Metadata</SectionTitle>
+            <Metadata stock={stock} />
+          </Card>
+        </div>
+
+        <div mix={css({ marginTop: space[4] })}>
+          <Card>
+            <SectionTitle hint={`${recentNews.length} of ${totalNews} shown`}>
+              Recent news
+            </SectionTitle>
             <NewsList items={recentNews} />
           </Card>
         </div>
       </Layout>
     )
   }
+}
+
+function Breadcrumb() {
+  return ({ stock }: { stock: Stock }) => (
+    <div
+      mix={css({
+        display: 'flex',
+        alignItems: 'center',
+        gap: space[2],
+        fontSize: font.sm,
+        color: color.textMuted,
+      })}
+    >
+      <a
+        href="/stocks"
+        mix={css({
+          color: color.textMuted,
+          textDecoration: 'none',
+          '&:hover': { color: color.text },
+        })}
+      >
+        Stocks
+      </a>
+      <span>·</span>
+      <span mix={css({ color: color.text, fontWeight: 500 })}>{stock.symbol}</span>
+    </div>
+  )
 }
 
 function NewsList() {
@@ -195,9 +186,14 @@ function NewsList() {
   }) => {
     if (items.length === 0) {
       return (
-        <p mix={css({ color: '#94a3b8', fontSize: '13px', fontStyle: 'italic', margin: 0 })}>
-          No news linked yet. Agent can attach with POST /api/v1/news/:id/stock-links.
-        </p>
+        <EmptyState
+          title="No news linked"
+          hint={
+            <>
+              Agent can attach via <code>POST /api/v1/news/:id/stock-links</code>.
+            </>
+          }
+        />
       )
     }
     return (
@@ -205,54 +201,50 @@ function NewsList() {
         {items.map(({ link, item: n }) => (
           <li
             mix={css({
-              padding: '8px 0',
-              borderTop: '1px solid #f1f5f9',
-              '&:first-child': { borderTop: 'none' },
+              padding: `${space[3]} 0`,
+              borderTop: `1px solid ${color.borderSoft}`,
+              '&:first-child': { borderTop: 'none', paddingTop: 0 },
             })}
           >
             <div
               mix={css({
                 display: 'flex',
                 alignItems: 'baseline',
-                gap: '8px',
-                fontSize: '11px',
-                color: '#94a3b8',
-                marginBottom: '2px',
+                gap: space[2],
+                fontSize: font.xs,
+                color: color.textDim,
+                marginBottom: space[1],
               })}
             >
               <span>{n.published_at.slice(0, 10)}</span>
               <span>·</span>
               <span>{n.source}</span>
               <span>·</span>
-              <span mix={css({ color: link.relation === 'primary' ? '#1d4ed8' : '#94a3b8' })}>
+              <Badge tone={link.relation === 'primary' ? 'brand' : 'neutral'}>
                 {link.relation}
-              </span>
+              </Badge>
               {n.sentiment && (
-                <>
-                  <span>·</span>
-                  <span
-                    mix={css({
-                      color:
-                        n.sentiment === 'positive'
-                          ? '#166534'
-                          : n.sentiment === 'negative'
-                            ? '#991b1b'
-                            : '#475569',
-                    })}
-                  >
-                    {n.sentiment}
-                  </span>
-                </>
+                <Badge
+                  tone={
+                    n.sentiment === 'positive'
+                      ? 'success'
+                      : n.sentiment === 'negative'
+                        ? 'danger'
+                        : 'neutral'
+                  }
+                >
+                  {n.sentiment}
+                </Badge>
               )}
             </div>
             <a
               href={`/news/${n.id}`}
               mix={css({
-                fontSize: '14px',
-                color: '#0f172a',
+                fontSize: font.base,
+                color: color.text,
                 textDecoration: 'none',
                 fontWeight: 500,
-                '&:hover': { color: '#1d4ed8' },
+                '&:hover': { color: color.brandHover },
               })}
             >
               {n.title}
@@ -264,93 +256,25 @@ function NewsList() {
   }
 }
 
-function Card() {
-  return ({ children }: { children: import('remix/ui').RemixNode }) => (
-    <div
-      mix={css({
-        background: '#fff',
-        borderRadius: '8px',
-        padding: '20px',
-        border: '1px solid #e2e8f0',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-      })}
-    >
-      {children}
-    </div>
-  )
-}
-
 function Description() {
-  return ({ text }: { text: string | null }) => {
-    if (!text) {
-      return (
-        <p
-          mix={css({
-            marginTop: '12px',
-            color: '#94a3b8',
-            fontStyle: 'italic',
-            fontSize: '14px',
-          })}
-        >
-          (no description yet)
-        </p>
-      )
-    }
-    // Markdown rendering is out of scope for Phase 0 — show raw with whitespace
-    // preserved. Markdown-it / similar can drop in later if we need formatting.
-    return (
-      <pre
-        mix={css({
-          marginTop: '12px',
-          padding: '12px',
-          background: '#f8fafc',
-          border: '1px solid #e2e8f0',
-          borderRadius: '6px',
-          fontSize: '14px',
-          lineHeight: 1.6,
-          color: '#1f2937',
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-word',
-          fontFamily: 'inherit',
-        })}
-      >
-        {text}
-      </pre>
-    )
-  }
-}
-
-function EmptyState() {
-  return ({ stockId, locale }: { stockId: number; locale: string }) => (
-    <div
+  return ({ text }: { text: string }) => (
+    <pre
       mix={css({
-        marginTop: '16px',
-        padding: '16px',
-        background: '#fef9c3',
-        border: '1px solid #fde68a',
+        margin: 0,
+        padding: `${space[3]} ${space[4]}`,
+        background: color.bg,
+        border: `1px solid ${color.borderSoft}`,
         borderRadius: '6px',
-        fontSize: '13px',
+        fontSize: font.base,
         lineHeight: 1.6,
-        color: '#713f12',
+        color: color.text,
+        whiteSpace: 'pre-wrap',
+        wordBreak: 'break-word',
+        fontFamily: 'inherit',
       })}
     >
-      <strong>No translation for this locale yet.</strong> Add one with:
-      <pre
-        mix={css({
-          marginTop: '8px',
-          padding: '10px',
-          background: '#fffbeb',
-          borderRadius: '4px',
-          fontSize: '12px',
-          color: '#451a03',
-          overflowX: 'auto',
-        })}
-      >
-        {`curl -X PUT ${api.base}/api/v1/stocks/${stockId}/translations/${locale} \\
-  -H 'Content-Type: application/json' \\
-  -d '{"name":"…","description_md":"…"}'`}
-      </pre>
-    </div>
+      {text}
+    </pre>
   )
 }
 
@@ -361,8 +285,8 @@ function Metadata() {
         margin: 0,
         display: 'grid',
         gridTemplateColumns: 'auto 1fr',
-        gap: '8px 16px',
-        fontSize: '13px',
+        gap: `${space[2]} ${space[4]}`,
+        fontSize: font.sm,
       })}
     >
       <Row label="Symbol" value={stock.symbol} mono />
@@ -380,12 +304,20 @@ function Metadata() {
 }
 
 function Row() {
-  return ({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) => (
+  return ({
+    label,
+    value,
+    mono = false,
+  }: {
+    label: string
+    value: string
+    mono?: boolean
+  }) => (
     <>
       <dt
         mix={css({
-          fontSize: '11px',
-          color: '#64748b',
+          fontSize: font.xs,
+          color: color.textMuted,
           textTransform: 'uppercase',
           letterSpacing: '0.06em',
           alignSelf: 'center',
@@ -396,8 +328,8 @@ function Row() {
       <dd
         mix={css({
           margin: 0,
-          color: '#0f172a',
-          fontFamily: mono ? 'ui-monospace, SFMono-Regular, monospace' : 'inherit',
+          color: color.text,
+          fontFamily: mono ? font.mono : 'inherit',
         })}
       >
         {value}

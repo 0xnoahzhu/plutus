@@ -1,5 +1,5 @@
 import type { BuildAction } from 'remix/fetch-router'
-import { css } from 'remix/ui'
+import { css, type RemixNode } from 'remix/ui'
 
 import {
   api,
@@ -13,7 +13,19 @@ import {
   type Stock,
 } from '../api.ts'
 import type { routes } from '../routes.ts'
-import { Layout, resolveLocale } from '../ui/layout.tsx'
+import {
+  Badge,
+  type BadgeTone,
+  Card,
+  color,
+  font,
+  Layout,
+  radius,
+  resolveLocale,
+  SectionTitle,
+  space,
+  StockBadge,
+} from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
 export const newsDetail: BuildAction<'GET', typeof routes.newsDetail> = {
@@ -25,8 +37,6 @@ export const newsDetail: BuildAction<'GET', typeof routes.newsDetail> = {
 
     let [item, stockLinks, sectorLinks, macroLinks, countryLinks, translations, stocks, sectors] =
       await Promise.all([
-        // `locale` flows through to the server which merges the matching
-        // news_translations row over title/summary/content_md/agent_summary_md.
         api.newsItem(id, locale).catch(() => null),
         api.newsStockLinks(id).catch(() => [] as NewsStockLink[]),
         api.newsSectorLinks(id).catch(() => [] as NewsSectorLink[]),
@@ -66,7 +76,6 @@ interface NewsDetailProps {
   macroLinks: NewsMacroLink[]
   countryLinks: NewsCountryLink[]
   translations: NewsTranslation[]
-  /** Active locale from the global switcher in Layout. */
   locale: string
   stocks: Map<number, Stock>
   sectors: Map<string, Sector>
@@ -84,271 +93,295 @@ function NewsDetailPage() {
     stocks,
     sectors,
   }: NewsDetailProps) => {
-    // Server already applied the translation for `locale` into n's display
-    // fields. We just need to know whether one existed so the provenance
-    // banner can be rendered.
     let chosen = translations.find((t) => t.locale === locale) ?? null
     let isOriginal = locale === n.language
     let missingTranslation = !isOriginal && !chosen
 
     return (
-    <Layout title={n.title} locale={locale}>
+      <Layout title={n.title} locale={locale}>
+        <Breadcrumb />
+
+        <div
+          mix={css({
+            marginTop: space[3],
+            display: 'grid',
+            gridTemplateColumns: '2fr 1fr',
+            gap: space[4],
+            '@media (max-width: 880px)': { gridTemplateColumns: '1fr' },
+          })}
+        >
+          <Card>
+            {/* Meta strip */}
+            <div
+              mix={css({
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: space[2],
+                alignItems: 'center',
+                fontSize: font.xs,
+                color: color.textMuted,
+                marginBottom: space[3],
+              })}
+            >
+              <strong mix={css({ color: color.text })}>{n.source}</strong>
+              <span>·</span>
+              <span>{fmtDate(n.published_at)}</span>
+              <span>·</span>
+              <Badge tone="neutral">{n.region}</Badge>
+              <Badge tone="brand">{n.category}</Badge>
+              {n.sentiment && (
+                <Badge tone={sentimentTone(n.sentiment)}>{n.sentiment}</Badge>
+              )}
+            </div>
+
+            {/* Translation provenance / missing-hint */}
+            {chosen ? (
+              <div
+                mix={css({
+                  fontSize: font.xs,
+                  color: color.textDim,
+                  marginBottom: space[3],
+                })}
+              >
+                translation ({chosen.locale}) by {chosen.translator} · updated{' '}
+                {chosen.updated_at.slice(0, 10)}
+              </div>
+            ) : missingTranslation ? (
+              <div
+                mix={css({
+                  padding: `${space[2]} ${space[3]}`,
+                  background: color.warnSoft,
+                  borderRadius: radius.md,
+                  fontSize: font.sm,
+                  color: color.warnText,
+                  marginBottom: space[3],
+                })}
+              >
+                No translation for <code>{locale}</code> yet — showing original ({n.language}).
+                Add via{' '}
+                <code>{`PUT /api/v1/news/${n.id}/translations/${locale}`}</code>.
+              </div>
+            ) : null}
+
+            <h1
+              mix={css({
+                margin: `${space[2]} 0 ${space[3]}`,
+                fontSize: font.xl,
+                fontWeight: 700,
+                color: color.text,
+                lineHeight: 1.3,
+                letterSpacing: '-0.01em',
+              })}
+            >
+              {n.title}
+            </h1>
+
+            {n.summary && (
+              <p
+                mix={css({
+                  margin: `0 0 ${space[4]}`,
+                  fontSize: font.md,
+                  color: color.textMuted,
+                  lineHeight: 1.6,
+                })}
+              >
+                {n.summary}
+              </p>
+            )}
+            {n.agent_summary_md && (
+              <div
+                mix={css({
+                  margin: `0 0 ${space[4]}`,
+                  padding: `${space[3]} ${space[4]}`,
+                  background: color.brandSoft,
+                  borderLeft: `3px solid ${color.brand}`,
+                  borderRadius: radius.md,
+                  color: color.brandSoftText,
+                })}
+              >
+                <div
+                  mix={css({
+                    fontSize: font.xs,
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                    marginBottom: space[1],
+                  })}
+                >
+                  Agent take
+                </div>
+                <BodyText text={n.agent_summary_md} />
+              </div>
+            )}
+            {n.content_md ? (
+              <BodyText text={n.content_md} />
+            ) : (
+              <p
+                mix={css({
+                  color: color.textDim,
+                  fontStyle: 'italic',
+                  fontSize: font.sm,
+                })}
+              >
+                (no full content stored — follow the original link)
+              </p>
+            )}
+
+            <Links item={n} />
+          </Card>
+
+          <div mix={css({ display: 'flex', flexDirection: 'column', gap: space[4] })}>
+            <Card>
+              <SectionTitle>Related stocks</SectionTitle>
+              {stockLinks.length === 0 ? (
+                <Dim>none</Dim>
+              ) : (
+                <ul mix={css({ listStyle: 'none', margin: 0, padding: 0 })}>
+                  {stockLinks.map((l) => {
+                    let s = stocks.get(l.stock_id)
+                    return (
+                      <li
+                        mix={css({
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: space[2],
+                          marginBottom: space[2],
+                          '&:last-child': { marginBottom: 0 },
+                        })}
+                      >
+                        {s ? (
+                          <a
+                            href={`/stocks/${s.id}`}
+                            mix={css({
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: space[2],
+                              textDecoration: 'none',
+                              color: color.text,
+                              '&:hover': { color: color.brandHover },
+                            })}
+                          >
+                            <StockBadge symbol={s.symbol} size={22} />
+                            <span mix={css({ fontFamily: font.mono, fontWeight: 600 })}>
+                              {s.symbol}
+                            </span>
+                          </a>
+                        ) : (
+                          <span mix={css({ color: color.textMuted })}>#{l.stock_id}</span>
+                        )}
+                        <span
+                          mix={css({
+                            marginLeft: 'auto',
+                            fontSize: font.xs,
+                            color: color.textDim,
+                          })}
+                        >
+                          {l.relation}
+                          {l.relevance ? ` · ${l.relevance}` : ''}
+                        </span>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </Card>
+
+            <Card>
+              <SectionTitle>Sectors</SectionTitle>
+              {sectorLinks.length === 0 ? (
+                <Dim>none</Dim>
+              ) : (
+                <ChipRow>
+                  {sectorLinks.map((l) => {
+                    let s = sectors.get(l.sector_code)
+                    return (
+                      <Badge tone="neutral">
+                        {l.sector_code}
+                        {s ? ` · ${s.name}` : ''}
+                      </Badge>
+                    )
+                  })}
+                </ChipRow>
+              )}
+
+              <div mix={css({ marginTop: space[4] })}>
+                <SectionTitle>Macro indicators</SectionTitle>
+                {macroLinks.length === 0 ? (
+                  <Dim>none</Dim>
+                ) : (
+                  <ChipRow>
+                    {macroLinks.map((l) => (
+                      <Badge tone="neutral">{l.indicator_code}</Badge>
+                    ))}
+                  </ChipRow>
+                )}
+              </div>
+
+              <div mix={css({ marginTop: space[4] })}>
+                <SectionTitle>Countries</SectionTitle>
+                {countryLinks.length === 0 ? (
+                  <Dim>none</Dim>
+                ) : (
+                  <ChipRow>
+                    {countryLinks.map((l) => (
+                      <Badge tone="brand">{l.country}</Badge>
+                    ))}
+                  </ChipRow>
+                )}
+              </div>
+            </Card>
+          </div>
+        </div>
+      </Layout>
+    )
+  }
+}
+
+function Breadcrumb() {
+  return () => (
+    <div
+      mix={css({
+        display: 'flex',
+        alignItems: 'center',
+        gap: space[2],
+        fontSize: font.sm,
+        color: color.textMuted,
+      })}
+    >
       <a
         href="/news"
         mix={css({
-          fontSize: '13px',
-          color: '#64748b',
+          color: color.textMuted,
           textDecoration: 'none',
-          '&:hover': { color: '#0f172a' },
+          '&:hover': { color: color.text },
         })}
       >
-        ← Back to news
+        News
       </a>
+      <span>·</span>
+      <span mix={css({ color: color.text, fontWeight: 500 })}>Detail</span>
+    </div>
+  )
+}
 
-      {/* Meta strip */}
-      <div
-        mix={css({
-          marginTop: '12px',
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: '8px',
-          alignItems: 'center',
-          fontSize: '12px',
-          color: '#64748b',
-        })}
-      >
-        <strong mix={css({ color: '#0f172a' })}>{n.source}</strong>
-        <span>·</span>
-        <span>{fmtDate(n.published_at)}</span>
-        <span>·</span>
-        <span>{n.language}</span>
-        <span>·</span>
-        <span>region {n.region}</span>
-        <span>·</span>
-        <span>importance {n.importance}</span>
-        {n.sentiment && (
-          <>
-            <span>·</span>
-            <span>sentiment {n.sentiment} {n.sentiment_score ? `(${n.sentiment_score})` : ''}</span>
-          </>
-        )}
-      </div>
-
-      {/* Two-column body */}
-      <div
-        mix={css({
-          marginTop: '16px',
-          display: 'grid',
-          gridTemplateColumns: '2fr 1fr',
-          gap: '16px',
-          '@media (max-width: 720px)': { gridTemplateColumns: '1fr' },
-        })}
-      >
-        <Card>
-          {/* Translation provenance + missing-translation hint. The locale
-              itself is controlled by the global switcher in Layout. */}
-          {chosen ? (
-            <div
-              mix={css({
-                fontSize: '11px',
-                color: '#94a3b8',
-              })}
-            >
-              translation ({chosen.locale}) by {chosen.translator} · updated{' '}
-              {chosen.updated_at.slice(0, 10)}
-            </div>
-          ) : isOriginal ? (
-            <div
-              mix={css({
-                fontSize: '11px',
-                color: '#94a3b8',
-              })}
-            >
-              original language: {n.language}
-            </div>
-          ) : missingTranslation ? (
-            <div
-              mix={css({
-                padding: '8px 10px',
-                background: '#fef9c3',
-                borderRadius: '4px',
-                fontSize: '12px',
-                color: '#713f12',
-              })}
-            >
-              No translation for <code>{locale}</code> yet — showing original ({n.language}).
-              Add one with{' '}
-              <code>{`PUT /api/v1/news/${n.id}/translations/${locale}`}</code>.
-            </div>
-          ) : null}
-
-          <div
-            mix={css({
-              marginTop: '14px',
-              fontSize: '20px',
-              fontWeight: 700,
-              color: '#0f172a',
-              lineHeight: 1.35,
-            })}
-          >
-            {n.title}
-          </div>
-
-          {n.summary && (
-            <p
-              mix={css({
-                margin: '12px 0 14px',
-                fontSize: '14px',
-                color: '#475569',
-                lineHeight: 1.6,
-                fontStyle: 'italic',
-              })}
-            >
-              {n.summary}
-            </p>
-          )}
-          {n.agent_summary_md && (
-            <div
-              mix={css({
-                margin: '0 0 14px',
-                padding: '12px 14px',
-                background: '#eef2ff',
-                borderLeft: '3px solid #1d4ed8',
-                borderRadius: '4px',
-                fontSize: '13px',
-                color: '#3730a3',
-              })}
-            >
-              <div
-                mix={css({
-                  fontSize: '10px',
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.08em',
-                  marginBottom: '4px',
-                })}
-              >
-                Agent take
-              </div>
-              <BodyText text={n.agent_summary_md} />
-            </div>
-          )}
-          {n.content_md ? (
-            <BodyText text={n.content_md} />
-          ) : (
-            <p
-              mix={css({
-                color: '#94a3b8',
-                fontStyle: 'italic',
-                fontSize: '13px',
-              })}
-            >
-              (no full content stored — follow the original link)
-            </p>
-          )}
-
-          <Links item={n} />
-        </Card>
-
-        <Card>
-          <SectionTitle>Related stocks</SectionTitle>
-          {stockLinks.length === 0 ? (
-            <Dim>none</Dim>
-          ) : (
-            <ul mix={css({ listStyle: 'none', margin: 0, padding: 0 })}>
-              {stockLinks.map((l) => {
-                let s = stocks.get(l.stock_id)
-                return (
-                  <li mix={css({ marginBottom: '6px' })}>
-                    {s ? (
-                      <a
-                        href={`/stocks/${s.id}`}
-                        mix={css({
-                          color: '#1d4ed8',
-                          textDecoration: 'none',
-                          fontWeight: 600,
-                          fontFamily: 'ui-monospace, monospace',
-                          '&:hover': { textDecoration: 'underline' },
-                        })}
-                      >
-                        {s.symbol}
-                      </a>
-                    ) : (
-                      <span>#{l.stock_id}</span>
-                    )}
-                    <span
-                      mix={css({
-                        marginLeft: '8px',
-                        fontSize: '11px',
-                        color: '#64748b',
-                      })}
-                    >
-                      {l.relation}
-                      {l.relevance ? ` · ${l.relevance}` : ''}
-                    </span>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-
-          <SectionTitle>Sectors</SectionTitle>
-          {sectorLinks.length === 0 ? (
-            <Dim>none</Dim>
-          ) : (
-            <ChipRow>
-              {sectorLinks.map((l) => {
-                let s = sectors.get(l.sector_code)
-                return (
-                  <Chip>
-                    {l.sector_code}
-                    {s ? ` · ${s.name}` : ''}
-                  </Chip>
-                )
-              })}
-            </ChipRow>
-          )}
-
-          <SectionTitle>Macro indicators</SectionTitle>
-          {macroLinks.length === 0 ? (
-            <Dim>none</Dim>
-          ) : (
-            <ChipRow>
-              {macroLinks.map((l) => (
-                <Chip>{l.indicator_code}</Chip>
-              ))}
-            </ChipRow>
-          )}
-
-          <SectionTitle>Countries</SectionTitle>
-          {countryLinks.length === 0 ? (
-            <Dim>none</Dim>
-          ) : (
-            <ChipRow>
-              {countryLinks.map((l) => (
-                <Chip>{l.country}</Chip>
-              ))}
-            </ChipRow>
-          )}
-        </Card>
-      </div>
-    </Layout>
-    )
-  }
+function sentimentTone(s: string): BadgeTone {
+  if (s === 'positive' || s === 'bullish') return 'success'
+  if (s === 'negative' || s === 'bearish') return 'danger'
+  return 'neutral'
 }
 
 function Links() {
   return ({ item: n }: { item: NewsItem }) => (
     <div
       mix={css({
-        marginTop: '20px',
-        paddingTop: '16px',
-        borderTop: '1px solid #e2e8f0',
-        fontSize: '12px',
-        color: '#64748b',
+        marginTop: space[5],
+        paddingTop: space[4],
+        borderTop: `1px solid ${color.borderSoft}`,
+        fontSize: font.xs,
+        color: color.textMuted,
         display: 'flex',
         flexDirection: 'column',
-        gap: '4px',
+        gap: space[1],
       })}
     >
       <div>
@@ -357,12 +390,12 @@ function Links() {
           href={n.url}
           target="_blank"
           rel="noopener noreferrer"
-          mix={css({ color: '#1d4ed8' })}
+          mix={css({ color: color.brandHover })}
         >
           {n.url}
         </a>
         {n.url_status && (
-          <span mix={css({ marginLeft: '8px', color: '#94a3b8' })}>
+          <span mix={css({ marginLeft: space[2], color: color.textDim })}>
             HTTP {n.url_status}
           </span>
         )}
@@ -370,8 +403,12 @@ function Links() {
       {n.canonical_url && n.canonical_url !== n.url && (
         <div>
           Canonical:{' '}
-          <a href={n.canonical_url} target="_blank" rel="noopener noreferrer"
-            mix={css({ color: '#1d4ed8' })}>
+          <a
+            href={n.canonical_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            mix={css({ color: color.brandHover })}
+          >
             {n.canonical_url}
           </a>
         </div>
@@ -379,15 +416,17 @@ function Links() {
       {n.archive_url && (
         <div>
           Archive:{' '}
-          <a href={n.archive_url} target="_blank" rel="noopener noreferrer"
-            mix={css({ color: '#1d4ed8' })}>
+          <a
+            href={n.archive_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            mix={css({ color: color.brandHover })}
+          >
             {n.archive_url}
           </a>
         </div>
       )}
-      {n.last_verified_at && (
-        <div>last verified {fmtDate(n.last_verified_at)}</div>
-      )}
+      {n.last_verified_at && <div>last verified {fmtDate(n.last_verified_at)}</div>}
     </div>
   )
 }
@@ -396,67 +435,17 @@ function fmtDate(iso: string): string {
   return iso.slice(0, 16).replace('T', ' ')
 }
 
-function Card() {
-  return ({ children }: { children: import('remix/ui').RemixNode }) => (
-    <div
-      mix={css({
-        background: '#fff',
-        borderRadius: '8px',
-        padding: '20px',
-        border: '1px solid #e2e8f0',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-      })}
-    >
-      {children}
-    </div>
-  )
-}
-
-function SectionTitle() {
-  return ({ children }: { children: string }) => (
-    <h3
-      mix={css({
-        margin: '16px 0 8px',
-        fontSize: '11px',
-        fontWeight: 600,
-        textTransform: 'uppercase',
-        letterSpacing: '0.08em',
-        color: '#64748b',
-      })}
-    >
-      {children}
-    </h3>
-  )
-}
-
 function Dim() {
-  return ({ children }: { children: string }) => (
-    <span mix={css({ fontSize: '13px', color: '#94a3b8', fontStyle: 'italic' })}>
+  return ({ children }: { children: RemixNode }) => (
+    <span mix={css({ fontSize: font.sm, color: color.textDim, fontStyle: 'italic' })}>
       {children}
     </span>
   )
 }
 
 function ChipRow() {
-  return ({ children }: { children: import('remix/ui').RemixNode }) => (
-    <div mix={css({ display: 'flex', flexWrap: 'wrap', gap: '6px' })}>{children}</div>
-  )
-}
-
-function Chip() {
-  return ({ children }: { children: import('remix/ui').RemixNode }) => (
-    <span
-      mix={css({
-        padding: '2px 8px',
-        background: '#f1f5f9',
-        color: '#475569',
-        borderRadius: '999px',
-        fontSize: '11px',
-        fontWeight: 500,
-      })}
-    >
-      {children}
-    </span>
+  return ({ children }: { children: RemixNode }) => (
+    <div mix={css({ display: 'flex', flexWrap: 'wrap', gap: space[1] })}>{children}</div>
   )
 }
 
@@ -465,9 +454,9 @@ function BodyText() {
     <pre
       mix={css({
         margin: 0,
-        fontSize: '14px',
-        lineHeight: 1.65,
-        color: '#1f2937',
+        fontSize: font.base,
+        lineHeight: 1.7,
+        color: color.text,
         whiteSpace: 'pre-wrap',
         wordBreak: 'break-word',
         fontFamily: 'inherit',

@@ -3,7 +3,19 @@ import { css } from 'remix/ui'
 
 import { api, type NewsItem } from '../api.ts'
 import type { routes } from '../routes.ts'
-import { Layout, parseCountry, resolveLocale } from '../ui/layout.tsx'
+import {
+  Badge,
+  type BadgeTone,
+  Card,
+  color,
+  EmptyState,
+  font,
+  Layout,
+  parseCountry,
+  radius,
+  resolveLocale,
+  space,
+} from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
 export const news: BuildAction<'GET', typeof routes.news> = {
@@ -13,12 +25,7 @@ export const news: BuildAction<'GET', typeof routes.news> = {
     let locale = resolveLocale(request, url.searchParams)
 
     let all = await api.news(locale).catch(() => [])
-    // News carries a `region` field directly (US/HK/CN/global). Filter on
-    // that — falls through `global` regardless of which country is picked.
-    let filtered = all.filter(
-      (n) => n.region === country || n.region === 'global',
-    )
-    // Newest first.
+    let filtered = all.filter((n) => n.region === country || n.region === 'global')
     filtered.sort((a, b) => b.published_at.localeCompare(a.published_at))
 
     return render(
@@ -43,87 +50,27 @@ interface NewsListProps {
 
 function NewsListPage() {
   return ({ rows, totalRaw, country, locale }: NewsListProps) => (
-    <Layout title="News" country={country} locale={locale}>
-      <p
-        mix={css({
-          fontSize: '13px',
-          color: '#64748b',
-          marginBottom: '16px',
-        })}
-      >
-        Showing {rows.length} of {totalRaw} items (region: {country} or global). Items are
-        created by the agent via <code>POST /api/v1/news</code>.
-      </p>
+    <Layout
+      title="News"
+      subtitle={`${rows.length} of ${totalRaw} items · region ${country} or global`}
+      country={country}
+      locale={locale}
+    >
       {rows.length === 0 ? (
-        <p mix={css({ color: '#64748b' })}>
-          No news yet. Push items in with <code>POST /api/v1/news</code>.
-        </p>
+        <Card>
+          <EmptyState
+            title="No news yet"
+            hint={
+              <>
+                Push items via <code>POST /api/v1/news</code>.
+              </>
+            }
+          />
+        </Card>
       ) : (
-        <div mix={css({ display: 'flex', flexDirection: 'column', gap: '10px' })}>
+        <div mix={css({ display: 'flex', flexDirection: 'column', gap: space[2] })}>
           {rows.map((n) => (
-            <a
-              href={`/news/${n.id}`}
-              mix={css({
-                display: 'block',
-                background: '#fff',
-                border: '1px solid #e2e8f0',
-                borderRadius: '8px',
-                padding: '14px 18px',
-                textDecoration: 'none',
-                color: 'inherit',
-                transition: 'border-color 120ms ease',
-                '&:hover': { borderColor: '#1d4ed8' },
-              })}
-            >
-              <div
-                mix={css({
-                  display: 'flex',
-                  alignItems: 'baseline',
-                  gap: '10px',
-                  marginBottom: '6px',
-                })}
-              >
-                <ImportanceDot importance={n.importance} />
-                <SentimentChip sentiment={n.sentiment} />
-                <CategoryPill>{n.category}</CategoryPill>
-                <RegionPill>{n.region}</RegionPill>
-                <span
-                  mix={css({
-                    marginLeft: 'auto',
-                    fontSize: '11px',
-                    color: '#94a3b8',
-                  })}
-                >
-                  {fmtDate(n.published_at)} · {n.source}
-                </span>
-              </div>
-              <div
-                mix={css({
-                  fontSize: '15px',
-                  fontWeight: 600,
-                  color: '#0f172a',
-                  lineHeight: 1.4,
-                })}
-              >
-                {n.title}
-              </div>
-              {n.summary && (
-                <div
-                  mix={css({
-                    fontSize: '13px',
-                    color: '#475569',
-                    marginTop: '6px',
-                    lineHeight: 1.55,
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden',
-                  })}
-                >
-                  {n.summary}
-                </div>
-              )}
-            </a>
+            <NewsCard item={n} />
           ))}
         </div>
       )}
@@ -131,14 +78,92 @@ function NewsListPage() {
   )
 }
 
-function fmtDate(iso: string): string {
-  return iso.slice(0, 16).replace('T', ' ')
+function NewsCard() {
+  return ({ item: n }: { item: NewsItem }) => (
+    <a
+      href={`/news/${n.id}`}
+      mix={css({
+        display: 'block',
+        background: color.surface,
+        border: `1px solid ${color.border}`,
+        borderRadius: radius.lg,
+        padding: `${space[4]} ${space[5]}`,
+        textDecoration: 'none',
+        color: 'inherit',
+        transition: 'border-color 120ms ease, transform 120ms ease',
+        '&:hover': {
+          borderColor: color.brand,
+          transform: 'translateY(-1px)',
+        },
+      })}
+    >
+      <div
+        mix={css({
+          display: 'flex',
+          alignItems: 'center',
+          gap: space[2],
+          marginBottom: space[2],
+          flexWrap: 'wrap',
+        })}
+      >
+        <ImportanceDot importance={n.importance} />
+        {n.sentiment && <Badge tone={sentimentTone(n.sentiment)}>{n.sentiment}</Badge>}
+        <Badge tone="brand">{n.category}</Badge>
+        <Badge tone="neutral">{n.region}</Badge>
+        <span
+          mix={css({
+            marginLeft: 'auto',
+            fontSize: font.xs,
+            color: color.textDim,
+          })}
+        >
+          {fmtDate(n.published_at)} · {n.source}
+        </span>
+      </div>
+      <div
+        mix={css({
+          fontSize: font.md,
+          fontWeight: 600,
+          color: color.text,
+          lineHeight: 1.4,
+        })}
+      >
+        {n.title}
+      </div>
+      {n.summary && (
+        <div
+          mix={css({
+            fontSize: font.sm,
+            color: color.textMuted,
+            marginTop: space[2],
+            lineHeight: 1.55,
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+          })}
+        >
+          {n.summary}
+        </div>
+      )}
+    </a>
+  )
+}
+
+function sentimentTone(s: string): BadgeTone {
+  if (s === 'positive' || s === 'bullish') return 'success'
+  if (s === 'negative' || s === 'bearish') return 'danger'
+  return 'neutral'
 }
 
 function ImportanceDot() {
   return ({ importance }: { importance: string }) => {
-    let color =
-      importance === 'high' ? '#dc2626' : importance === 'low' ? '#94a3b8' : '#f59e0b'
+    let dot =
+      importance === 'high'
+        ? color.danger
+        : importance === 'low'
+          ? color.textDim
+          : color.warn
     return (
       <span
         title={`importance: ${importance}`}
@@ -146,7 +171,7 @@ function ImportanceDot() {
           width: '8px',
           height: '8px',
           borderRadius: '999px',
-          background: color,
+          background: dot,
           display: 'inline-block',
         })}
       />
@@ -154,62 +179,6 @@ function ImportanceDot() {
   }
 }
 
-function SentimentChip() {
-  return ({ sentiment }: { sentiment: string | null }) => {
-    if (!sentiment) return null
-    let palette: Record<string, [string, string]> = {
-      positive: ['#dcfce7', '#166534'],
-      negative: ['#fee2e2', '#991b1b'],
-      neutral: ['#e2e8f0', '#475569'],
-    }
-    let [bg, fg] = palette[sentiment] ?? ['#e2e8f0', '#475569']
-    return (
-      <span
-        mix={css({
-          padding: '1px 8px',
-          borderRadius: '4px',
-          fontSize: '11px',
-          fontWeight: 600,
-          background: bg,
-          color: fg,
-        })}
-      >
-        {sentiment}
-      </span>
-    )
-  }
-}
-
-function CategoryPill() {
-  return ({ children }: { children: string }) => (
-    <span
-      mix={css({
-        padding: '1px 8px',
-        borderRadius: '999px',
-        background: '#eef2ff',
-        color: '#3730a3',
-        fontSize: '11px',
-        fontWeight: 600,
-      })}
-    >
-      {children}
-    </span>
-  )
-}
-
-function RegionPill() {
-  return ({ children }: { children: string }) => (
-    <span
-      mix={css({
-        padding: '1px 8px',
-        borderRadius: '999px',
-        background: '#f1f5f9',
-        color: '#475569',
-        fontSize: '11px',
-        fontWeight: 600,
-      })}
-    >
-      {children}
-    </span>
-  )
+function fmtDate(iso: string): string {
+  return iso.slice(0, 16).replace('T', ' ')
 }

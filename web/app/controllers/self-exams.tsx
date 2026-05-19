@@ -3,7 +3,17 @@ import { css } from 'remix/ui'
 
 import { api, type SelfExam } from '../api.ts'
 import type { routes } from '../routes.ts'
-import { Layout, resolveLocale } from '../ui/layout.tsx'
+import {
+  Badge,
+  Card,
+  color,
+  EmptyState,
+  font,
+  Layout,
+  radius,
+  resolveLocale,
+  space,
+} from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
 export const selfExams: BuildAction<'GET', typeof routes.selfExams> = {
@@ -27,12 +37,18 @@ interface SelfExamsProps {
 
 function SelfExamsPage() {
   return ({ exams, locale }: SelfExamsProps) => (
-    <Layout title="Self-exam" locale={locale}>
+    <Layout
+      title="Self-exam"
+      subtitle={`${exams.length} ${exams.length === 1 ? 'entry' : 'entries'}`}
+      locale={locale}
+    >
       <p
         mix={css({
-          fontSize: '13px',
-          color: '#64748b',
-          marginBottom: '16px',
+          fontSize: font.sm,
+          color: color.textMuted,
+          marginTop: 0,
+          marginBottom: space[4],
+          lineHeight: 1.55,
         })}
       >
         Reflective reviews by the agent on its own past calls — how previous
@@ -40,11 +56,18 @@ function SelfExamsPage() {
         <code>POST /api/v1/self-exams</code>, upserted by (kind, period_start).
       </p>
       {exams.length === 0 ? (
-        <p mix={css({ color: '#94a3b8', fontStyle: 'italic', fontSize: '13px' })}>
-          No self-exams recorded yet.
-        </p>
+        <Card>
+          <EmptyState
+            title="No self-exams recorded yet"
+            hint={
+              <>
+                Agent writes via <code>POST /api/v1/self-exams</code>.
+              </>
+            }
+          />
+        </Card>
       ) : (
-        <div mix={css({ display: 'flex', flexDirection: 'column', gap: '16px' })}>
+        <div mix={css({ display: 'flex', flexDirection: 'column', gap: space[4] })}>
           {exams.map((e) => (
             <ExamCard exam={e} />
           ))}
@@ -66,52 +89,53 @@ function ExamCard() {
     return (
       <div
         mix={css({
-          background: '#fff',
-          border: '1px solid #e2e8f0',
-          borderLeft: '3px solid #7c3aed',
-          borderRadius: '8px',
-          padding: '16px 20px',
+          background: color.surface,
+          border: `1px solid ${color.border}`,
+          borderLeft: `3px solid ${color.brand}`,
+          borderRadius: radius.lg,
+          padding: `${space[4]} ${space[5]}`,
         })}
       >
         <div
           mix={css({
             display: 'flex',
             alignItems: 'baseline',
-            gap: '8px',
-            marginBottom: '8px',
+            gap: space[2],
+            marginBottom: space[2],
             flexWrap: 'wrap',
           })}
         >
-          <KindPill kind={exam.kind} />
+          <Badge tone="brand">{exam.kind}</Badge>
           <span
             mix={css({
-              fontSize: '12px',
-              color: '#64748b',
+              fontSize: font.sm,
+              color: color.textMuted,
               fontVariantNumeric: 'tabular-nums',
             })}
           >
             {exam.period_start} → {exam.period_end}
           </span>
           {recIds.length > 0 && (
-            <span
-              mix={css({
-                fontSize: '11px',
-                color: '#64748b',
-              })}
-            >
+            <span mix={css({ fontSize: font.xs, color: color.textMuted })}>
               reviewing {recIds.length} recommendation{recIds.length === 1 ? '' : 's'}
             </span>
           )}
-          <span mix={css({ marginLeft: 'auto', fontSize: '11px', color: '#94a3b8' })}>
+          <span
+            mix={css({
+              marginLeft: 'auto',
+              fontSize: font.xs,
+              color: color.textDim,
+            })}
+          >
             {exam.source} · {exam.language}
           </span>
         </div>
         <div
           mix={css({
-            fontSize: '16px',
+            fontSize: font.md,
             fontWeight: 600,
-            color: '#0f172a',
-            marginBottom: '10px',
+            color: color.text,
+            marginBottom: space[2],
             lineHeight: 1.4,
           })}
         >
@@ -121,13 +145,13 @@ function ExamCard() {
           <pre
             mix={css({
               margin: 0,
-              padding: '10px 12px',
-              background: '#f8fafc',
-              border: '1px solid #e2e8f0',
-              borderRadius: '4px',
-              fontSize: '13px',
+              padding: `${space[2]} ${space[3]}`,
+              background: color.bg,
+              border: `1px solid ${color.borderSoft}`,
+              borderRadius: radius.md,
+              fontSize: font.sm,
               lineHeight: 1.6,
-              color: '#1f2937',
+              color: color.text,
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
               fontFamily: 'inherit',
@@ -139,10 +163,10 @@ function ExamCard() {
         {exam.notes && (
           <div
             mix={css({
-              marginTop: '8px',
-              fontSize: '12px',
+              marginTop: space[2],
+              fontSize: font.sm,
               fontStyle: 'italic',
-              color: '#64748b',
+              color: color.textMuted,
             })}
           >
             note: {exam.notes}
@@ -151,9 +175,9 @@ function ExamCard() {
         {recIds.length > 0 && (
           <div
             mix={css({
-              marginTop: '10px',
+              marginTop: space[3],
               display: 'flex',
-              gap: '6px',
+              gap: space[1],
               flexWrap: 'wrap',
             })}
           >
@@ -162,51 +186,16 @@ function ExamCard() {
                 href={`/recommendations`}
                 title={`Recommendation #${id}`}
                 mix={css({
-                  padding: '2px 8px',
-                  borderRadius: '4px',
-                  background: '#e0e7ff',
-                  color: '#3730a3',
-                  fontSize: '11px',
-                  fontWeight: 600,
                   textDecoration: 'none',
-                  fontFamily: 'ui-monospace, monospace',
+                  fontFamily: font.mono,
                 })}
               >
-                rec#{id}
+                <Badge tone="info">rec#{id}</Badge>
               </a>
             ))}
           </div>
         )}
       </div>
-    )
-  }
-}
-
-function KindPill() {
-  return ({ kind }: { kind: string }) => {
-    let palette: Record<string, [string, string]> = {
-      weekly: ['#dbeafe', '#1e40af'],
-      monthly: ['#e0e7ff', '#3730a3'],
-      quarterly: ['#cffafe', '#155e75'],
-      annual: ['#fef3c7', '#92400e'],
-      ad_hoc: ['#e2e8f0', '#475569'],
-    }
-    let [bg, fg] = palette[kind] ?? ['#e2e8f0', '#475569']
-    return (
-      <span
-        mix={css({
-          padding: '1px 8px',
-          borderRadius: '4px',
-          background: bg,
-          color: fg,
-          fontSize: '10px',
-          fontWeight: 700,
-          textTransform: 'uppercase',
-          letterSpacing: '0.05em',
-        })}
-      >
-        {kind}
-      </span>
     )
   }
 }
