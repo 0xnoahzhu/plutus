@@ -11,7 +11,7 @@
 
 import type { RequestHandler } from 'remix/fetch-router'
 
-import { api } from '../api.ts'
+import { api, runWithCookie } from '../api.ts'
 
 export interface SignedInUser {
   kind: 'web' | 'api_token' | 'admin'
@@ -54,6 +54,7 @@ export function withAuth<A>(action: A): A {
 
   let wrapped: RequestHandler<any, any> = async (ctx) => {
     let req = (ctx as { request: Request }).request
+    let cookie = req.headers.get('cookie')
     let me = await resolveMe(req)
     if (!me) {
       let url = new URL(req.url)
@@ -72,7 +73,10 @@ export function withAuth<A>(action: A): A {
     if (me.is_admin) {
       return Response.redirect(new URL('/admin', req.url), 303)
     }
-    return inner(ctx)
+    // Bind the cookie to an async-local context so every `api.*()` call
+    // the handler makes inherits the session automatically — no need to
+    // thread the cookie through every controller's call sites.
+    return runWithCookie(cookie, () => inner(ctx))
   }
   return { handler: wrapped } as unknown as A
 }

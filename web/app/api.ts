@@ -2,7 +2,30 @@
 // PLUTUS_API_URL (set by docker compose or .env). Defaults match the
 // dev-mode setup where the Rust server binds 127.0.0.1:8080.
 
+import { AsyncLocalStorage } from 'node:async_hooks'
+
 const BASE = process.env.PLUTUS_API_URL ?? 'http://127.0.0.1:8080'
+
+/// Per-request cookie context. Populated by `withAuth` (and any other
+/// per-request wrapper) so every `api.*()` call inside the request
+/// inherits the caller's session without the controller having to
+/// thread the cookie through every call site explicitly.
+///
+/// Explicit `cookie` arguments on `api.X(...)` still win — this is just
+/// the fallback when none is supplied.
+const requestCookieStore = new AsyncLocalStorage<string | null>()
+
+/// Run `fn` with `cookie` available to every `api.*()` call inside it,
+/// including across `await` boundaries and `Promise.all` parallel calls.
+export function runWithCookie<T>(cookie: string | null, fn: () => T): T {
+  return requestCookieStore.run(cookie, fn)
+}
+
+/// Pull the cookie for the current request out of the ALS, falling back
+/// to `null` when no `runWithCookie` is active (e.g. server boot).
+function ambientCookie(): string | null {
+  return requestCookieStore.getStore() ?? null
+}
 
 export interface Market {
   code: string
@@ -82,8 +105,9 @@ function withLocale(path: string, locale?: string): string {
 }
 
 async function get<T>(path: string, cookie?: string | null): Promise<T> {
+  let effective = cookie ?? ambientCookie()
   let headers: Record<string, string> = { accept: 'application/json' }
-  if (cookie) headers.cookie = cookie
+  if (effective) headers.cookie = effective
   let res = await fetch(`${BASE}/api/v1${path}`, { headers })
   if (!res.ok) {
     throw new Error(`plutus api ${path} failed: ${res.status}`)
@@ -92,11 +116,12 @@ async function get<T>(path: string, cookie?: string | null): Promise<T> {
 }
 
 async function post<T>(path: string, body: unknown, cookie?: string | null): Promise<T> {
+  let effective = cookie ?? ambientCookie()
   let headers: Record<string, string> = {
     accept: 'application/json',
     'content-type': 'application/json',
   }
-  if (cookie) headers.cookie = cookie
+  if (effective) headers.cookie = effective
   let res = await fetch(`${BASE}/api/v1${path}`, {
     method: 'POST',
     headers,
