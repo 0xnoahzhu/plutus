@@ -189,6 +189,21 @@ ALTER TABLE accounts          ADD COLUMN IF NOT EXISTS user_id BIGINT NOT NULL D
 ALTER TABLE transactions      ADD COLUMN IF NOT EXISTS user_id BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE api_tokens        ADD COLUMN IF NOT EXISTS user_id BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE api_tokens        ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE;
+-- Tokens are hard-deleted on revoke now; purge any soft-revoked rows
+-- from the previous design and drop the column. Wrapped in a DO block so
+-- referencing `revoked_at` doesn't fail on already-migrated databases
+-- where the column is gone.
+DO $migrate_api_tokens_hard_delete$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'api_tokens' AND column_name = 'revoked_at'
+    ) THEN
+        EXECUTE 'DELETE FROM api_tokens WHERE revoked_at IS NOT NULL';
+    END IF;
+END
+$migrate_api_tokens_hard_delete$;
+ALTER TABLE api_tokens        DROP COLUMN IF EXISTS revoked_at;
 ALTER TABLE audit_log         ADD COLUMN IF NOT EXISTS user_id BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE web_sessions      ADD COLUMN IF NOT EXISTS user_id BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE web_sessions      ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE;

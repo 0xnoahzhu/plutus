@@ -16,7 +16,7 @@ pub async fn list(db: &Db) -> Result<Vec<ApiToken>> {
 }
 
 /// Regular per-user tokens. Admin-grade tokens are excluded so a regular
-/// user looking at their own list never sees (let alone could revoke) an
+/// user looking at their own list never sees (let alone could delete) an
 /// admin token.
 pub async fn list_for_user(db: &Db, user_id: i64) -> Result<Vec<ApiToken>> {
     let all = list(db).await?;
@@ -27,7 +27,7 @@ pub async fn list_for_user(db: &Db, user_id: i64) -> Result<Vec<ApiToken>> {
 }
 
 /// Every admin-grade token (regardless of `user_id`). Used by the admin
-/// shell to surface and revoke admin keys.
+/// shell to surface and delete admin keys.
 pub async fn list_admin(db: &Db) -> Result<Vec<ApiToken>> {
     let all = list(db).await?;
     Ok(all.into_iter().filter(|t| t.is_admin).collect())
@@ -52,7 +52,6 @@ pub async fn create(
                 token_hash: token_hash,
                 created_at: now,
                 last_used_at: None::<jiff::Timestamp>,
-                revoked_at: None::<jiff::Timestamp>,
             })
             .exec(d)
             .await
@@ -61,18 +60,14 @@ pub async fn create(
     Ok(row)
 }
 
-pub async fn revoke(db: &Db, id: i64) -> Result<()> {
-    let mut row = db
+/// Hard delete — the row goes away, the hash no longer resolves, and any
+/// bearer request still carrying the plaintext starts getting 401.
+pub async fn delete(db: &Db, id: i64) -> Result<()> {
+    let row = db
         .with(async |d| ApiToken::filter_by_id(id).first().exec(d).await)
         .await?
         .ok_or(DbError::NotFound)?;
-    db.with(async |d| {
-        row.update()
-            .revoked_at(Some(jiff::Timestamp::now()))
-            .exec(d)
-            .await
-    })
-    .await?;
+    db.with(async |d| row.delete().exec(d).await).await?;
     Ok(())
 }
 
@@ -81,5 +76,5 @@ pub async fn find_active_by_plain(db: &Db, plain_token: &str) -> Result<Option<A
     let row = db
         .with(async |d| ApiToken::filter_by_token_hash(hash).first().exec(d).await)
         .await?;
-    Ok(row.filter(|t| t.revoked_at.is_none()))
+    Ok(row)
 }

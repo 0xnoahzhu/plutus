@@ -9,6 +9,10 @@
 //!   admin. `user_id` is `0` (the orphan sentinel — admin has no row in
 //!   `users`). Minted only by admin via `POST /admin/tokens`. Bearer
 //!   requests resolve to an `Admin` actor with full `/admin/*` access.
+//!
+//! Tokens are hard-deleted when revoked (no soft `revoked_at` flag): the row
+//! is gone, the hash no longer matches anything, the bearer immediately
+//! starts getting 401.
 
 #[derive(Debug, toasty::Model)]
 #[table = "api_tokens"]
@@ -27,5 +31,4 @@ pub struct ApiToken {
     pub token_hash: String,
     pub created_at: jiff::Timestamp,
     pub last_used_at: Option<jiff::Timestamp>,
-    pub revoked_at: Option<jiff::Timestamp>,
 }

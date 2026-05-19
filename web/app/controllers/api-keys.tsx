@@ -24,7 +24,6 @@ interface TokenRow {
   label: string
   created_at: string
   last_used_at: string | null
-  revoked_at: string | null
 }
 
 interface Props {
@@ -106,19 +105,19 @@ export const apiKeyCreate: BuildAction<'POST', typeof routes.apiKeyCreate> = {
   },
 }
 
-/// POST /api-keys/:id/revoke — revoke the row.
-export const apiKeyRevoke: BuildAction<'POST', typeof routes.apiKeyRevoke> = {
+/// POST /api-keys/:id/delete — hard delete the row.
+export const apiKeyDelete: BuildAction<'POST', typeof routes.apiKeyDelete> = {
   async handler({ request, params }) {
     let id = Number(params.id)
     if (!Number.isFinite(id)) {
       return Response.redirect(new URL('/api-keys?error=server', request.url), 303)
     }
     let cookie = request.headers.get('cookie')
-    let upstream = await api.revokeTokenRaw(cookie, id)
+    let upstream = await api.deleteTokenRaw(cookie, id)
     if (!upstream.ok) {
       return Response.redirect(new URL('/api-keys?error=server', request.url), 303)
     }
-    return Response.redirect(new URL('/api-keys?flash=revoked', request.url), 303)
+    return Response.redirect(new URL('/api-keys?flash=deleted', request.url), 303)
   },
 }
 
@@ -208,7 +207,6 @@ function ApiKeysPage() {
                     <Th>{p.columnLabel}</Th>
                     <Th>{p.columnCreated}</Th>
                     <Th>{p.columnLastUsed}</Th>
-                    <Th>{p.columnStatus}</Th>
                     <Th>{''}</Th>
                   </tr>
                 </thead>
@@ -231,42 +229,25 @@ function TokenRowView() {
     let all = messages(locale)
     let p = all.apiKeys
     let confirms = all.confirms
-    let revoked = token.revoked_at != null
     return (
       <tr mix={css({ borderTop: `1px solid ${color.borderSoft}` })}>
         <Td>{token.label}</Td>
         <Td>{token.created_at.slice(0, 10)}</Td>
         <Td>{token.last_used_at ? token.last_used_at.slice(0, 10) : p.neverUsed}</Td>
         <Td>
-          <span
-            mix={css({
-              padding: `2px ${space[2]}`,
-              borderRadius: radius.sm,
-              fontSize: font.xs,
-              fontWeight: 600,
-              background: revoked ? color.dangerSoft : color.successSoft,
-              color: revoked ? color.dangerText : color.successText,
-            })}
+          <form
+            method="post"
+            action={`/api-keys/${token.id}/delete`}
+            mix={css({ margin: 0 })}
           >
-            {revoked ? p.statusRevoked : p.statusActive}
-          </span>
-        </Td>
-        <Td>
-          {!revoked && (
-            <form
-              method="post"
-              action={`/api-keys/${token.id}/revoke`}
-              mix={css({ margin: 0 })}
+            <button
+              type="submit"
+              title={confirms.deleteApiKey(token.label)}
+              mix={css(dangerButton)}
             >
-              <button
-                type="submit"
-                title={confirms.revokeApiKey(token.label)}
-                mix={css(dangerButton)}
-              >
-                {p.revokeSubmit}
-              </button>
-            </form>
-          )}
+              {p.deleteSubmit}
+            </button>
+          </form>
         </Td>
       </tr>
     )
@@ -349,8 +330,8 @@ function Banner() {
         ? { tone: 'error' as const, message: p.errMissingLabel }
         : error
           ? { tone: 'error' as const, message: p.errServer }
-          : flash === 'revoked'
-            ? { tone: 'success' as const, message: p.flashRevoked }
+          : flash === 'deleted'
+            ? { tone: 'success' as const, message: p.flashDeleted }
             : { tone: 'success' as const, message: '' }
     if (!message) return null
     let bg = tone === 'error' ? color.dangerSoft : color.successSoft

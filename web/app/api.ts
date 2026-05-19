@@ -683,7 +683,6 @@ export const api = {
         label: string
         created_at: string
         last_used_at: string | null
-        revoked_at: string | null
       }>
     >('/tokens'),
 
@@ -703,7 +702,10 @@ export const api = {
     })
   },
 
-  revokeTokenRaw: (cookie: string | null | undefined, id: number) => {
+  /// Hard delete — the row goes away, the hash no longer resolves to a
+  /// user, any bearer request still carrying the plaintext starts getting
+  /// 401.
+  deleteTokenRaw: (cookie: string | null | undefined, id: number) => {
     let headers: Record<string, string> = { accept: 'application/json' }
     if (cookie) headers.cookie = cookie
     return fetch(`${BASE}/api/v1/tokens/${id}`, { method: 'DELETE', headers })
@@ -787,7 +789,6 @@ export const api = {
         label: string
         created_at: string
         last_used_at: string | null
-        revoked_at: string | null
       }>
     >('/admin/tokens', cookie),
 
@@ -804,7 +805,7 @@ export const api = {
     })
   },
 
-  adminRevokeTokenRaw: (cookie: string | null | undefined, id: number) => {
+  adminDeleteTokenRaw: (cookie: string | null | undefined, id: number) => {
     let headers: Record<string, string> = { accept: 'application/json' }
     if (cookie) headers.cookie = cookie
     return fetch(`${BASE}/api/v1/admin/tokens/${id}`, { method: 'DELETE', headers })

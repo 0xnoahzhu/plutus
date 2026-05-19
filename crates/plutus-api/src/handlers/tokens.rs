@@ -48,12 +48,12 @@ pub async fn create(
     }))
 }
 
-pub async fn revoke(
+pub async fn delete(
     State(state): State<AppState>,
     actor: axum::extract::Extension<Actor>,
     Path(id): Path<i64>,
 ) -> ApiResult<axum::http::StatusCode> {
     let _ = require_user_session(&actor.0)?;
-    plutus_storage::queries::tokens::revoke(&state.db, id).await?;
+    plutus_storage::queries::tokens::delete(&state.db, id).await?;
     Ok(axum::http::StatusCode::NO_CONTENT)
 }

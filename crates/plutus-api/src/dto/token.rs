@@ -9,7 +9,6 @@ pub struct TokenOut {
     pub label: String,
     pub created_at: String,
     pub last_used_at: Option<String>,
-    pub revoked_at: Option<String>,
 }
 
 impl From<ApiToken> for TokenOut {
@@ -19,7 +18,6 @@ impl From<ApiToken> for TokenOut {
             label: t.label,
             created_at: t.created_at.to_string(),
             last_used_at: t.last_used_at.map(|t| t.to_string()),
-            revoked_at: t.revoked_at.map(|t| t.to_string()),
         }
     }
 }

@@ -11,10 +11,10 @@ import {
 } from './controllers/admin-brokers.tsx'
 import {
   adminTokenCreate,
-  adminTokenRevoke,
+  adminTokenDelete,
   adminTokens,
 } from './controllers/admin-tokens.tsx'
-import { apiKeyCreate, apiKeyRevoke, apiKeys } from './controllers/api-keys.tsx'
+import { apiKeyCreate, apiKeyDelete, apiKeys } from './controllers/api-keys.tsx'
 import { audit } from './controllers/audit.tsx'
 import { briefs } from './controllers/briefs.tsx'
 import { catalysts } from './controllers/catalysts.tsx'
@@ -67,7 +67,7 @@ router.map(routes.adminBrokerRename, adminBrokerRename)
 router.map(routes.adminBrokerDelete, adminBrokerDelete)
 router.map(routes.adminTokens, adminTokens)
 router.map(routes.adminTokenCreate, adminTokenCreate)
-router.map(routes.adminTokenRevoke, adminTokenRevoke)
+router.map(routes.adminTokenDelete, adminTokenDelete)
 
 // Protected user routes — anonymous lands on /login, admin lands on /admin.
 router.map(routes.home, withAuth(home))
@@ -91,7 +91,7 @@ router.map(routes.audit, withAuth(audit))
 router.map(routes.settings, withAuth(settings))
 router.map(routes.apiKeys, withAuth(apiKeys))
 router.map(routes.apiKeyCreate, withAuth(apiKeyCreate))
-router.map(routes.apiKeyRevoke, withAuth(apiKeyRevoke))
+router.map(routes.apiKeyDelete, withAuth(apiKeyDelete))
 router.map(routes.accounts, withAuth(accounts))
 router.map(routes.accountCreate, withAuth(accountCreate))
 router.map(routes.accountDelete, withAuth(accountDelete))

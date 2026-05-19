@@ -144,15 +144,12 @@ const en = {
     columnLabel: 'Label',
     columnCreated: 'Created',
     columnLastUsed: 'Last used',
-    columnStatus: 'Status',
-    statusActive: 'active',
-    statusRevoked: 'revoked',
-    revokeSubmit: 'Revoke',
+    deleteSubmit: 'Delete',
     neverUsed: 'never',
     flashCreatedTitle: 'Admin token created — copy it now',
     flashCreatedHint:
       'This is the only time the full token is shown. Store it somewhere safe.',
-    flashRevoked: 'Token revoked.',
+    flashDeleted: 'Token deleted.',
     errMissingLabel: 'Label is required.',
     errServer: 'Request failed.',
   },
@@ -195,15 +192,12 @@ const en = {
     columnLabel: 'Label',
     columnCreated: 'Created',
     columnLastUsed: 'Last used',
-    columnStatus: 'Status',
-    statusActive: 'active',
-    statusRevoked: 'revoked',
-    revokeSubmit: 'Revoke',
+    deleteSubmit: 'Delete',
     neverUsed: 'never',
     flashCreatedTitle: 'Key created — copy it now',
     flashCreatedHint:
       'This is the only time the full token is shown. Store it somewhere safe.',
-    flashRevoked: 'Key revoked.',
+    flashDeleted: 'Key deleted.',
     errMissingLabel: 'Label is required.',
     errServer: 'Request failed.',
   },
@@ -247,12 +241,12 @@ const en = {
     deleteBroker: (name: string) =>
       `Delete broker "${name}"? Refused if any account still references it.`,
     renameBroker: (name: string) => `Rename broker "${name}"?`,
-    revokeAdminToken: (label: string) =>
-      `Revoke admin token "${label}"? Bearer requests with it will start returning 401.`,
+    deleteAdminToken: (label: string) =>
+      `Delete admin token "${label}"? Bearer requests with it will start returning 401.`,
     deleteAccount: (name: string) =>
       `Delete account "${name}"? Refused if any transaction still references it.`,
-    revokeApiKey: (label: string) =>
-      `Revoke API key "${label}"? Bearer requests with it will start returning 401.`,
+    deleteApiKey: (label: string) =>
+      `Delete API key "${label}"? Bearer requests with it will start returning 401.`,
   },
 
   settings: {
@@ -407,14 +401,11 @@ const zhCN: Messages = {
     columnLabel: '标签',
     columnCreated: '创建时间',
     columnLastUsed: '最近使用',
-    columnStatus: '状态',
-    statusActive: '生效中',
-    statusRevoked: '已吊销',
-    revokeSubmit: '吊销',
+    deleteSubmit: '删除',
     neverUsed: '从未使用',
     flashCreatedTitle: '管理员密钥已创建 —— 立刻复制',
     flashCreatedHint: '完整 token 仅此一次显示，请妥善保存。',
-    flashRevoked: '密钥已吊销。',
+    flashDeleted: '密钥已删除。',
     errMissingLabel: '请填写标签。',
     errServer: '请求失败。',
   },
@@ -456,14 +447,11 @@ const zhCN: Messages = {
     columnLabel: '标签',
     columnCreated: '创建时间',
     columnLastUsed: '最近使用',
-    columnStatus: '状态',
-    statusActive: '生效中',
-    statusRevoked: '已吊销',
-    revokeSubmit: '吊销',
+    deleteSubmit: '删除',
     neverUsed: '从未使用',
     flashCreatedTitle: '密钥已创建 —— 立刻复制',
     flashCreatedHint: '完整 token 仅此一次显示，请妥善保存。',
-    flashRevoked: '密钥已吊销。',
+    flashDeleted: '密钥已删除。',
     errMissingLabel: '请填写标签。',
     errServer: '请求失败。',
   },
@@ -500,11 +488,11 @@ const zhCN: Messages = {
       `确认重置用户 "${username}" 的密码？下次登录时将被强制修改。`,
     deleteBroker: (name: string) => `确认删除券商 "${name}"？仍有账户引用时将被拒绝。`,
     renameBroker: (name: string) => `确认重命名券商 "${name}"？`,
-    revokeAdminToken: (label: string) =>
-      `确认吊销管理员密钥 "${label}"？后续使用该 token 的 Bearer 请求将返回 401。`,
+    deleteAdminToken: (label: string) =>
+      `确认删除管理员密钥 "${label}"？后续使用该 token 的 Bearer 请求将返回 401。`,
     deleteAccount: (name: string) => `确认删除账户 "${name}"？仍有交易引用时将被拒绝。`,
-    revokeApiKey: (label: string) =>
-      `确认吊销 API 密钥 "${label}"？后续使用该 token 的 Bearer 请求将返回 401。`,
+    deleteApiKey: (label: string) =>
+      `确认删除 API 密钥 "${label}"？后续使用该 token 的 Bearer 请求将返回 401。`,
   },
 
   settings: {

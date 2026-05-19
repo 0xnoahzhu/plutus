@@ -60,11 +60,11 @@ pub fn build_router(state: AppState) -> Router {
         )
         .route(
             "/admin/tokens/:id",
-            delete(handlers::admin::tokens::revoke),
+            delete(handlers::admin::tokens::delete),
         )
         // Tokens (web-only)
         .route("/tokens", get(handlers::tokens::list).post(handlers::tokens::create))
-        .route("/tokens/:id", delete(handlers::tokens::revoke))
+        .route("/tokens/:id", delete(handlers::tokens::delete))
         // Stocks
         .route("/stocks", get(handlers::stocks::list).post(handlers::stocks::create))
         .route(
