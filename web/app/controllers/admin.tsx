@@ -303,7 +303,9 @@ function AdminPage() {
 
 function UserRow() {
   return ({ user, locale }: { user: UserRow; locale: string }) => {
-    let m = messages(locale).admin
+    let all = messages(locale)
+    let m = all.admin
+    let confirms = all.confirms
     return (
     <li
       mix={css({
@@ -383,7 +385,11 @@ function UserRow() {
             autoComplete="off"
             mix={css({ ...fieldStyle, flex: '1 1 auto' })}
           />
-          <button type="submit" mix={css(secondaryButtonStyle)}>
+          <button
+            type="submit"
+            title={confirms.resetUserPassword(user.username)}
+            mix={css(secondaryButtonStyle)}
+          >
             {m.resetSubmit}
           </button>
         </form>
@@ -391,11 +397,12 @@ function UserRow() {
           method="post"
           action={`/admin/users/${user.id}/delete`}
           mix={css({ margin: 0 })}
-          // Browsers can't natively confirm on POST, so we lean on the admin
-          // double-checking before clicking. Adding a JS confirm here would
-          // be the obvious next step.
         >
-          <button type="submit" mix={css(dangerButtonStyle)}>
+          <button
+            type="submit"
+            title={confirms.deleteUser(user.username)}
+            mix={css(dangerButtonStyle)}
+          >
             {m.deleteSubmit}
           </button>
         </form>

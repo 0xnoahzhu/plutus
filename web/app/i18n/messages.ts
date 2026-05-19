@@ -235,6 +235,26 @@ const en = {
     errServer: 'Request failed.',
   },
 
+  /// Confirmation prompts shown by the page-wide submit guard
+  /// (`CONFIRM_SUBMIT_JS` in `ui/document.tsx`). Each takes the affected
+  /// row's display name and returns the full sentence rendered as the
+  /// destructive submit button's `title` attribute.
+  confirms: {
+    deleteUser: (username: string) =>
+      `Delete user "${username}"? This cannot be undone.`,
+    resetUserPassword: (username: string) =>
+      `Reset password for user "${username}"? They'll be forced to change it on next login.`,
+    deleteBroker: (name: string) =>
+      `Delete broker "${name}"? Refused if any account still references it.`,
+    renameBroker: (name: string) => `Rename broker "${name}"?`,
+    revokeAdminToken: (label: string) =>
+      `Revoke admin token "${label}"? Bearer requests with it will start returning 401.`,
+    deleteAccount: (name: string) =>
+      `Delete account "${name}"? Refused if any transaction still references it.`,
+    revokeApiKey: (label: string) =>
+      `Revoke API key "${label}"? Bearer requests with it will start returning 401.`,
+  },
+
   settings: {
     colorScheme: {
       title: 'Color scheme',
@@ -472,6 +492,19 @@ const zhCN: Messages = {
     errBrokerMissing: '尚未注册任何券商 —— 请联系管理员添加。',
     errInUse: '无法删除 —— 仍有交易引用该账户。',
     errServer: '请求失败。',
+  },
+
+  confirms: {
+    deleteUser: (username: string) => `确认删除用户 "${username}"？该操作无法撤销。`,
+    resetUserPassword: (username: string) =>
+      `确认重置用户 "${username}" 的密码？下次登录时将被强制修改。`,
+    deleteBroker: (name: string) => `确认删除券商 "${name}"？仍有账户引用时将被拒绝。`,
+    renameBroker: (name: string) => `确认重命名券商 "${name}"？`,
+    revokeAdminToken: (label: string) =>
+      `确认吊销管理员密钥 "${label}"？后续使用该 token 的 Bearer 请求将返回 401。`,
+    deleteAccount: (name: string) => `确认删除账户 "${name}"？仍有交易引用时将被拒绝。`,
+    revokeApiKey: (label: string) =>
+      `确认吊销 API 密钥 "${label}"？后续使用该 token 的 Bearer 请求将返回 401。`,
   },
 
   settings: {

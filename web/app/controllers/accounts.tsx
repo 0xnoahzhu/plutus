@@ -226,7 +226,11 @@ function AccountsPage() {
                             action={`/accounts/${a.id}/delete`}
                             mix={css({ margin: 0 })}
                           >
-                            <button type="submit" mix={css(dangerButton)}>
+                            <button
+                              type="submit"
+                              title={m.confirms.deleteAccount(a.name)}
+                              mix={css(dangerButton)}
+                            >
                               {p.deleteSubmit}
                             </button>
                           </form>

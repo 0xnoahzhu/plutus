@@ -268,7 +268,9 @@ function AdminBrokersPage() {
 
 function BrokerRow() {
   return ({ broker, locale }: { broker: Broker; locale: string }) => {
-    let p = messages(locale).adminBrokers
+    let all = messages(locale)
+    let p = all.adminBrokers
+    let confirms = all.confirms
     return (
       <li
         mix={css({
@@ -324,7 +326,11 @@ function BrokerRow() {
               autoComplete="off"
               mix={css({ ...fieldStyle, flex: '1 1 auto' })}
             />
-            <button type="submit" mix={css(secondaryButton)}>
+            <button
+              type="submit"
+              title={confirms.renameBroker(broker.name)}
+              mix={css(secondaryButton)}
+            >
               {p.renameSubmit}
             </button>
           </form>
@@ -333,7 +339,11 @@ function BrokerRow() {
             action={`/admin/brokers/${broker.id}/delete`}
             mix={css({ margin: 0 })}
           >
-            <button type="submit" mix={css(dangerButton)}>
+            <button
+              type="submit"
+              title={confirms.deleteBroker(broker.name)}
+              mix={css(dangerButton)}
+            >
               {p.deleteSubmit}
             </button>
           </form>

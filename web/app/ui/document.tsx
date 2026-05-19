@@ -39,6 +39,27 @@ const GLOBAL_CSS = `
   table { border-collapse: collapse; }
 `
 
+/// Page-wide submit guard. Any submit button that carries a non-empty
+/// `title` attribute triggers a native `confirm(...)` dialog; cancelling
+/// stops the submit. Uses `event.submitter` so the prompt comes from the
+/// specific button the user clicked — multiple destructive buttons can
+/// coexist inside one form without the wrong prompt firing.
+///
+/// The `title` attribute doubles as the hover tooltip, which is fine UX
+/// for destructive actions: the tooltip text "Delete user 'alice'?" is
+/// exactly the same question the dialog asks. Non-destructive submit
+/// buttons just don't set `title` and the listener is a no-op for them.
+const CONFIRM_SUBMIT_JS = `
+  document.addEventListener('submit', function(e) {
+    var btn = e.submitter;
+    if (!btn || btn.type !== 'submit') return;
+    var prompt = btn.getAttribute('title');
+    if (prompt && !window.confirm(prompt)) {
+      e.preventDefault();
+    }
+  });
+`
+
 export function Document() {
   return ({ title = DEFAULT_TITLE, lang = 'en', theme = 'system', children }: DocumentProps) => {
     // `data-theme="dark"|"light"` pins the palette; `system` omits the attr
@@ -65,6 +86,7 @@ export function Document() {
         <body>
           {children}
           <script type="module" src={routes.assets.href({ path: 'app/assets/entry.ts' })}></script>
+          <script innerHTML={CONFIRM_SUBMIT_JS}></script>
         </body>
       </html>
     )

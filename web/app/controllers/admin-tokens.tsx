@@ -292,7 +292,9 @@ function AdminTokensPage() {
 
 function TokenRowView() {
   return ({ token, locale }: { token: TokenRow; locale: string }) => {
-    let p = messages(locale).adminTokens
+    let all = messages(locale)
+    let p = all.adminTokens
+    let confirms = all.confirms
     let revoked = token.revoked_at != null
     return (
       <tr mix={css({ borderTop: `1px solid ${color.borderSoft}` })}>
@@ -320,7 +322,11 @@ function TokenRowView() {
               action={`/admin/tokens/${token.id}/revoke`}
               mix={css({ margin: 0 })}
             >
-              <button type="submit" mix={css(dangerButton)}>
+              <button
+                type="submit"
+                title={confirms.revokeAdminToken(token.label)}
+                mix={css(dangerButton)}
+              >
                 {p.revokeSubmit}
               </button>
             </form>

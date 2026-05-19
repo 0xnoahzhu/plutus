@@ -228,7 +228,9 @@ function ApiKeysPage() {
 
 function TokenRowView() {
   return ({ token, locale }: { token: TokenRow; locale: string }) => {
-    let p = messages(locale).apiKeys
+    let all = messages(locale)
+    let p = all.apiKeys
+    let confirms = all.confirms
     let revoked = token.revoked_at != null
     return (
       <tr mix={css({ borderTop: `1px solid ${color.borderSoft}` })}>
@@ -256,7 +258,11 @@ function TokenRowView() {
               action={`/api-keys/${token.id}/revoke`}
               mix={css({ margin: 0 })}
             >
-              <button type="submit" mix={css(dangerButton)}>
+              <button
+                type="submit"
+                title={confirms.revokeApiKey(token.label)}
+                mix={css(dangerButton)}
+              >
                 {p.revokeSubmit}
               </button>
             </form>
