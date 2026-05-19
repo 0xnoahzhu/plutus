@@ -25,6 +25,7 @@ import { stocks } from './controllers/stocks.tsx'
 import { transactions } from './controllers/transactions.tsx'
 import { watchlists } from './controllers/watchlists.tsx'
 import { routes } from './routes.ts'
+import { withAuth } from './utils/auth.ts'
 
 export const router = createRouter()
 
@@ -33,7 +34,11 @@ router.get(routes.assets, async ({ request }) => {
   return response ?? new Response('Not Found', { status: 404 })
 })
 
-router.map(routes.home, home)
+// Public routes — no auth guard. /login + /logout obviously, and the
+// /admin/* surface enforces admin via the API instead (admin.tsx
+// redirects non-admins to /login on its own). /change-password also
+// stays open: the API's password-reset gate (Step 3) lets a logged-in
+// user who must change their password reach this exact endpoint.
 router.map(routes.login.index, login.index)
 router.map(routes.login.action, login.action)
 router.map(routes.logout, logout)
@@ -43,21 +48,24 @@ router.map(routes.admin, admin)
 router.map(routes.adminUserCreate, adminUserCreate)
 router.map(routes.adminUserReset, adminUserReset)
 router.map(routes.adminUserDelete, adminUserDelete)
-router.map(routes.holdings, holdings)
-router.map(routes.stocks, stocks)
-router.map(routes.stockDetail, stockDetail)
-router.map(routes.transactions, transactions)
-router.map(routes.watchlists, watchlists)
-router.map(routes.news, news)
-router.map(routes.newsDetail, newsDetail)
-router.map(routes.briefs, briefs)
-router.map(routes.earnings, earnings)
-router.map(routes.macroEvents, macroEvents)
-router.map(routes.catalysts, catalysts)
-router.map(routes.screeners, screeners)
-router.map(routes.recommendations, recommendations)
-router.map(routes.portfolioReviews, portfolioReviews)
-router.map(routes.correlations, correlations)
-router.map(routes.selfExams, selfExams)
-router.map(routes.audit, audit)
-router.map(routes.settings, settings)
+
+// Protected user routes — anonymous lands on /login, admin lands on /admin.
+router.map(routes.home, withAuth(home))
+router.map(routes.holdings, withAuth(holdings))
+router.map(routes.stocks, withAuth(stocks))
+router.map(routes.stockDetail, withAuth(stockDetail))
+router.map(routes.transactions, withAuth(transactions))
+router.map(routes.watchlists, withAuth(watchlists))
+router.map(routes.news, withAuth(news))
+router.map(routes.newsDetail, withAuth(newsDetail))
+router.map(routes.briefs, withAuth(briefs))
+router.map(routes.earnings, withAuth(earnings))
+router.map(routes.macroEvents, withAuth(macroEvents))
+router.map(routes.catalysts, withAuth(catalysts))
+router.map(routes.screeners, withAuth(screeners))
+router.map(routes.recommendations, withAuth(recommendations))
+router.map(routes.portfolioReviews, withAuth(portfolioReviews))
+router.map(routes.correlations, withAuth(correlations))
+router.map(routes.selfExams, withAuth(selfExams))
+router.map(routes.audit, withAuth(audit))
+router.map(routes.settings, withAuth(settings))
