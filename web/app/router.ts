@@ -17,6 +17,7 @@ import { portfolioReviews } from './controllers/portfolio-reviews.tsx'
 import { recommendations } from './controllers/recommendations.tsx'
 import { screeners } from './controllers/screeners.tsx'
 import { selfExams } from './controllers/self-exams.tsx'
+import { settings } from './controllers/settings.tsx'
 import { stockDetail } from './controllers/stock-detail.tsx'
 import { stocks } from './controllers/stocks.tsx'
 import { transactions } from './controllers/transactions.tsx'
@@ -51,3 +52,4 @@ router.map(routes.portfolioReviews, portfolioReviews)
 router.map(routes.correlations, correlations)
 router.map(routes.selfExams, selfExams)
 router.map(routes.audit, audit)
+router.map(routes.settings, settings)

@@ -16,6 +16,7 @@ import {
   Newspaper,
   ScrollText,
   SearchCheck,
+  Settings,
   Sun,
   ThumbsUp,
   TrendingUp,
@@ -90,6 +91,7 @@ const NAV: NavEntry[] = [
   link('selfExams', 'Self-Exam', SearchCheck),
   divider(''),
   link('audit', 'Audit', ScrollText),
+  link('settings', 'Settings', Settings),
 ]
 
 // ── Country / locale ─────────────────────────────────────────────────────────
@@ -300,23 +302,22 @@ export function Layout() {
             </header>
           )}
 
-          {/* Filter row — country + language chips below the title. */}
-          <div
-            mix={css({
-              display: 'flex',
-              gap: space[6],
-              flexWrap: 'wrap',
-              alignItems: 'center',
-              marginTop: title ? space[4] : 0,
-              marginBottom: space[6],
-            })}
-          >
-            {country !== undefined && (
+          {/* Page-level filter row — only the country chip lives here now.
+              Language + theme moved to /settings. */}
+          {country !== undefined && (
+            <div
+              mix={css({
+                display: 'flex',
+                gap: space[6],
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                marginTop: title ? space[4] : 0,
+                marginBottom: space[6],
+              })}
+            >
               <CountryChips selected={country} options={ALL_COUNTRIES} locale={locale} />
-            )}
-            <LocaleChips selected={locale as Locale} country={country} />
-            <ThemeChips selected={theme} country={country} locale={locale} />
-          </div>
+            </div>
+          )}
 
           <div>{children}</div>
         </main>
@@ -536,7 +537,7 @@ interface LocaleChipsProps {
   country?: string
 }
 
-function LocaleChips() {
+export function LocaleChips() {
   return ({ selected, country }: LocaleChipsProps) => (
     <ChipGroup label="Language">
       {LOCALES.map((l) => (
@@ -562,7 +563,7 @@ const THEME_ICONS: Record<Theme, string> = {
   light: Sun,
 }
 
-function ThemeChips() {
+export function ThemeChips() {
   return ({ selected, country, locale }: ThemeChipsProps) => (
     <ChipGroup label="Theme">
       {THEMES.map((t) => (

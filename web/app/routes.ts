@@ -22,4 +22,5 @@ export const routes = route({
   correlations: '/correlations',
   selfExams: '/self-exams',
   audit: '/audit',
+  settings: '/settings',
 })
