@@ -9,6 +9,7 @@ import {
   GitMerge,
   Globe,
   LayoutDashboard,
+  LogOut,
   Newspaper,
   ScrollText,
   SearchCheck,
@@ -40,11 +41,21 @@ export interface LayoutProps {
 
 // ── Navigation ───────────────────────────────────────────────────────────────
 
+/// Sidebar links only reference top-level single-method routes (the form
+/// route pairs like `login` expose `{ index, action }` and aren't navigable
+/// from the nav). Constraining to keys that carry `href` keeps the union
+/// type aligned with the NavLink renderer.
+type NavRoute = {
+  [K in keyof typeof routes]: typeof routes[K] extends { href: (...args: never) => string }
+    ? K
+    : never
+}[keyof typeof routes]
+
 type NavEntry =
-  | { kind: 'link'; route: keyof typeof routes; label: string; icon: string }
+  | { kind: 'link'; route: NavRoute; label: string; icon: string }
   | { kind: 'divider'; label: string }
 
-const link = (route: keyof typeof routes, label: string, icon: string): NavEntry => ({
+const link = (route: NavRoute, label: string, icon: string): NavEntry => ({
   kind: 'link',
   route,
   label,
@@ -278,7 +289,53 @@ function Sidebar() {
           )}
         </ul>
       </nav>
+      <LogoutLink />
     </aside>
+  )
+}
+
+/// Sits at the very bottom of the sidebar. POSTs to /logout via an inline
+/// form so we don't need any client JS — the form's redirect-after-submit
+/// lands the user on /login with the session cookie cleared.
+function LogoutLink() {
+  return () => (
+    <form
+      method="post"
+      action="/logout"
+      mix={css({
+        margin: 0,
+        padding: `${space[2]} ${space[3]}`,
+        borderTop: `1px solid ${color.divider}`,
+      })}
+    >
+      <button
+        type="submit"
+        mix={css({
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          gap: space[3],
+          padding: `${space[2]} ${space[3]}`,
+          background: 'transparent',
+          border: 'none',
+          borderRadius: radius.md,
+          color: color.textMuted,
+          fontSize: font.base,
+          fontWeight: 500,
+          fontFamily: font.sans,
+          cursor: 'pointer',
+          textAlign: 'left',
+          transition: 'background 120ms ease, color 120ms ease',
+          '&:hover': {
+            background: color.hover,
+            color: color.danger,
+          },
+        })}
+      >
+        <Icon svg={LogOut} size={18} />
+        Sign out
+      </button>
+    </form>
   )
 }
 
@@ -348,7 +405,7 @@ function NavLink() {
     label,
     icon,
   }: {
-    route: keyof typeof routes
+    route: NavRoute
     label: string
     icon: string
   }) => (

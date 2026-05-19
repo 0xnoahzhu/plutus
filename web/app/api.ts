@@ -565,6 +565,22 @@ export const api = {
     get<Catalyst[]>(withLocale(`/stocks/${stockId}/catalysts`, locale)),
 
   audit: () => get<unknown[]>('/audit'),
-  login: (password: string) =>
-    post<{ ok: boolean }>('/auth/login', { password }),
+
+  /// Returns the raw upstream Response so the caller can read the
+  /// `Set-Cookie` header and forward it to the browser. The JSON body shape
+  /// is `{ ok: true }` on success or an `ApiError` body on 401.
+  loginRaw: (password: string) =>
+    fetch(`${BASE}/api/v1/auth/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({ password }),
+    }),
+  logoutRaw: (cookie?: string | null) => {
+    let headers: Record<string, string> = { accept: 'application/json' }
+    if (cookie) headers.cookie = cookie
+    return fetch(`${BASE}/api/v1/auth/logout`, { method: 'POST', headers })
+  },
+
+  me: (cookie?: string | null) =>
+    get<{ kind: string; label: string; token_id: number | null }>('/auth/me', cookie),
 }

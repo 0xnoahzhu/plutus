@@ -8,6 +8,8 @@ import { correlations } from './controllers/correlations.tsx'
 import { earnings } from './controllers/earnings.tsx'
 import { holdings } from './controllers/holdings.tsx'
 import { home } from './controllers/home.tsx'
+import { login } from './controllers/login.tsx'
+import { logout } from './controllers/logout.tsx'
 import { macroEvents } from './controllers/macro-events.tsx'
 import { news } from './controllers/news.tsx'
 import { newsDetail } from './controllers/news-detail.tsx'
@@ -30,6 +32,9 @@ router.get(routes.assets, async ({ request }) => {
 })
 
 router.map(routes.home, home)
+router.map(routes.login.index, login.index)
+router.map(routes.login.action, login.action)
+router.map(routes.logout, logout)
 router.map(routes.holdings, holdings)
 router.map(routes.stocks, stocks)
 router.map(routes.stockDetail, stockDetail)
