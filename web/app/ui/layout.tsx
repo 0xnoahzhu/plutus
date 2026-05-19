@@ -278,7 +278,6 @@ function Sidebar() {
           )}
         </ul>
       </nav>
-      <SidebarFooter />
     </aside>
   )
 }
@@ -377,34 +376,6 @@ function NavLink() {
         {label}
       </a>
     </li>
-  )
-}
-
-function SidebarFooter() {
-  return () => (
-    <div
-      mix={css({
-        padding: `${space[3]} ${space[5]}`,
-        margin: `${space[4]} ${space[4]} 0`,
-        borderTop: `1px solid ${color.divider}`,
-        display: 'flex',
-        alignItems: 'center',
-        gap: space[2],
-        fontSize: font.sm,
-        color: color.textMuted,
-      })}
-    >
-      <span
-        mix={css({
-          width: '8px',
-          height: '8px',
-          borderRadius: radius.pill,
-          background: color.success,
-          display: 'inline-block',
-        })}
-      />
-      single-user mode
-    </div>
   )
 }
 
