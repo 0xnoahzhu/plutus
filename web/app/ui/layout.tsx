@@ -24,6 +24,7 @@ import {
   Zap,
 } from 'lucide-static'
 
+import { messages, type Messages } from '../i18n/messages.ts'
 import { routes } from '../routes.ts'
 
 import { Document } from './document.tsx'
@@ -71,28 +72,32 @@ const link = (route: NavRoute, label: string, icon: string): NavEntry => ({
 })
 const divider = (label: string): NavEntry => ({ kind: 'divider', label })
 
-const NAV: NavEntry[] = [
-  link('home', 'Dashboard', LayoutDashboard),
-  link('holdings', 'Holdings', Wallet),
-  link('stocks', 'Stocks', TrendingUp),
-  link('transactions', 'Transactions', ArrowLeftRight),
-  link('watchlists', 'Watchlist', Bookmark),
-  divider('Calendar'),
-  link('news', 'News', Newspaper),
-  link('briefs', 'Briefs', FileText),
-  link('earnings', 'Earnings', BarChart3),
-  link('macroEvents', 'Macro', Globe),
-  link('catalysts', 'Catalysts', Zap),
-  divider('Analysis'),
-  link('screeners', 'Screeners', Filter),
-  link('recommendations', 'Recommendations', ThumbsUp),
-  link('portfolioReviews', 'Reviews', ClipboardCheck),
-  link('correlations', 'Correlations', GitMerge),
-  link('selfExams', 'Self-Exam', SearchCheck),
-  divider(''),
-  link('audit', 'Audit', ScrollText),
-  link('settings', 'Settings', Settings),
-]
+/// Build the localized sidebar nav for one render. Labels come from the
+/// i18n messages table; icons + route refs stay constant across locales.
+function buildNav(m: Messages): NavEntry[] {
+  return [
+    link('home', m.nav.dashboard, LayoutDashboard),
+    link('holdings', m.nav.holdings, Wallet),
+    link('stocks', m.nav.stocks, TrendingUp),
+    link('transactions', m.nav.transactions, ArrowLeftRight),
+    link('watchlists', m.nav.watchlist, Bookmark),
+    divider(m.nav.sectionCalendar),
+    link('news', m.nav.news, Newspaper),
+    link('briefs', m.nav.briefs, FileText),
+    link('earnings', m.nav.earnings, BarChart3),
+    link('macroEvents', m.nav.macro, Globe),
+    link('catalysts', m.nav.catalysts, Zap),
+    divider(m.nav.sectionAnalysis),
+    link('screeners', m.nav.screeners, Filter),
+    link('recommendations', m.nav.recommendations, ThumbsUp),
+    link('portfolioReviews', m.nav.reviews, ClipboardCheck),
+    link('correlations', m.nav.correlations, GitMerge),
+    link('selfExams', m.nav.selfExam, SearchCheck),
+    divider(''),
+    link('audit', m.nav.audit, ScrollText),
+    link('settings', m.nav.settings, Settings),
+  ]
+}
 
 // ── Country / locale ─────────────────────────────────────────────────────────
 
@@ -252,7 +257,7 @@ export function Layout() {
           background: color.bg,
         })}
       >
-        <Sidebar />
+        <Sidebar locale={locale} />
         <main
           mix={css({
             padding: `${space[8]} ${space[10]}`,
@@ -329,42 +334,46 @@ export function Layout() {
 // ── Sidebar ──────────────────────────────────────────────────────────────────
 
 function Sidebar() {
-  return () => (
-    <aside
-      mix={css({
-        background: color.sidebar,
-        borderRight: `1px solid ${color.divider}`,
-        padding: `${space[6]} 0`,
-        display: 'flex',
-        flexDirection: 'column',
-        position: 'sticky',
-        top: 0,
-        height: '100vh',
-        overflowY: 'auto',
-      })}
-    >
-      <div mix={css({ padding: `0 ${space[5]}` })}>
-        <BrandMark />
-      </div>
-      <nav mix={css({ marginTop: space[6], flex: 1 })}>
-        <ul mix={css({ listStyle: 'none', padding: 0, margin: 0 })}>
-          {NAV.map((entry) =>
-            entry.kind === 'divider' ? <NavDivider label={entry.label} /> : (
-              <NavLink route={entry.route} label={entry.label} icon={entry.icon} />
-            ),
-          )}
-        </ul>
-      </nav>
-      <LogoutLink />
-    </aside>
-  )
+  return ({ locale }: { locale: string }) => {
+    let m = messages(locale)
+    let nav = buildNav(m)
+    return (
+      <aside
+        mix={css({
+          background: color.sidebar,
+          borderRight: `1px solid ${color.divider}`,
+          padding: `${space[6]} 0`,
+          display: 'flex',
+          flexDirection: 'column',
+          position: 'sticky',
+          top: 0,
+          height: '100vh',
+          overflowY: 'auto',
+        })}
+      >
+        <div mix={css({ padding: `0 ${space[5]}` })}>
+          <BrandMark />
+        </div>
+        <nav mix={css({ marginTop: space[6], flex: 1 })}>
+          <ul mix={css({ listStyle: 'none', padding: 0, margin: 0 })}>
+            {nav.map((entry) =>
+              entry.kind === 'divider' ? <NavDivider label={entry.label} /> : (
+                <NavLink route={entry.route} label={entry.label} icon={entry.icon} />
+              ),
+            )}
+          </ul>
+        </nav>
+        <LogoutLink label={m.nav.signOut} />
+      </aside>
+    )
+  }
 }
 
 /// Sits at the very bottom of the sidebar. POSTs to /logout via an inline
 /// form so we don't need any client JS — the form's redirect-after-submit
 /// lands the user on /login with the session cookie cleared.
 function LogoutLink() {
-  return () => (
+  return ({ label }: { label: string }) => (
     <form
       method="post"
       action="/logout"
@@ -399,7 +408,7 @@ function LogoutLink() {
         })}
       >
         <Icon svg={LogOut} size={18} />
-        Sign out
+        {label}
       </button>
     </form>
   )

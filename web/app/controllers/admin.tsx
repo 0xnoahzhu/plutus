@@ -2,6 +2,7 @@ import type { BuildAction } from 'remix/fetch-router'
 import { css } from 'remix/ui'
 
 import { api } from '../api.ts'
+import { messages } from '../i18n/messages.ts'
 import type { routes } from '../routes.ts'
 import { Document } from '../ui/document.tsx'
 import {
@@ -136,8 +137,10 @@ interface Props {
 /// data of its own, so the data nav would just produce 403s. Keep the page
 /// simple: brand + a single "Users" section.
 function AdminPage() {
-  return ({ locale, theme, users, error, flash }: Props) => (
-    <Document title="Admin · Plutus" lang={locale} theme={theme}>
+  return ({ locale, theme, users, error, flash }: Props) => {
+    let m = messages(locale)
+    return (
+    <Document title={`${m.admin.title} · Plutus`} lang={locale} theme={theme}>
       <div
         mix={css({
           minHeight: '100vh',
@@ -181,7 +184,7 @@ function AdminPage() {
                   },
                 })}
               >
-                Sign out
+                {m.nav.signOut}
               </button>
             </form>
           </header>
@@ -195,7 +198,7 @@ function AdminPage() {
               letterSpacing: '-0.01em',
             })}
           >
-            Admin
+            {m.admin.title}
           </h1>
           <p
             mix={css({
@@ -204,17 +207,17 @@ function AdminPage() {
               color: color.textMuted,
             })}
           >
-            Manage end-user accounts. Admin credentials live in env vars, not the database.
+            {m.admin.subtitle}
           </p>
 
           {(error || flash) && (
             <div mix={css({ marginBottom: space[4] })}>
-              <Banner error={error} flash={flash} />
+              <Banner error={error} flash={flash} locale={locale} />
             </div>
           )}
 
           <Card>
-            <SectionTitle>Create user</SectionTitle>
+            <SectionTitle>{m.admin.createSection}</SectionTitle>
             <form
               method="post"
               action="/admin/users/new"
@@ -229,7 +232,7 @@ function AdminPage() {
               <input
                 name="username"
                 type="text"
-                placeholder="username"
+                placeholder={m.admin.createUsername}
                 required
                 autoComplete="off"
                 mix={css({ ...fieldStyle, flex: '1 1 180px' })}
@@ -237,7 +240,7 @@ function AdminPage() {
               <input
                 name="password"
                 type="text"
-                placeholder="initial password"
+                placeholder={m.admin.createPassword}
                 required
                 autoComplete="off"
                 mix={css({ ...fieldStyle, flex: '1 1 220px' })}
@@ -256,19 +259,19 @@ function AdminPage() {
                   '&:hover': { background: color.brandHover },
                 })}
               >
-                Create
+                {m.admin.createSubmit}
               </button>
             </form>
           </Card>
 
           <div mix={css({ marginTop: space[5] })}>
             <Card>
-              <SectionTitle>Users</SectionTitle>
+              <SectionTitle>{m.admin.usersSection}</SectionTitle>
               {users.length === 0 ? (
                 <div mix={css({ marginTop: space[3] })}>
                   <EmptyState
-                    title="No users yet"
-                    hint="Create the first user above."
+                    title={m.admin.emptyTitle}
+                    hint={m.admin.emptyHint}
                   />
                 </div>
               ) : (
@@ -283,7 +286,7 @@ function AdminPage() {
                   })}
                 >
                   {users.map((u) => (
-                    <UserRow user={u} />
+                    <UserRow user={u} locale={locale} />
                   ))}
                 </ul>
               )}
@@ -292,11 +295,14 @@ function AdminPage() {
         </div>
       </div>
     </Document>
-  )
+    )
+  }
 }
 
 function UserRow() {
-  return ({ user }: { user: UserRow }) => (
+  return ({ user, locale }: { user: UserRow; locale: string }) => {
+    let m = messages(locale).admin
+    return (
     <li
       mix={css({
         border: `1px solid ${color.border}`,
@@ -343,7 +349,7 @@ function UserRow() {
                   fontWeight: 600,
                 })}
               >
-                reset pending
+                {m.resetBadge}
               </span>
             )}
           </div>
@@ -370,13 +376,13 @@ function UserRow() {
           <input
             name="password"
             type="text"
-            placeholder="new temp password"
+            placeholder={m.resetPlaceholder}
             required
             autoComplete="off"
             mix={css({ ...fieldStyle, flex: '1 1 auto' })}
           />
           <button type="submit" mix={css(secondaryButtonStyle)}>
-            Reset password
+            {m.resetSubmit}
           </button>
         </form>
         <form
@@ -388,17 +394,26 @@ function UserRow() {
           // be the obvious next step.
         >
           <button type="submit" mix={css(dangerButtonStyle)}>
-            Delete
+            {m.deleteSubmit}
           </button>
         </form>
       </div>
     </li>
-  )
+    )
+  }
 }
 
 function Banner() {
-  return ({ error, flash }: { error: string | null; flash: string | null }) => {
-    let { tone, message } = describe(error, flash)
+  return ({
+    error,
+    flash,
+    locale,
+  }: {
+    error: string | null
+    flash: string | null
+    locale: string
+  }) => {
+    let { tone, message } = describe(error, flash, locale)
     if (!message) return null
     let bg = tone === 'error' ? color.dangerSoft : color.successSoft
     let fg = tone === 'error' ? color.dangerText : color.successText
@@ -418,26 +433,27 @@ function Banner() {
   }
 }
 
-function describe(error: string | null, flash: string | null) {
+function describe(error: string | null, flash: string | null, locale: string) {
+  let m = messages(locale).admin
   if (error) {
-    let m: Record<string, string> = {
-      'missing-create': 'Username and password are required.',
-      'missing-reset': 'New password is required.',
-      'bad-id': 'Bad user id.',
-      taken: 'That username is already taken (or matches the admin name).',
-      forbidden: 'Admin privileges required.',
-      'not-found': 'User not found.',
-      server: 'Request failed.',
+    let table: Record<string, string> = {
+      'missing-create': m.errMissingCreate,
+      'missing-reset': m.errMissingReset,
+      'bad-id': m.errBadId,
+      taken: m.errTaken,
+      forbidden: m.errForbidden,
+      'not-found': m.errNotFound,
+      server: m.errServer,
     }
-    return { tone: 'error' as const, message: m[error] ?? 'Request failed.' }
+    return { tone: 'error' as const, message: table[error] ?? m.errServer }
   }
   if (flash) {
-    let m: Record<string, string> = {
-      created: 'User created.',
-      reset: 'Password reset. The user will be forced to change it on next login.',
-      deleted: 'User deleted.',
+    let table: Record<string, string> = {
+      created: m.flashCreated,
+      reset: m.flashReset,
+      deleted: m.flashDeleted,
     }
-    return { tone: 'success' as const, message: m[flash] ?? '' }
+    return { tone: 'success' as const, message: table[flash] ?? '' }
   }
   return { tone: 'success' as const, message: '' }
 }

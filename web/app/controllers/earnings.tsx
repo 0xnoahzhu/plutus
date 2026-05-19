@@ -2,6 +2,7 @@ import type { BuildAction } from 'remix/fetch-router'
 import { css, type RemixNode } from 'remix/ui'
 
 import { api, type EarningsEvent, type Stock } from '../api.ts'
+import { messages } from '../i18n/messages.ts'
 import type { routes } from '../routes.ts'
 import {
   Badge,
@@ -96,9 +97,11 @@ interface EarningsProps {
 }
 
 function EarningsPage() {
-  return ({ upcoming, past, country, locale, theme, today }: EarningsProps) => (
+  return ({ upcoming, past, country, locale, theme, today }: EarningsProps) => {
+    let p = messages(locale).pages.earnings
+    return (
     <Layout
-      title="Earnings"
+      title={p.title}
       subtitle={`Calendar for ${country}`}
       country={country}
       locale={locale}
@@ -124,7 +127,8 @@ function EarningsPage() {
         <DayList groups={past} />
       )}
     </Layout>
-  )
+    )
+  }
 }
 
 function DayList() {

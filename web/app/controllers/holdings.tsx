@@ -2,6 +2,7 @@ import type { BuildAction } from 'remix/fetch-router'
 import { css, type RemixNode } from 'remix/ui'
 
 import { api, type Holding, type Stock } from '../api.ts'
+import { messages } from '../i18n/messages.ts'
 import type { routes } from '../routes.ts'
 import {
   Badge,
@@ -63,9 +64,11 @@ interface HoldingsProps {
 }
 
 function HoldingsPage() {
-  return ({ rows, stocks, country, locale, theme, method }: HoldingsProps) => (
+  return ({ rows, stocks, country, locale, theme, method }: HoldingsProps) => {
+    let p = messages(locale).pages.holdings
+    return (
     <Layout
-      title="Holdings"
+      title={p.title}
       subtitle={`Cost basis: ${method.toUpperCase()}`}
       country={country}
       locale={locale}
@@ -162,7 +165,8 @@ function HoldingsPage() {
         </Card>
       )}
     </Layout>
-  )
+    )
+  }
 }
 
 function Th() {

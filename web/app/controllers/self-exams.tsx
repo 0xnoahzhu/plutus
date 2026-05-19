@@ -2,6 +2,7 @@ import type { BuildAction } from 'remix/fetch-router'
 import { css } from 'remix/ui'
 
 import { api, type SelfExam } from '../api.ts'
+import { messages } from '../i18n/messages.ts'
 import type { routes } from '../routes.ts'
 import {
   Badge,
@@ -40,9 +41,11 @@ interface SelfExamsProps {
 }
 
 function SelfExamsPage() {
-  return ({ exams, locale, theme }: SelfExamsProps) => (
+  return ({ exams, locale, theme }: SelfExamsProps) => {
+    let p = messages(locale).pages.selfExams
+    return (
     <Layout
-      title="Self-exam"
+      title={p.title}
       subtitle={`${exams.length} ${exams.length === 1 ? 'entry' : 'entries'}`}
       locale={locale}
       theme={theme}
@@ -79,7 +82,8 @@ function SelfExamsPage() {
         </div>
       )}
     </Layout>
-  )
+    )
+  }
 }
 
 function ExamCard() {

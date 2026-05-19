@@ -2,6 +2,7 @@ import type { BuildAction } from 'remix/fetch-router'
 import { css, type RemixNode } from 'remix/ui'
 
 import { api, type Stock, type Transaction } from '../api.ts'
+import { messages } from '../i18n/messages.ts'
 import type { routes } from '../routes.ts'
 import {
   Badge,
@@ -52,9 +53,11 @@ interface TxnProps {
 }
 
 function TransactionsPage() {
-  return ({ rows, stocks, country, locale, theme }: TxnProps) => (
+  return ({ rows, stocks, country, locale, theme }: TxnProps) => {
+    let p = messages(locale).pages.transactions
+    return (
     <Layout
-      title="Transactions"
+      title={p.title}
       subtitle={`${rows.length} in ${country}`}
       country={country}
       locale={locale}
@@ -155,7 +158,8 @@ function TransactionsPage() {
         </Card>
       )}
     </Layout>
-  )
+    )
+  }
 }
 
 function KindBadge() {

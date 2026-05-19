@@ -2,6 +2,7 @@ import type { BuildAction } from 'remix/fetch-router'
 import { css, type RemixNode } from 'remix/ui'
 
 import { api, type MacroEvent, type MacroIndicator } from '../api.ts'
+import { messages } from '../i18n/messages.ts'
 import type { routes } from '../routes.ts'
 import {
   Badge,
@@ -88,9 +89,11 @@ interface MacroEventsProps {
 }
 
 function MacroEventsPage() {
-  return ({ upcoming, past, indicators, country, locale, theme, today }: MacroEventsProps) => (
+  return ({ upcoming, past, indicators, country, locale, theme, today }: MacroEventsProps) => {
+    let p = messages(locale).pages.macroEvents
+    return (
     <Layout
-      title="Macro calendar"
+      title={p.title}
       subtitle={`Discrete macro and policy events for ${country}`}
       country={country}
       locale={locale}
@@ -125,7 +128,8 @@ function MacroEventsPage() {
         <DayList groups={past} indicators={indicators} />
       )}
     </Layout>
-  )
+    )
+  }
 }
 
 function DayList() {

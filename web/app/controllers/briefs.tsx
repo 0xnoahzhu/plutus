@@ -2,6 +2,7 @@ import type { BuildAction } from 'remix/fetch-router'
 import { css } from 'remix/ui'
 
 import { api, type MarketBrief } from '../api.ts'
+import { messages } from '../i18n/messages.ts'
 import type { routes } from '../routes.ts'
 import {
   Badge,
@@ -66,9 +67,11 @@ interface BriefsProps {
 }
 
 function BriefsPage() {
-  return ({ days, country, locale, theme }: BriefsProps) => (
+  return ({ days, country, locale, theme }: BriefsProps) => {
+    let p = messages(locale).pages.briefs
+    return (
     <Layout
-      title="Market Briefs"
+      title={p.title}
       subtitle={`Daily pre/post-market analysis for ${country}`}
       country={country}
       locale={locale}
@@ -93,7 +96,8 @@ function BriefsPage() {
         </div>
       )}
     </Layout>
-  )
+    )
+  }
 }
 
 function DayRow() {

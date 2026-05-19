@@ -2,6 +2,7 @@ import type { BuildAction } from 'remix/fetch-router'
 import { css } from 'remix/ui'
 
 import { api } from '../api.ts'
+import { messages } from '../i18n/messages.ts'
 import type { routes } from '../routes.ts'
 import { Document } from '../ui/document.tsx'
 import {
@@ -91,8 +92,10 @@ interface Props {
 /// just logged in with a temp password) and for opt-in self-service
 /// changes.
 function ChangePasswordPage() {
-  return ({ locale, theme, next, error, forced }: Props) => (
-    <Document title="Change password · Plutus" lang={locale} theme={theme}>
+  return ({ locale, theme, next, error, forced }: Props) => {
+    let m = messages(locale).auth.changePassword
+    return (
+    <Document title={`${m.title} · Plutus`} lang={locale} theme={theme}>
       <div
         mix={css({
           minHeight: '100vh',
@@ -134,7 +137,7 @@ function ChangePasswordPage() {
                 textAlign: 'center',
               })}
             >
-              Change password
+              {m.title}
             </h1>
 
             <p
@@ -146,14 +149,12 @@ function ChangePasswordPage() {
                 lineHeight: 1.5,
               })}
             >
-              {forced
-                ? 'Your administrator reset your password. Choose a new one to continue.'
-                : 'Enter your current password and a new one.'}
+              {forced ? m.hintForced : m.hintOptional}
             </p>
 
             {error && (
               <div mix={css({ marginTop: space[4] })}>
-                <ErrorBanner code={error} />
+                <ErrorBanner code={error} locale={locale} />
               </div>
             )}
 
@@ -166,7 +167,7 @@ function ChangePasswordPage() {
               <input
                 name="current_password"
                 type="password"
-                placeholder="Current password"
+                placeholder={m.current}
                 autoFocus
                 autoComplete="current-password"
                 mix={css(fieldStyle)}
@@ -175,7 +176,7 @@ function ChangePasswordPage() {
                 <input
                   name="new_password"
                   type="password"
-                  placeholder="New password"
+                  placeholder={m.next}
                   autoComplete="new-password"
                   mix={css(fieldStyle)}
                 />
@@ -184,7 +185,7 @@ function ChangePasswordPage() {
                 <input
                   name="new_password_confirm"
                   type="password"
-                  placeholder="Confirm new password"
+                  placeholder={m.confirm}
                   autoComplete="new-password"
                   mix={css(fieldStyle)}
                 />
@@ -206,14 +207,15 @@ function ChangePasswordPage() {
                   '&:hover': { background: color.brandHover },
                 })}
               >
-                Update password
+                {m.submit}
               </button>
             </form>
           </div>
         </div>
       </div>
     </Document>
-  )
+    )
+  }
 }
 
 const fieldStyle = {
@@ -231,17 +233,18 @@ const fieldStyle = {
 }
 
 function ErrorBanner() {
-  return ({ code }: { code: string }) => {
+  return ({ code, locale }: { code: string; locale: string }) => {
+    let m = messages(locale).auth.changePassword
     let message =
       code === 'wrong-current'
-        ? 'Current password is incorrect.'
+        ? m.errWrongCurrent
         : code === 'mismatch'
-          ? 'New passwords do not match.'
+          ? m.errMismatch
           : code === 'missing'
-            ? 'Fill in all fields.'
+            ? m.errMissing
             : code === 'forbidden'
-              ? 'Sign in again to change your password.'
-              : 'Password change failed.'
+              ? m.errForbidden
+              : m.errServer
     return (
       <div
         mix={css({

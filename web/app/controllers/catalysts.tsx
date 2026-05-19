@@ -2,6 +2,7 @@ import type { BuildAction } from 'remix/fetch-router'
 import { css } from 'remix/ui'
 
 import { api, type Catalyst, type Stock } from '../api.ts'
+import { messages } from '../i18n/messages.ts'
 import type { routes } from '../routes.ts'
 import {
   Badge,
@@ -95,9 +96,11 @@ interface CatalystsProps {
 }
 
 function CatalystsPage() {
-  return ({ upcoming, past, country, locale, theme, today }: CatalystsProps) => (
+  return ({ upcoming, past, country, locale, theme, today }: CatalystsProps) => {
+    let p = messages(locale).pages.catalysts
+    return (
     <Layout
-      title="Catalysts"
+      title={p.title}
       subtitle={`Forward-looking catalysts for ${country}`}
       country={country}
       locale={locale}
@@ -131,7 +134,8 @@ function CatalystsPage() {
         <DayList groups={past} />
       )}
     </Layout>
-  )
+    )
+  }
 }
 
 function DayList() {

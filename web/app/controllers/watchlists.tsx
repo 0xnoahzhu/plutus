@@ -7,6 +7,7 @@ import {
   type WatchlistItem,
   type WatchlistReport,
 } from '../api.ts'
+import { messages } from '../i18n/messages.ts'
 import type { routes } from '../routes.ts'
 import {
   Badge,
@@ -72,9 +73,11 @@ interface WatchlistPageProps {
 }
 
 function WatchlistPage() {
-  return ({ items, stocks, reports, reportTab, locale, theme }: WatchlistPageProps) => (
+  return ({ items, stocks, reports, reportTab, locale, theme }: WatchlistPageProps) => {
+    let p = messages(locale).pages.watchlist
+    return (
     <Layout
-      title="Watchlist"
+      title={p.title}
       subtitle={`${items.length} ${items.length === 1 ? 'stock' : 'stocks'}`}
       locale={locale}
       theme={theme}
@@ -167,7 +170,8 @@ function WatchlistPage() {
         <ReportsSection reports={reports} active={reportTab} />
       </div>
     </Layout>
-  )
+    )
+  }
 }
 
 function ReportsSection() {

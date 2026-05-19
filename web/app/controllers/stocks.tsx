@@ -2,6 +2,7 @@ import type { BuildAction } from 'remix/fetch-router'
 import { css, type RemixNode } from 'remix/ui'
 
 import { api, type Stock } from '../api.ts'
+import { messages } from '../i18n/messages.ts'
 import type { routes } from '../routes.ts'
 import {
   Badge,
@@ -44,9 +45,11 @@ interface StocksProps {
 }
 
 function StocksPage() {
-  return ({ rows, country, locale, theme }: StocksProps) => (
+  return ({ rows, country, locale, theme }: StocksProps) => {
+    let p = messages(locale).pages.stocks
+    return (
     <Layout
-      title="Stocks"
+      title={p.title}
       subtitle={`${rows.length} tracked in ${country}`}
       country={country}
       locale={locale}
@@ -125,7 +128,8 @@ function StocksPage() {
         </Card>
       )}
     </Layout>
-  )
+    )
+  }
 }
 
 function Th() {

@@ -2,6 +2,7 @@ import type { BuildAction } from 'remix/fetch-router'
 import { css } from 'remix/ui'
 
 import { api, type NewsItem } from '../api.ts'
+import { messages } from '../i18n/messages.ts'
 import type { routes } from '../routes.ts'
 import {
   Badge,
@@ -54,9 +55,11 @@ interface NewsListProps {
 }
 
 function NewsListPage() {
-  return ({ rows, totalRaw, country, locale, theme }: NewsListProps) => (
+  return ({ rows, totalRaw, country, locale, theme }: NewsListProps) => {
+    let p = messages(locale).pages.news
+    return (
     <Layout
-      title="News"
+      title={p.title}
       subtitle={`${rows.length} of ${totalRaw} items · region ${country} or global`}
       country={country}
       locale={locale}
@@ -81,7 +84,8 @@ function NewsListPage() {
         </div>
       )}
     </Layout>
-  )
+    )
+  }
 }
 
 function NewsCard() {

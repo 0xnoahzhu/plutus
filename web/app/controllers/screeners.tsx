@@ -2,6 +2,7 @@ import type { BuildAction } from 'remix/fetch-router'
 import { css } from 'remix/ui'
 
 import { api, type ScreenerHit, type ScreenerRun, type Stock } from '../api.ts'
+import { messages } from '../i18n/messages.ts'
 import type { routes } from '../routes.ts'
 import {
   Badge,
@@ -65,9 +66,11 @@ interface ScreenersProps {
 }
 
 function ScreenersPage() {
-  return ({ runs, latest, hits, stocks, locale, theme }: ScreenersProps) => (
+  return ({ runs, latest, hits, stocks, locale, theme }: ScreenersProps) => {
+    let p = messages(locale).pages.screeners
+    return (
     <Layout
-      title="Screeners"
+      title={p.title}
       subtitle="Recurring screener runs — weekly value/quality/momentum scans, IPO watchlists, and ad-hoc filters."
       locale={locale}
       theme={theme}
@@ -103,7 +106,8 @@ function ScreenersPage() {
         </div>
       )}
     </Layout>
-  )
+    )
+  }
 }
 
 function RunCard() {

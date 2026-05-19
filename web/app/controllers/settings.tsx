@@ -1,6 +1,7 @@
 import type { BuildAction } from 'remix/fetch-router'
 import { css } from 'remix/ui'
 
+import { messages } from '../i18n/messages.ts'
 import type { routes } from '../routes.ts'
 import {
   Card,
@@ -42,51 +43,47 @@ interface SettingsProps {
 }
 
 function SettingsPage() {
-  return ({ locale, theme }: SettingsProps) => (
-    <Layout
-      title="Settings"
-      subtitle="Local preferences. Persisted via cookies, applied per request."
-      locale={locale}
-      theme={theme}
-    >
-      <div mix={css({ display: 'flex', flexDirection: 'column', gap: space[5] })}>
-        <Card>
-          <SectionTitle>Color scheme</SectionTitle>
-          <p
-            mix={css({
-              margin: `0 0 ${space[4]}`,
-              fontSize: font.sm,
-              color: color.textMuted,
-              lineHeight: 1.5,
-            })}
-          >
-            <strong mix={css({ color: color.text })}>System</strong> follows the OS{' '}
-            <code>prefers-color-scheme</code> setting.{' '}
-            <strong mix={css({ color: color.text })}>Dark</strong> and{' '}
-            <strong mix={css({ color: color.text })}>Light</strong> pin the
-            palette regardless.
-          </p>
-          <ThemeChips selected={theme} locale={locale} />
-        </Card>
+  return ({ locale, theme }: SettingsProps) => {
+    let m = messages(locale)
+    return (
+      <Layout
+        title={m.pages.settings.title}
+        subtitle={m.pages.settings.subtitle}
+        locale={locale}
+        theme={theme}
+      >
+        <div mix={css({ display: 'flex', flexDirection: 'column', gap: space[5] })}>
+          <Card>
+            <SectionTitle>{m.settings.colorScheme.title}</SectionTitle>
+            <p
+              mix={css({
+                margin: `0 0 ${space[4]}`,
+                fontSize: font.sm,
+                color: color.textMuted,
+                lineHeight: 1.5,
+              })}
+            >
+              {m.settings.colorScheme.description}
+            </p>
+            <ThemeChips selected={theme} locale={locale} />
+          </Card>
 
-        <Card>
-          <SectionTitle>Language</SectionTitle>
-          <p
-            mix={css({
-              margin: `0 0 ${space[4]}`,
-              fontSize: font.sm,
-              color: color.textMuted,
-              lineHeight: 1.5,
-            })}
-          >
-            Controls which translation gets rendered on every agent-output row.
-            The base columns stay English; zh-CN is layered on via the
-            <code mix={css({ marginLeft: '4px', marginRight: '4px' })}>translations</code>
-            JSON field on each record.
-          </p>
-          <LocaleChips selected={locale} />
-        </Card>
-      </div>
-    </Layout>
-  )
+          <Card>
+            <SectionTitle>{m.settings.language.title}</SectionTitle>
+            <p
+              mix={css({
+                margin: `0 0 ${space[4]}`,
+                fontSize: font.sm,
+                color: color.textMuted,
+                lineHeight: 1.5,
+              })}
+            >
+              {m.settings.language.description}
+            </p>
+            <LocaleChips selected={locale} />
+          </Card>
+        </div>
+      </Layout>
+    )
+  }
 }

@@ -2,6 +2,7 @@ import type { BuildAction } from 'remix/fetch-router'
 import { css } from 'remix/ui'
 
 import { api } from '../api.ts'
+import { messages } from '../i18n/messages.ts'
 import type { routes } from '../routes.ts'
 import {
   Card,
@@ -63,8 +64,10 @@ interface DashboardProps {
 }
 
 function DashboardPage() {
-  return ({ healthy, locale, theme, counts }: DashboardProps) => (
-    <Layout title="Dashboard" subtitle="Today's snapshot" locale={locale} theme={theme}>
+  return ({ healthy, locale, theme, counts }: DashboardProps) => {
+    let p = messages(locale).pages.dashboard
+    return (
+    <Layout title={p.title} subtitle={p.subtitle} locale={locale} theme={theme}>
       <SectionTitle hint="real-time">Quick Stats</SectionTitle>
       <div
         mix={css({
@@ -140,5 +143,6 @@ function DashboardPage() {
         API base: <code>{api.base}</code>
       </p>
     </Layout>
-  )
+    )
+  }
 }

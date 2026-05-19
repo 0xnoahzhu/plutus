@@ -2,6 +2,7 @@ import type { BuildAction } from 'remix/fetch-router'
 import { css, type RemixNode } from 'remix/ui'
 
 import { api } from '../api.ts'
+import { messages } from '../i18n/messages.ts'
 import type { routes } from '../routes.ts'
 import {
   Badge,
@@ -40,8 +41,10 @@ export const audit: BuildAction<'GET', typeof routes.audit> = {
 }
 
 function AuditPage() {
-  return ({ rows, locale, theme }: { rows: AuditRow[]; locale: string; theme: Theme }) => (
-    <Layout title="Audit log" subtitle="Server-side write log" locale={locale} theme={theme}>
+  return ({ rows, locale, theme }: { rows: AuditRow[]; locale: string; theme: Theme }) => {
+    let p = messages(locale).pages.audit
+    return (
+    <Layout title={p.title} subtitle={p.subtitle} locale={locale} theme={theme}>
       {rows.length === 0 ? (
         <Card>
           <EmptyState
@@ -120,7 +123,8 @@ function AuditPage() {
         </Card>
       )}
     </Layout>
-  )
+    )
+  }
 }
 
 /// Map common action verbs to a Badge tone. Falls back to neutral so unknown

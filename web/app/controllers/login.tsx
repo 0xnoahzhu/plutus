@@ -2,6 +2,7 @@ import type { BuildAction } from 'remix/fetch-router'
 import { css } from 'remix/ui'
 
 import { api } from '../api.ts'
+import { messages } from '../i18n/messages.ts'
 import type { routes } from '../routes.ts'
 import { Document } from '../ui/document.tsx'
 import { BrandMark, color, font, radius, resolveLocale, resolveTheme, space, type Theme } from '../ui/layout.tsx'
@@ -74,8 +75,10 @@ interface LoginProps {
 /// don't appear before the user is signed in. Just centers the brand mark
 /// + a single card on a full-bleed background.
 function LoginPage() {
-  return ({ locale, theme, next, error }: LoginProps) => (
-    <Document title="Sign in · Plutus" lang={locale} theme={theme}>
+  return ({ locale, theme, next, error }: LoginProps) => {
+    let m = messages(locale).auth.login
+    return (
+    <Document title={`${m.title} · Plutus`} lang={locale} theme={theme}>
       <div
         mix={css({
           minHeight: '100vh',
@@ -117,12 +120,12 @@ function LoginPage() {
                 textAlign: 'center',
               })}
             >
-              Sign in
+              {m.title}
             </h1>
 
             {error && (
               <div mix={css({ marginTop: space[4] })}>
-                <ErrorBanner code={error} />
+                <ErrorBanner code={error} locale={locale} />
               </div>
             )}
 
@@ -136,7 +139,7 @@ function LoginPage() {
                 id="username"
                 name="username"
                 type="text"
-                placeholder="Username"
+                placeholder={m.username}
                 autoFocus
                 autoComplete="username"
                 mix={css(fieldStyle)}
@@ -146,7 +149,7 @@ function LoginPage() {
                   id="password"
                   name="password"
                   type="password"
-                  placeholder="Password"
+                  placeholder={m.password}
                   autoComplete="current-password"
                   mix={css(fieldStyle)}
                 />
@@ -168,14 +171,15 @@ function LoginPage() {
                   '&:hover': { background: color.brandHover },
                 })}
               >
-                Sign in
+                {m.submit}
               </button>
             </form>
           </div>
         </div>
       </div>
     </Document>
-  )
+    )
+  }
 }
 
 const fieldStyle = {
@@ -196,13 +200,14 @@ const fieldStyle = {
 }
 
 function ErrorBanner() {
-  return ({ code }: { code: string }) => {
+  return ({ code, locale }: { code: string; locale: string }) => {
+    let m = messages(locale).auth.login
     let message =
       code === 'bad-credentials'
-        ? 'Wrong username or password.'
+        ? m.errBadCredentials
         : code === 'missing'
-          ? 'Enter your username and password.'
-          : 'Login failed.'
+          ? m.errMissing
+          : m.errServer
     return (
       <div
         mix={css({

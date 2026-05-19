@@ -8,6 +8,7 @@ import {
   type Stock,
   type UniverseDefinition,
 } from '../api.ts'
+import { messages } from '../i18n/messages.ts'
 import type { routes } from '../routes.ts'
 import {
   Badge,
@@ -90,9 +91,11 @@ function CorrelationsPage() {
     stocks,
     locale,
     theme,
-  }: CorrelationsProps) => (
+  }: CorrelationsProps) => {
+    let p = messages(locale).pages.correlations
+    return (
     <Layout
-      title="Correlation map"
+      title={p.title}
       subtitle={latest ? `Latest run ${latest.run_date}` : 'No runs yet'}
       locale={locale}
       theme={theme}
@@ -166,7 +169,8 @@ function CorrelationsPage() {
         </div>
       )}
     </Layout>
-  )
+    )
+  }
 }
 
 function UniverseList() {

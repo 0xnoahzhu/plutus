@@ -2,6 +2,7 @@ import type { BuildAction } from 'remix/fetch-router'
 import { css } from 'remix/ui'
 
 import { api, type Recommendation, type Stock } from '../api.ts'
+import { messages } from '../i18n/messages.ts'
 import type { routes } from '../routes.ts'
 import {
   Badge,
@@ -58,9 +59,11 @@ interface RecommendationsProps {
 }
 
 function RecommendationsPage() {
-  return ({ open, closed, stocks, locale, theme }: RecommendationsProps) => (
+  return ({ open, closed, stocks, locale, theme }: RecommendationsProps) => {
+    let p = messages(locale).pages.recommendations
+    return (
     <Layout
-      title="Recommendations"
+      title={p.title}
       subtitle="Standalone buy / sell / reduce / hold calls the agent tracks from issue until close-out with PnL."
       locale={locale}
       theme={theme}
@@ -96,7 +99,8 @@ function RecommendationsPage() {
         </div>
       </div>
     </Layout>
-  )
+    )
+  }
 }
 
 function RecsList() {
