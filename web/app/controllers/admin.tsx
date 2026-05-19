@@ -1,0 +1,483 @@
+import type { BuildAction } from 'remix/fetch-router'
+import { css } from 'remix/ui'
+
+import { api } from '../api.ts'
+import type { routes } from '../routes.ts'
+import { Document } from '../ui/document.tsx'
+import {
+  BrandMark,
+  Card,
+  color,
+  EmptyState,
+  font,
+  radius,
+  resolveLocale,
+  resolveTheme,
+  SectionTitle,
+  space,
+  type Theme,
+} from '../ui/layout.tsx'
+import { render } from '../utils/render.tsx'
+
+interface UserRow {
+  id: number
+  username: string
+  password_reset_required: boolean
+  created_at: string
+  updated_at: string
+}
+
+/// GET /admin — list all users. Reachable only to the env-configured admin.
+/// Regular sessions hit a 403 from the API and we punt them to /.
+export const admin: BuildAction<'GET', typeof routes.admin> = {
+  async handler({ request }) {
+    let url = new URL(request.url)
+    let locale = resolveLocale(request, url.searchParams)
+    let theme = resolveTheme(request, url.searchParams)
+    let cookie = request.headers.get('cookie')
+    let error = url.searchParams.get('error')
+    let flash = url.searchParams.get('flash')
+
+    let users: UserRow[] = []
+    try {
+      users = await api.adminListUsers(cookie)
+    } catch {
+      // Not authenticated as admin → send away. Bare cookie / regular user.
+      return Response.redirect(new URL('/login', request.url), 303)
+    }
+
+    return render(
+      <AdminPage
+        locale={locale}
+        theme={theme}
+        users={users}
+        error={error}
+        flash={flash}
+      />,
+      request,
+      { locale, theme },
+    )
+  },
+}
+
+/// POST /admin/users/new — create a new user account.
+export const adminUserCreate: BuildAction<'POST', typeof routes.adminUserCreate> = {
+  async handler({ request }) {
+    let form = await request.formData()
+    let username = String(form.get('username') ?? '').trim()
+    let password = String(form.get('password') ?? '')
+    if (!username || !password) {
+      return Response.redirect(new URL('/admin?error=missing-create', request.url), 303)
+    }
+    let cookie = request.headers.get('cookie')
+    let upstream = await api.adminCreateUserRaw(cookie, { username, password })
+    if (!upstream.ok) {
+      let code = upstream.status === 409 ? 'taken' : upstream.status === 403 ? 'forbidden' : 'server'
+      return Response.redirect(new URL(`/admin?error=${code}`, request.url), 303)
+    }
+    return Response.redirect(
+      new URL(`/admin?flash=created&user=${encodeURIComponent(username)}`, request.url),
+      303,
+    )
+  },
+}
+
+/// POST /admin/users/:id/reset — admin sets a fresh temp password and flips
+/// `password_reset_required=true` on the user row.
+export const adminUserReset: BuildAction<'POST', typeof routes.adminUserReset> = {
+  async handler({ request, params }) {
+    let id = Number(params.id)
+    if (!Number.isFinite(id)) {
+      return Response.redirect(new URL('/admin?error=bad-id', request.url), 303)
+    }
+    let form = await request.formData()
+    let password = String(form.get('password') ?? '')
+    if (!password) {
+      return Response.redirect(new URL('/admin?error=missing-reset', request.url), 303)
+    }
+    let cookie = request.headers.get('cookie')
+    let upstream = await api.adminResetUserPasswordRaw(cookie, id, password)
+    if (!upstream.ok) {
+      let code = upstream.status === 403 ? 'forbidden' : upstream.status === 404 ? 'not-found' : 'server'
+      return Response.redirect(new URL(`/admin?error=${code}`, request.url), 303)
+    }
+    return Response.redirect(new URL(`/admin?flash=reset`, request.url), 303)
+  },
+}
+
+/// POST /admin/users/:id/delete — remove a user account. Hard delete; their
+/// rows in per-user tables become orphans (the unique indexes on
+/// (user_id, …) keep them isolated).
+export const adminUserDelete: BuildAction<'POST', typeof routes.adminUserDelete> = {
+  async handler({ request, params }) {
+    let id = Number(params.id)
+    if (!Number.isFinite(id)) {
+      return Response.redirect(new URL('/admin?error=bad-id', request.url), 303)
+    }
+    let cookie = request.headers.get('cookie')
+    let upstream = await api.adminDeleteUserRaw(cookie, id)
+    if (!upstream.ok) {
+      let code = upstream.status === 403 ? 'forbidden' : upstream.status === 404 ? 'not-found' : 'server'
+      return Response.redirect(new URL(`/admin?error=${code}`, request.url), 303)
+    }
+    return Response.redirect(new URL(`/admin?flash=deleted`, request.url), 303)
+  },
+}
+
+interface Props {
+  locale: string
+  theme: Theme
+  users: UserRow[]
+  error: string | null
+  flash: string | null
+}
+
+/// Standalone admin shell — no regular sidebar. Admin doesn't have per-user
+/// data of its own, so the data nav would just produce 403s. Keep the page
+/// simple: brand + a single "Users" section.
+function AdminPage() {
+  return ({ locale, theme, users, error, flash }: Props) => (
+    <Document title="Admin · Plutus" lang={locale} theme={theme}>
+      <div
+        mix={css({
+          minHeight: '100vh',
+          background: color.bg,
+          padding: `${space[6]} ${space[6]}`,
+        })}
+      >
+        <div
+          mix={css({
+            maxWidth: '780px',
+            margin: '0 auto',
+          })}
+        >
+          <header
+            mix={css({
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: space[6],
+              flexWrap: 'wrap',
+              gap: space[3],
+            })}
+          >
+            <BrandMark size={32} />
+            <form method="post" action="/logout" mix={css({ margin: 0 })}>
+              <button
+                type="submit"
+                mix={css({
+                  padding: `${space[2]} ${space[3]}`,
+                  background: 'transparent',
+                  border: `1px solid ${color.border}`,
+                  borderRadius: radius.md,
+                  color: color.textMuted,
+                  fontSize: font.sm,
+                  fontWeight: 500,
+                  fontFamily: font.sans,
+                  cursor: 'pointer',
+                  '&:hover': {
+                    background: color.hover,
+                    color: color.danger,
+                  },
+                })}
+              >
+                Sign out
+              </button>
+            </form>
+          </header>
+
+          <h1
+            mix={css({
+              margin: `0 0 ${space[1]}`,
+              fontSize: font.xxl,
+              fontWeight: 700,
+              color: color.text,
+              letterSpacing: '-0.01em',
+            })}
+          >
+            Admin
+          </h1>
+          <p
+            mix={css({
+              margin: `0 0 ${space[6]}`,
+              fontSize: font.sm,
+              color: color.textMuted,
+            })}
+          >
+            Manage end-user accounts. Admin credentials live in env vars, not the database.
+          </p>
+
+          {(error || flash) && (
+            <div mix={css({ marginBottom: space[4] })}>
+              <Banner error={error} flash={flash} />
+            </div>
+          )}
+
+          <Card>
+            <SectionTitle>Create user</SectionTitle>
+            <form
+              method="post"
+              action="/admin/users/new"
+              mix={css({
+                display: 'flex',
+                gap: space[3],
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                marginTop: space[3],
+              })}
+            >
+              <input
+                name="username"
+                type="text"
+                placeholder="username"
+                required
+                autoComplete="off"
+                mix={css({ ...fieldStyle, flex: '1 1 180px' })}
+              />
+              <input
+                name="password"
+                type="text"
+                placeholder="initial password"
+                required
+                autoComplete="off"
+                mix={css({ ...fieldStyle, flex: '1 1 220px' })}
+              />
+              <button
+                type="submit"
+                mix={css({
+                  padding: `${space[3]} ${space[4]}`,
+                  background: color.brand,
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: radius.md,
+                  fontSize: font.base,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  '&:hover': { background: color.brandHover },
+                })}
+              >
+                Create
+              </button>
+            </form>
+          </Card>
+
+          <div mix={css({ marginTop: space[5] })}>
+            <Card>
+              <SectionTitle>Users</SectionTitle>
+              {users.length === 0 ? (
+                <div mix={css({ marginTop: space[3] })}>
+                  <EmptyState
+                    title="No users yet"
+                    hint="Create the first user above."
+                  />
+                </div>
+              ) : (
+                <ul
+                  mix={css({
+                    listStyle: 'none',
+                    padding: 0,
+                    margin: `${space[3]} 0 0`,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: space[3],
+                  })}
+                >
+                  {users.map((u) => (
+                    <UserRow user={u} />
+                  ))}
+                </ul>
+              )}
+            </Card>
+          </div>
+        </div>
+      </div>
+    </Document>
+  )
+}
+
+function UserRow() {
+  return ({ user }: { user: UserRow }) => (
+    <li
+      mix={css({
+        border: `1px solid ${color.border}`,
+        borderRadius: radius.md,
+        padding: space[3],
+        background: color.bg,
+      })}
+    >
+      <div
+        mix={css({
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: space[3],
+        })}
+      >
+        <div>
+          <div
+            mix={css({
+              fontSize: font.base,
+              fontWeight: 600,
+              color: color.text,
+            })}
+          >
+            {user.username}
+          </div>
+          <div
+            mix={css({
+              fontSize: font.xs,
+              color: color.textMuted,
+              marginTop: space[1],
+            })}
+          >
+            #{user.id} · created {user.created_at.slice(0, 10)}
+            {user.password_reset_required && (
+              <span
+                mix={css({
+                  marginLeft: space[2],
+                  padding: `2px ${space[2]}`,
+                  background: color.dangerSoft,
+                  color: color.dangerText,
+                  borderRadius: radius.sm,
+                  fontWeight: 600,
+                })}
+              >
+                reset pending
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+      <div
+        mix={css({
+          marginTop: space[3],
+          display: 'flex',
+          gap: space[3],
+          flexWrap: 'wrap',
+        })}
+      >
+        <form
+          method="post"
+          action={`/admin/users/${user.id}/reset`}
+          mix={css({
+            display: 'flex',
+            gap: space[2],
+            flex: '1 1 280px',
+            margin: 0,
+          })}
+        >
+          <input
+            name="password"
+            type="text"
+            placeholder="new temp password"
+            required
+            autoComplete="off"
+            mix={css({ ...fieldStyle, flex: '1 1 auto' })}
+          />
+          <button type="submit" mix={css(secondaryButtonStyle)}>
+            Reset password
+          </button>
+        </form>
+        <form
+          method="post"
+          action={`/admin/users/${user.id}/delete`}
+          mix={css({ margin: 0 })}
+          // Browsers can't natively confirm on POST, so we lean on the admin
+          // double-checking before clicking. Adding a JS confirm here would
+          // be the obvious next step.
+        >
+          <button type="submit" mix={css(dangerButtonStyle)}>
+            Delete
+          </button>
+        </form>
+      </div>
+    </li>
+  )
+}
+
+function Banner() {
+  return ({ error, flash }: { error: string | null; flash: string | null }) => {
+    let { tone, message } = describe(error, flash)
+    if (!message) return null
+    let bg = tone === 'error' ? color.dangerSoft : color.successSoft
+    let fg = tone === 'error' ? color.dangerText : color.successText
+    return (
+      <div
+        mix={css({
+          padding: `${space[2]} ${space[3]}`,
+          background: bg,
+          color: fg,
+          borderRadius: radius.md,
+          fontSize: font.sm,
+        })}
+      >
+        {message}
+      </div>
+    )
+  }
+}
+
+function describe(error: string | null, flash: string | null) {
+  if (error) {
+    let m: Record<string, string> = {
+      'missing-create': 'Username and password are required.',
+      'missing-reset': 'New password is required.',
+      'bad-id': 'Bad user id.',
+      taken: 'That username is already taken (or matches the admin name).',
+      forbidden: 'Admin privileges required.',
+      'not-found': 'User not found.',
+      server: 'Request failed.',
+    }
+    return { tone: 'error' as const, message: m[error] ?? 'Request failed.' }
+  }
+  if (flash) {
+    let m: Record<string, string> = {
+      created: 'User created.',
+      reset: 'Password reset. The user will be forced to change it on next login.',
+      deleted: 'User deleted.',
+    }
+    return { tone: 'success' as const, message: m[flash] ?? '' }
+  }
+  return { tone: 'success' as const, message: '' }
+}
+
+const fieldStyle = {
+  width: '100%',
+  padding: `${space[2]} ${space[3]}`,
+  background: color.surface,
+  border: `1px solid ${color.border}`,
+  borderRadius: radius.md,
+  fontSize: font.base,
+  color: color.text,
+  fontFamily: font.sans,
+  outline: 'none',
+  '&:focus': { borderColor: color.brand },
+  '&::placeholder': { color: color.textDim },
+}
+
+const secondaryButtonStyle = {
+  padding: `${space[2]} ${space[3]}`,
+  background: 'transparent',
+  border: `1px solid ${color.border}`,
+  borderRadius: radius.md,
+  color: color.text,
+  fontSize: font.sm,
+  fontWeight: 500,
+  fontFamily: font.sans,
+  cursor: 'pointer',
+  '&:hover': { background: color.hover },
+}
+
+const dangerButtonStyle = {
+  padding: `${space[2]} ${space[3]}`,
+  background: 'transparent',
+  border: `1px solid ${color.border}`,
+  borderRadius: radius.md,
+  color: color.danger,
+  fontSize: font.sm,
+  fontWeight: 500,
+  fontFamily: font.sans,
+  cursor: 'pointer',
+  '&:hover': { background: color.dangerSoft, borderColor: color.danger },
+}

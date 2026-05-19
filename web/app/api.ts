@@ -558,13 +558,13 @@ export const api = {
   audit: () => get<unknown[]>('/audit'),
 
   /// Returns the raw upstream Response so the caller can read the
-  /// `Set-Cookie` header and forward it to the browser. The JSON body shape
-  /// is `{ ok: true }` on success or an `ApiError` body on 401.
-  loginRaw: (password: string) =>
+  /// `Set-Cookie` header AND the JSON body (to check `password_reset_required`),
+  /// then forward both back to the browser.
+  loginRaw: (username: string, password: string) =>
     fetch(`${BASE}/api/v1/auth/login`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ username, password }),
     }),
   logoutRaw: (cookie?: string | null) => {
     let headers: Record<string, string> = { accept: 'application/json' }
@@ -572,6 +572,82 @@ export const api = {
     return fetch(`${BASE}/api/v1/auth/logout`, { method: 'POST', headers })
   },
 
+  /// Self-service password change. Used by the forced-reset flow as well —
+  /// when `password_reset_required` is set, `current_password` is ignored by
+  /// the server (the admin-issued temp hash is already invalidated).
+  changePasswordRaw: (
+    cookie: string | null | undefined,
+    body: { current_password: string; new_password: string; new_password_confirm: string },
+  ) => {
+    let headers: Record<string, string> = {
+      'content-type': 'application/json',
+      accept: 'application/json',
+    }
+    if (cookie) headers.cookie = cookie
+    return fetch(`${BASE}/api/v1/auth/change-password`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    })
+  },
+
   me: (cookie?: string | null) =>
-    get<{ kind: string; label: string; token_id: number | null }>('/auth/me', cookie),
+    get<{
+      kind: string
+      label: string
+      user_id: number | null
+      token_id: number | null
+      is_admin: boolean
+    }>('/auth/me', cookie),
+
+  // ── Admin (admin-only — all return 403 to regular users) ───────────────
+  adminListUsers: (cookie?: string | null) =>
+    get<
+      Array<{
+        id: number
+        username: string
+        password_reset_required: boolean
+        created_at: string
+        updated_at: string
+      }>
+    >('/admin/users', cookie),
+
+  adminCreateUserRaw: (
+    cookie: string | null | undefined,
+    body: { username: string; password: string },
+  ) => {
+    let headers: Record<string, string> = {
+      'content-type': 'application/json',
+      accept: 'application/json',
+    }
+    if (cookie) headers.cookie = cookie
+    return fetch(`${BASE}/api/v1/admin/users`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    })
+  },
+
+  adminResetUserPasswordRaw: (
+    cookie: string | null | undefined,
+    id: number,
+    password: string,
+  ) => {
+    let headers: Record<string, string> = {
+      'content-type': 'application/json',
+      accept: 'application/json',
+    }
+    if (cookie) headers.cookie = cookie
+    return fetch(`${BASE}/api/v1/admin/users/${id}/reset-password`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ password }),
+    })
+  },
+
+  adminDeleteUserRaw: (cookie: string | null | undefined, id: number) => {
+    let headers: Record<string, string> = { accept: 'application/json' }
+    if (cookie) headers.cookie = cookie
+    return fetch(`${BASE}/api/v1/admin/users/${id}`, { method: 'DELETE', headers })
+  },
 }

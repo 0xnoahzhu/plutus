@@ -1,9 +1,11 @@
 import { createRouter } from 'remix/fetch-router'
 
 import { assets } from './assets.ts'
+import { admin, adminUserCreate, adminUserDelete, adminUserReset } from './controllers/admin.tsx'
 import { audit } from './controllers/audit.tsx'
 import { briefs } from './controllers/briefs.tsx'
 import { catalysts } from './controllers/catalysts.tsx'
+import { changePassword } from './controllers/change-password.tsx'
 import { correlations } from './controllers/correlations.tsx'
 import { earnings } from './controllers/earnings.tsx'
 import { holdings } from './controllers/holdings.tsx'
@@ -35,6 +37,12 @@ router.map(routes.home, home)
 router.map(routes.login.index, login.index)
 router.map(routes.login.action, login.action)
 router.map(routes.logout, logout)
+router.map(routes.changePassword.index, changePassword.index)
+router.map(routes.changePassword.action, changePassword.action)
+router.map(routes.admin, admin)
+router.map(routes.adminUserCreate, adminUserCreate)
+router.map(routes.adminUserReset, adminUserReset)
+router.map(routes.adminUserDelete, adminUserDelete)
 router.map(routes.holdings, holdings)
 router.map(routes.stocks, stocks)
 router.map(routes.stockDetail, stockDetail)
