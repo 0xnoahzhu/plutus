@@ -51,24 +51,6 @@ function SettingsPage() {
     >
       <div mix={css({ display: 'flex', flexDirection: 'column', gap: space[5] })}>
         <Card>
-          <SectionTitle>Language</SectionTitle>
-          <p
-            mix={css({
-              margin: `0 0 ${space[4]}`,
-              fontSize: font.sm,
-              color: color.textMuted,
-              lineHeight: 1.5,
-            })}
-          >
-            Controls which translation gets rendered on every agent-output row.
-            The base columns stay English; zh-CN is layered on via the
-            <code mix={css({ marginLeft: '4px', marginRight: '4px' })}>translations</code>
-            JSON field on each record.
-          </p>
-          <LocaleChips selected={locale} />
-        </Card>
-
-        <Card>
           <SectionTitle>Color scheme</SectionTitle>
           <p
             mix={css({
@@ -85,6 +67,24 @@ function SettingsPage() {
             palette regardless.
           </p>
           <ThemeChips selected={theme} locale={locale} />
+        </Card>
+
+        <Card>
+          <SectionTitle>Language</SectionTitle>
+          <p
+            mix={css({
+              margin: `0 0 ${space[4]}`,
+              fontSize: font.sm,
+              color: color.textMuted,
+              lineHeight: 1.5,
+            })}
+          >
+            Controls which translation gets rendered on every agent-output row.
+            The base columns stay English; zh-CN is layered on via the
+            <code mix={css({ marginLeft: '4px', marginRight: '4px' })}>translations</code>
+            JSON field on each record.
+          </p>
+          <LocaleChips selected={locale} />
         </Card>
       </div>
     </Layout>
