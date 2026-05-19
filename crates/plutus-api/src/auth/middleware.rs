@@ -3,29 +3,63 @@
 //!   bearer token → api_token row → user actor), or
 //! - allows the request through as `Anonymous` when `require_auth=false`, or
 //! - rejects with 401 when `require_auth=true` and no credential is present.
+//!
+//! When the resolved actor is a regular user whose row has
+//! `password_reset_required=true`, every route except a small unlock-list
+//! returns 403 with `error: "password_reset_required"`. The frontend uses
+//! that signal to route the user into `/change-password`.
 
 use axum::extract::Request;
 use axum::http::{header, HeaderMap, StatusCode};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
+use axum::Json;
 use axum_extra::extract::cookie::CookieJar;
+use serde_json::json;
 
-use plutus_core::audit::Actor;
+use plutus_core::audit::{Actor, ActorKind};
 
 use crate::auth::{session, token};
 use crate::state::AppState;
 
+/// Path suffixes (matched against the unstripped request URI) that remain
+/// reachable when the actor must change their password before anything else.
+/// All other routes return 403 in that state.
+const RESET_UNLOCKED_PATHS: &[&str] = &[
+    "/api/v1/auth/me",
+    "/api/v1/auth/logout",
+    "/api/v1/auth/change-password",
+    "/api/v1/healthz",
+    "/api/v1/openapi.json",
+    "/api/v1/docs",
+];
+
 pub async fn extract_actor_inner(state: AppState, mut req: Request, next: Next) -> Response {
-    // Inspect headers first so we don't hold a &Request across an await.
     let actor_opt = identify(&state, req.headers()).await;
-    if let Some(actor) = actor_opt {
-        req.extensions_mut().insert(actor);
+    let Some(actor) = actor_opt else {
+        if state.require_auth {
+            return StatusCode::UNAUTHORIZED.into_response();
+        }
+        req.extensions_mut().insert(Actor::anonymous());
         return next.run(req).await;
+    };
+
+    // Password-reset gate: if this is a regular user with the flag set, only a
+    // tiny set of routes is reachable. The lookup mirrors what the handler
+    // would do anyway, so we don't burn a query unless the actor is a user.
+    if matches!(actor.kind, ActorKind::Web | ActorKind::ApiToken) {
+        if let Some(uid) = actor.user_id {
+            if let Ok(user) = plutus_storage::queries::users::get(&state.db, uid).await {
+                if user.password_reset_required
+                    && !is_unlocked_during_reset(req.uri().path())
+                {
+                    return password_reset_required_response();
+                }
+            }
+        }
     }
-    if state.require_auth {
-        return StatusCode::UNAUTHORIZED.into_response();
-    }
-    req.extensions_mut().insert(Actor::anonymous());
+
+    req.extensions_mut().insert(actor);
     next.run(req).await
 }
 
@@ -59,4 +93,19 @@ async fn identify(state: &AppState, headers: &HeaderMap) -> Option<Actor> {
         }
     }
     None
+}
+
+fn is_unlocked_during_reset(path: &str) -> bool {
+    RESET_UNLOCKED_PATHS.iter().any(|p| *p == path)
+}
+
+fn password_reset_required_response() -> Response {
+    (
+        StatusCode::FORBIDDEN,
+        Json(json!({
+            "error": "password_reset_required",
+            "message": "Password change required before further access.",
+        })),
+    )
+        .into_response()
 }

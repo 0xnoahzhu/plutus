@@ -26,5 +26,6 @@ pub mod self_exam;
 pub mod stock;
 pub mod token;
 pub mod transaction;
+pub mod user;
 pub mod watchlist;
 pub mod watchlist_report;

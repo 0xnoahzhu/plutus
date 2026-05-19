@@ -32,6 +32,20 @@ pub fn build_router(state: AppState) -> Router {
         .route("/auth/login", post(handlers::auth::login))
         .route("/auth/logout", post(handlers::auth::logout))
         .route("/auth/me", get(handlers::auth::me))
+        .route("/auth/change-password", post(handlers::auth::change_password))
+        // Admin (env-configured admin only; regular users get 403)
+        .route(
+            "/admin/users",
+            get(handlers::admin::users::list).post(handlers::admin::users::create),
+        )
+        .route(
+            "/admin/users/:id",
+            delete(handlers::admin::users::delete),
+        )
+        .route(
+            "/admin/users/:id/reset-password",
+            post(handlers::admin::users::reset_password),
+        )
         // Tokens (web-only)
         .route("/tokens", get(handlers::tokens::list).post(handlers::tokens::create))
         .route("/tokens/:id", delete(handlers::tokens::revoke))

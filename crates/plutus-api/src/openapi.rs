@@ -48,6 +48,7 @@ use crate::dto::{
     stock::{StockIn, StockOut, StockPatch, StockTranslationIn, StockTranslationOut},
     token::{TokenCreatedOut, TokenIn, TokenOut},
     transaction::{TransactionIn, TransactionOut},
+    user::{AdminCreateUserIn, AdminResetPasswordIn, ChangePasswordIn, UserOut},
     watchlist::{WatchlistItemIn, WatchlistItemOut},
     watchlist_report::{WatchlistReportIn, WatchlistReportOut},
 };
@@ -95,6 +96,7 @@ use crate::dto::{
     StockTranslationIn, StockTranslationOut,
     TokenIn, TokenOut, TokenCreatedOut,
     TransactionIn, TransactionOut,
+    UserOut, AdminCreateUserIn, AdminResetPasswordIn, ChangePasswordIn,
     WatchlistItemIn, WatchlistItemOut,
     WatchlistReportIn, WatchlistReportOut,
 )))]
@@ -114,7 +116,7 @@ pub fn spec() -> Value {
         "info": {
             "title": "Plutus API",
             "version": "0.1.0",
-            "description": "Personal investment data store. The hermes AI agent writes data via this API; the web UI is the human-side viewer.\n\nAll routes are mounted under `/api/v1`. Auth is optional by default (`PLUTUS_API_REQUIRE_AUTH=false`) — flip the env to require either a session cookie (`plutus_session`) or a bearer token on every call."
+            "description": "Personal investment data store. The hermes AI agent writes data via this API; the web UI is the human-side viewer.\n\nAll routes are mounted under `/api/v1`. Auth is optional by default (`PLUTUS_API_REQUIRE_AUTH=false`) — flip the env to require either a session cookie (`plutus_session`) or a bearer token on every call.\n\nMulti-user: regular accounts live in the `users` table with Argon2-hashed passwords. The admin account is env-only (`PLUTUS_ADMIN_USERNAME` / `PLUTUS_ADMIN_PASSWORD`) and manages users via `/admin/*`."
         },
         "servers": [{ "url": "/api/v1" }],
         "tags": tags(),
@@ -160,8 +162,9 @@ pub fn spec() -> Value {
 fn tags() -> Value {
     json!([
         { "name": "meta", "description": "Liveness, root index, this spec." },
-        { "name": "auth", "description": "Master-password login + session cookie." },
-        { "name": "tokens", "description": "Long-lived bearer tokens for the agent." },
+        { "name": "auth", "description": "Username + password login, session cookie, self-service password change." },
+        { "name": "admin", "description": "Admin-only endpoints — manage user accounts. Reachable when authenticated as PLUTUS_ADMIN_USERNAME." },
+        { "name": "tokens", "description": "Long-lived bearer tokens scoped to one user." },
         { "name": "stocks", "description": "Tradable instruments + metadata + translations." },
         { "name": "watchlists", "description": "The user's watchlist — a flat list of stocks plus daily / weekly reports." },
         { "name": "transactions", "description": "Trade ledger; holdings are derived from this." },
@@ -338,13 +341,17 @@ fn paths() -> Value {
     paths.insert("/auth/login".into(), json!({
         "post": {
             "tags": ["auth"],
-            "summary": "Verify master password, set session cookie.",
+            "summary": "Verify username + password, create session cookie.",
+            "description": "Dispatches by username: if `username == PLUTUS_ADMIN_USERNAME`, the password is checked against the env-var plaintext (admin path). Otherwise the user is looked up in the `users` table and the password is verified against the stored Argon2 hash. Either way, success writes a session row and returns `Set-Cookie: plutus_session=<id>`.\n\nWhen `password_reset_required` is `true` in the response, the frontend must route the user to `/change-password` before any data-bearing call — most routes return 403 until the change is made.",
             "requestBody": {
                 "required": true,
                 "content": { "application/json": { "schema": {
                     "type": "object",
-                    "required": ["password"],
-                    "properties": { "password": { "type": "string" } }
+                    "required": ["username", "password"],
+                    "properties": {
+                        "username": { "type": "string" },
+                        "password": { "type": "string" }
+                    }
                 }}}
             },
             "responses": {
@@ -352,18 +359,24 @@ fn paths() -> Value {
                     "description": "Session cookie set; `Set-Cookie: plutus_session=…`.",
                     "content": { "application/json": { "schema": {
                         "type": "object",
-                        "required": ["ok"],
-                        "properties": { "ok": { "type": "boolean" } }
+                        "required": ["ok", "password_reset_required", "is_admin", "username"],
+                        "properties": {
+                            "ok": { "type": "boolean" },
+                            "password_reset_required": { "type": "boolean" },
+                            "is_admin": { "type": "boolean" },
+                            "username": { "type": "string" }
+                        }
                     }}}
                 },
-                "401": { "description": "Wrong password." }
+                "400": { "description": "Missing username or password." },
+                "401": { "description": "Wrong username or password." }
             }
         }
     }));
     paths.insert("/auth/logout".into(), json!({
         "post": {
             "tags": ["auth"],
-            "summary": "Clear session cookie.",
+            "summary": "Delete the session row + clear cookie.",
             "responses": {
                 "200": {
                     "description": "Cookie cleared.",
@@ -385,15 +398,67 @@ fn paths() -> Value {
                     "description": "Actor info.",
                     "content": { "application/json": { "schema": {
                         "type": "object",
-                        "required": ["kind", "label"],
+                        "required": ["kind", "label", "is_admin"],
                         "properties": {
-                            "kind": { "type": "string", "enum": ["web", "api_token", "anonymous", "system"] },
+                            "kind": { "type": "string", "enum": ["web", "api_token", "admin", "anonymous", "system"] },
                             "label": { "type": "string" },
-                            "token_id": { "type": "integer", "format": "int64", "nullable": true }
+                            "user_id": { "type": "integer", "format": "int64", "nullable": true },
+                            "token_id": { "type": "integer", "format": "int64", "nullable": true },
+                            "is_admin": { "type": "boolean" }
                         }
                     }}}
                 }
             }
+        }
+    }));
+    paths.insert("/auth/change-password".into(), json!({
+        "post": {
+            "tags": ["auth"],
+            "summary": "Self-service password change.",
+            "description": "The authenticated user supplies their current password (or any value when `password_reset_required` was true — the admin reset already invalidated that authority) along with the new password twice. On success the new Argon2 hash is written and the reset-required flag is cleared.",
+            "requestBody": body("ChangePasswordIn"),
+            "responses": {
+                "200": {
+                    "description": "Password updated.",
+                    "content": { "application/json": { "schema": {
+                        "type": "object",
+                        "required": ["ok"],
+                        "properties": { "ok": { "type": "boolean" } }
+                    }}}
+                },
+                "400": { "description": "Mismatched / empty new password." },
+                "401": { "description": "Current password did not verify." },
+                "403": { "description": "Not signed in as a regular user (admin and bearer-token callers cannot use this route)." }
+            }
+        }
+    }));
+
+    // ── admin ─────────────────────────────────────────────────────────────
+    paths.insert("/admin/users".into(), json!({
+        "get": {
+            "tags": ["admin"],
+            "summary": "List all user accounts. Admin only.",
+            "responses": ok_list("UserOut")
+        },
+        "post": {
+            "tags": ["admin"],
+            "summary": "Create a new user account. Admin only.",
+            "requestBody": body("AdminCreateUserIn"),
+            "responses": ok_item("UserOut")
+        }
+    }));
+    paths.insert("/admin/users/{id}".into(), json!({
+        "parameters": [id_param()],
+        "delete": delete_op("admin", "Delete a user account. Admin only.")
+    }));
+    paths.insert("/admin/users/{id}/reset-password".into(), json!({
+        "parameters": [id_param()],
+        "post": {
+            "tags": ["admin"],
+            "summary": "Force-reset a user's password.",
+            "description": "Admin sets a new temporary password and flips `password_reset_required=true`. The user can still log in with the temp value, but every route except `/auth/me`, `/auth/logout`, and `/auth/change-password` will return 403 until they change it.",
+            "requestBody": body("AdminResetPasswordIn"),
+            "responses": ok_item("UserOut")
         }
     }));
 

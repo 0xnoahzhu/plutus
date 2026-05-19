@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use plutus_core::audit::Actor;
 
 use crate::auth::{password, session};
+use crate::dto::user::ChangePasswordIn;
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
 
@@ -149,4 +150,42 @@ fn build_session_cookie(sid: &str) -> Cookie<'static> {
         .same_site(SameSite::Lax)
         .path("/")
         .build()
+}
+
+#[derive(Serialize)]
+pub struct ChangePasswordOut {
+    pub ok: bool,
+}
+
+/// Self-service password change. Verifies the current password (or accepts
+/// any value when `password_reset_required=true` — the admin reset already
+/// invalidated the previous password's authority), then writes the new hash
+/// and clears the reset flag.
+pub async fn change_password(
+    State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
+    Json(input): Json<ChangePasswordIn>,
+) -> ApiResult<Json<ChangePasswordOut>> {
+    let actor = actor.0;
+    let user_id = match (actor.kind, actor.user_id) {
+        (plutus_core::audit::ActorKind::Web, Some(id)) => id,
+        _ => return Err(ApiError::Forbidden),
+    };
+    if input.new_password != input.new_password_confirm {
+        return Err(ApiError::BadRequest("new passwords do not match".into()));
+    }
+    if input.new_password.is_empty() {
+        return Err(ApiError::BadRequest("new password is required".into()));
+    }
+    let user = plutus_storage::queries::users::get(&state.db, user_id).await?;
+    // When a reset is pending the existing hash is treated as "must be replaced",
+    // so we accept the current_password value without verifying. Otherwise the
+    // user must prove they know it.
+    if !user.password_reset_required && !password::verify(&input.current_password, &user.password_hash) {
+        return Err(ApiError::Unauthorized);
+    }
+    let new_hash = password::hash(&input.new_password)
+        .map_err(|e| ApiError::Internal(format!("hash failed: {e}")))?;
+    plutus_storage::queries::users::set_password(&state.db, user_id, &new_hash).await?;
+    Ok(Json(ChangePasswordOut { ok: true }))
 }
