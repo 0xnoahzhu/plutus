@@ -20,6 +20,7 @@ import {
   resolveLocale,
   resolveTheme,
   SectionTitle,
+  shadow,
   space,
   StockBadge,
   type Theme,
@@ -189,7 +190,15 @@ function ReportsSection() {
         })}
       >
         <SectionTitle>Reports</SectionTitle>
-        <div mix={css({ display: 'inline-flex', gap: space[1] })}>
+        <div
+          mix={css({
+            display: 'inline-flex',
+            gap: space[1],
+            padding: '3px',
+            background: color.bg,
+            borderRadius: radius.pill,
+          })}
+        >
           <Tab href={`/watchlists?reports=daily`} label="Daily" active={active === 'daily'} />
           <Tab href={`/watchlists?reports=weekly`} label="Weekly" active={active === 'weekly'} />
         </div>
@@ -214,19 +223,26 @@ function ReportsSection() {
   )
 }
 
+/// Soft segmented control item — matches the `ChipLink` look used for
+/// country / locale chips so the design language stays consistent and
+/// the active state reads correctly in both light and dark themes.
 function Tab() {
   return ({ href, label, active }: { href: string; label: string; active: boolean }) => (
     <a
       href={href}
       mix={css({
+        display: 'inline-flex',
+        alignItems: 'center',
         padding: `${space[1]} ${space[3]}`,
-        fontSize: font.xs,
+        fontSize: font.sm,
         fontWeight: 600,
-        borderRadius: radius.md,
+        borderRadius: radius.pill,
         textDecoration: 'none',
-        background: active ? color.text : color.bg,
-        color: active ? '#fff' : color.textMuted,
-        '&:hover': { background: active ? color.text : color.hover },
+        color: active ? color.text : color.textMuted,
+        background: active ? color.surface : 'transparent',
+        boxShadow: active ? shadow.card : 'none',
+        transition: 'background 120ms ease, color 120ms ease',
+        '&:hover': active ? undefined : { color: color.text },
       })}
     >
       {label}
