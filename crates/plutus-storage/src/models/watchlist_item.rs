@@ -8,6 +8,8 @@ pub struct WatchlistItem {
     #[auto]
     pub id: i64,
     #[index]
+    pub user_id: i64,
+    #[index]
     pub stock_id: i64,
     pub added_at: jiff::Timestamp,
     pub notes: Option<String>,

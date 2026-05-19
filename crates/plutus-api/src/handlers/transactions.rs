@@ -2,8 +2,11 @@ use axum::extract::{Path, Query, State};
 use axum::Json;
 use serde::Deserialize;
 
+use plutus_core::audit::Actor;
+
 use crate::dto::transaction::{TransactionIn, TransactionOut};
 use crate::error::{ApiError, ApiResult};
+use crate::handlers::access::require_user;
 use crate::state::AppState;
 
 #[derive(Deserialize)]
@@ -14,30 +17,37 @@ pub struct ListFilter {
 
 pub async fn list(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Query(f): Query<ListFilter>,
 ) -> ApiResult<Json<Vec<TransactionOut>>> {
+    let user_id = require_user(&actor.0)?;
     let rows = if let Some(account_id) = f.account_id {
-        plutus_storage::queries::transactions::list_for_account(&state.db, account_id).await?
+        plutus_storage::queries::transactions::list_for_account(&state.db, user_id, account_id)
+            .await?
     } else if let Some(stock_id) = f.stock_id {
-        plutus_storage::queries::transactions::list_for_stock(&state.db, stock_id).await?
+        plutus_storage::queries::transactions::list_for_stock(&state.db, user_id, stock_id).await?
     } else {
-        plutus_storage::queries::transactions::list(&state.db).await?
+        plutus_storage::queries::transactions::list(&state.db, user_id).await?
     };
     Ok(Json(rows.into_iter().map(Into::into).collect()))
 }
 
 pub async fn get(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Path(id): Path<i64>,
 ) -> ApiResult<Json<TransactionOut>> {
-    let row = plutus_storage::queries::transactions::get(&state.db, id).await?;
+    let user_id = require_user(&actor.0)?;
+    let row = plutus_storage::queries::transactions::get(&state.db, user_id, id).await?;
     Ok(Json(row.into()))
 }
 
 pub async fn create(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Json(input): Json<TransactionIn>,
 ) -> ApiResult<Json<TransactionOut>> {
+    let user_id = require_user(&actor.0)?;
     let executed_at: jiff::Timestamp = input
         .executed_at
         .parse()
@@ -52,6 +62,7 @@ pub async fn create(
     let row = plutus_storage::queries::transactions::create(
         &state.db,
         plutus_storage::queries::transactions::NewTransaction {
+            user_id,
             account_id: input.account_id,
             stock_id: input.stock_id,
             kind: &input.kind,
@@ -76,8 +87,10 @@ pub async fn create(
 
 pub async fn delete(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Path(id): Path<i64>,
 ) -> ApiResult<axum::http::StatusCode> {
-    plutus_storage::queries::transactions::delete(&state.db, id).await?;
+    let user_id = require_user(&actor.0)?;
+    plutus_storage::queries::transactions::delete(&state.db, user_id, id).await?;
     Ok(axum::http::StatusCode::NO_CONTENT)
 }

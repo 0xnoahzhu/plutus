@@ -10,6 +10,8 @@ pub struct Transaction {
     #[auto]
     pub id: i64,
     #[index]
+    pub user_id: i64,
+    #[index]
     pub account_id: i64,
     #[index]
     pub stock_id: Option<i64>, // null for cash-only entries (deposit, withdrawal, fx)

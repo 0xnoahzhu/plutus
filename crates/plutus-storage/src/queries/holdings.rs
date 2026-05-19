@@ -18,17 +18,18 @@ pub struct Holding {
     pub position: Position,
 }
 
-pub async fn compute_all(db: &Db, method: CostBasisMethod) -> Result<Vec<Holding>> {
-    let txs = super::transactions::list(db).await?;
+pub async fn compute_all(db: &Db, user_id: i64, method: CostBasisMethod) -> Result<Vec<Holding>> {
+    let txs = super::transactions::list(db, user_id).await?;
     Ok(group_and_compute(&txs, method))
 }
 
 pub async fn compute_for_account(
     db: &Db,
+    user_id: i64,
     account_id: i64,
     method: CostBasisMethod,
 ) -> Result<Vec<Holding>> {
-    let txs = super::transactions::list_for_account(db, account_id).await?;
+    let txs = super::transactions::list_for_account(db, user_id, account_id).await?;
     Ok(group_and_compute(&txs, method))
 }
 

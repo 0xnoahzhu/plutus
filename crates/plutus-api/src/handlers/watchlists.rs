@@ -3,8 +3,11 @@ use axum::Json;
 use serde::Deserialize;
 use std::collections::HashSet;
 
+use plutus_core::audit::Actor;
+
 use crate::dto::watchlist::{WatchlistItemIn, WatchlistItemOut};
 use crate::error::ApiResult;
+use crate::handlers::access::require_user;
 use crate::state::AppState;
 
 /// Optional country filter (ISO alpha-2).
@@ -15,9 +18,11 @@ pub struct CountryFilter {
 
 pub async fn list_items(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Query(filter): Query<CountryFilter>,
 ) -> ApiResult<Json<Vec<WatchlistItemOut>>> {
-    let items = plutus_storage::queries::watchlist::list_items(&state.db).await?;
+    let user_id = require_user(&actor.0)?;
+    let items = plutus_storage::queries::watchlist::list_items(&state.db, user_id).await?;
 
     let kept = if let Some(country) = filter.country.as_deref() {
         let market_codes: HashSet<String> =
@@ -50,10 +55,13 @@ pub async fn list_items(
 
 pub async fn add_item(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Json(input): Json<WatchlistItemIn>,
 ) -> ApiResult<Json<WatchlistItemOut>> {
+    let user_id = require_user(&actor.0)?;
     let row = plutus_storage::queries::watchlist::add_item(
         &state.db,
+        user_id,
         input.stock_id,
         input.notes.as_deref(),
     )
@@ -63,8 +71,10 @@ pub async fn add_item(
 
 pub async fn remove_item(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Path(stock_id): Path<i64>,
 ) -> ApiResult<axum::http::StatusCode> {
-    plutus_storage::queries::watchlist::remove_item(&state.db, stock_id).await?;
+    let user_id = require_user(&actor.0)?;
+    plutus_storage::queries::watchlist::remove_item(&state.db, user_id, stock_id).await?;
     Ok(axum::http::StatusCode::NO_CONTENT)
 }

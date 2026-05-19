@@ -9,6 +9,8 @@ pub struct WatchlistReport {
     #[key]
     #[auto]
     pub id: i64,
+    #[index]
+    pub user_id: i64,
     /// "daily" / "weekly". Keep loose so we can add "monthly" later without
     /// schema changes.
     pub kind: String,

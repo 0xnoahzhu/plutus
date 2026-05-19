@@ -8,6 +8,8 @@ pub struct Account {
     #[auto]
     pub id: i64,
     #[index]
+    pub user_id: i64,
+    #[index]
     pub broker_id: i64,
     pub name: String,
     pub account_number: Option<String>,

@@ -3,43 +3,50 @@ use rust_decimal::Decimal;
 use crate::db::{Db, DbError, Result};
 use crate::models::Transaction;
 
-pub async fn list(db: &Db) -> Result<Vec<Transaction>> {
-    db.with(async |d| Transaction::all().exec(d).await)
-        .await
-        .map_err(Into::into)
+pub async fn list(db: &Db, user_id: i64) -> Result<Vec<Transaction>> {
+    let rows = db
+        .with(async |d| Transaction::all().exec(d).await)
+        .await?;
+    Ok(rows.into_iter().filter(|r| r.user_id == user_id).collect())
 }
 
-pub async fn list_for_account(db: &Db, account_id: i64) -> Result<Vec<Transaction>> {
-    db.with(async |d| {
-        Transaction::all()
-            .filter(Transaction::fields().account_id().eq(account_id))
-            .exec(d)
-            .await
-    })
-    .await
-    .map_err(Into::into)
+pub async fn list_for_account(db: &Db, user_id: i64, account_id: i64) -> Result<Vec<Transaction>> {
+    let rows = db
+        .with(async |d| {
+            Transaction::all()
+                .filter(Transaction::fields().account_id().eq(account_id))
+                .exec(d)
+                .await
+        })
+        .await?;
+    Ok(rows.into_iter().filter(|r| r.user_id == user_id).collect())
 }
 
-pub async fn list_for_stock(db: &Db, stock_id: i64) -> Result<Vec<Transaction>> {
-    db.with(async |d| {
-        Transaction::all()
-            .filter(Transaction::fields().stock_id().eq(Some(stock_id)))
-            .exec(d)
-            .await
-    })
-    .await
-    .map_err(Into::into)
+pub async fn list_for_stock(db: &Db, user_id: i64, stock_id: i64) -> Result<Vec<Transaction>> {
+    let rows = db
+        .with(async |d| {
+            Transaction::all()
+                .filter(Transaction::fields().stock_id().eq(Some(stock_id)))
+                .exec(d)
+                .await
+        })
+        .await?;
+    Ok(rows.into_iter().filter(|r| r.user_id == user_id).collect())
 }
 
-pub async fn get(db: &Db, id: i64) -> Result<Transaction> {
+pub async fn get(db: &Db, user_id: i64, id: i64) -> Result<Transaction> {
     let row = db
         .with(async |d| Transaction::filter_by_id(id).first().exec(d).await)
         .await?;
-    row.ok_or(DbError::NotFound)
+    match row {
+        Some(r) if r.user_id == user_id => Ok(r),
+        _ => Err(DbError::NotFound),
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct NewTransaction<'a> {
+    pub user_id: i64,
     pub account_id: i64,
     pub stock_id: Option<i64>,
     pub kind: &'a str,
@@ -60,6 +67,7 @@ pub struct NewTransaction<'a> {
 
 pub async fn create(db: &Db, input: NewTransaction<'_>) -> Result<Transaction> {
     let now = jiff::Timestamp::now();
+    let user_id = input.user_id;
     let account_id = input.account_id;
     let stock_id = input.stock_id;
     let kind = input.kind.to_string();
@@ -80,6 +88,7 @@ pub async fn create(db: &Db, input: NewTransaction<'_>) -> Result<Transaction> {
     let row = db
         .with(async |d| {
             toasty::create!(Transaction {
+                user_id: user_id,
                 account_id: account_id,
                 stock_id: stock_id,
                 kind: kind,
@@ -106,8 +115,8 @@ pub async fn create(db: &Db, input: NewTransaction<'_>) -> Result<Transaction> {
     Ok(row)
 }
 
-pub async fn delete(db: &Db, id: i64) -> Result<()> {
-    let row = get(db, id).await?;
+pub async fn delete(db: &Db, user_id: i64, id: i64) -> Result<()> {
+    let row = get(db, user_id, id).await?;
     db.with(async |d| row.delete().exec(d).await).await?;
     Ok(())
 }
