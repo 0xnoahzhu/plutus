@@ -167,6 +167,26 @@ pub fn build_router(state: AppState) -> Router {
             "/stocks/:id/correlation-pairs",
             get(handlers::correlations::list_pairs_for_stock),
         )
+        // Trade plans (per-user buy/sell price points)
+        .route(
+            "/trade-plans",
+            get(handlers::trade_plans::list).post(handlers::trade_plans::create),
+        )
+        .route(
+            "/trade-plans/:id",
+            get(handlers::trade_plans::get)
+                .patch(handlers::trade_plans::update)
+                .delete(handlers::trade_plans::delete),
+        )
+        .route(
+            "/trade-plans/:id/levels",
+            get(handlers::trade_plans::list_levels).post(handlers::trade_plans::add_level),
+        )
+        .route(
+            "/trade-plans/levels/:id",
+            patch(handlers::trade_plans::update_level)
+                .delete(handlers::trade_plans::delete_level),
+        )
         // Catalysts
         .route(
             "/catalysts",

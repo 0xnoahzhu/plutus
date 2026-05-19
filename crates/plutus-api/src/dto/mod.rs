@@ -25,6 +25,7 @@ pub mod sector;
 pub mod self_exam;
 pub mod stock;
 pub mod token;
+pub mod trade_plan;
 pub mod transaction;
 pub mod user;
 pub mod watchlist;
