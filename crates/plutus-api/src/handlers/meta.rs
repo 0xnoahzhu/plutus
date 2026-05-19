@@ -2,7 +2,7 @@ use axum::response::Html;
 use axum::Json;
 
 pub async fn root() -> &'static str {
-    "plutus API\n\nSee /api/v1/docs for the browseable reference, /api/v1/openapi.json for the raw spec, /api/v1/healthz for liveness.\n"
+    "Plutus API\n\nSee /api/v1/docs for the browseable reference, /api/v1/openapi.json for the raw spec, /api/v1/healthz for liveness.\n"
 }
 
 pub async fn healthz() -> &'static str {
@@ -26,7 +26,7 @@ const SCALAR_HTML: &str = r#"<!doctype html>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>plutus API · reference</title>
+    <title>Plutus API · reference</title>
   </head>
   <body>
     <script
