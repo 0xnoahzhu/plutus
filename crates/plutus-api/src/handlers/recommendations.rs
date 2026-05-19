@@ -2,8 +2,11 @@ use axum::extract::{Path, Query, State};
 use axum::Json;
 use serde::Deserialize;
 
+use plutus_core::audit::Actor;
+
 use crate::dto::recommendation::{RecommendationClosePatch, RecommendationIn, RecommendationOut};
 use crate::error::{ApiError, ApiResult};
+use crate::handlers::access::require_user;
 use crate::i18n::{apply_overrides, LocaleQuery};
 use crate::state::AppState;
 
@@ -22,12 +25,15 @@ fn localize(out: &mut RecommendationOut, locale: &str) {
 
 pub async fn list(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Query(f): Query<ListFilter>,
     Query(l): Query<LocaleQuery>,
 ) -> ApiResult<Json<Vec<RecommendationOut>>> {
+    let user_id = require_user(&actor.0)?;
     let mut rows = plutus_storage::queries::recommendations::list(
         &state.db,
         plutus_storage::queries::recommendations::ListFilter {
+            user_id,
             stock_id: f.stock_id,
             status: f.status.as_deref(),
             from: f.from.as_deref(),
@@ -45,12 +51,15 @@ pub async fn list(
 
 pub async fn list_for_stock(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Path(stock_id): Path<i64>,
     Query(l): Query<LocaleQuery>,
 ) -> ApiResult<Json<Vec<RecommendationOut>>> {
+    let user_id = require_user(&actor.0)?;
     let mut rows = plutus_storage::queries::recommendations::list(
         &state.db,
         plutus_storage::queries::recommendations::ListFilter {
+            user_id,
             stock_id: Some(stock_id),
             status: None,
             from: None,
@@ -68,10 +77,12 @@ pub async fn list_for_stock(
 
 pub async fn get(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Path(id): Path<i64>,
     Query(l): Query<LocaleQuery>,
 ) -> ApiResult<Json<RecommendationOut>> {
-    let row = plutus_storage::queries::recommendations::get(&state.db, id).await?;
+    let user_id = require_user(&actor.0)?;
+    let row = plutus_storage::queries::recommendations::get(&state.db, user_id, id).await?;
     let mut out: RecommendationOut = row.into();
     localize(&mut out, &l.locale);
     Ok(Json(out))
@@ -79,8 +90,10 @@ pub async fn get(
 
 pub async fn create(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Json(input): Json<RecommendationIn>,
 ) -> ApiResult<Json<RecommendationOut>> {
+    let user_id = require_user(&actor.0)?;
     let issued_at = match input.issued_at.as_deref() {
         Some(s) => s
             .parse::<jiff::Timestamp>()
@@ -95,6 +108,7 @@ pub async fn create(
     let row = plutus_storage::queries::recommendations::create(
         &state.db,
         plutus_storage::queries::recommendations::NewRecommendation {
+            user_id,
             stock_id: input.stock_id,
             sector_code: input.sector_code.as_deref(),
             action: &input.action,
@@ -115,9 +129,11 @@ pub async fn create(
 
 pub async fn close(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Path(id): Path<i64>,
     Json(patch): Json<RecommendationClosePatch>,
 ) -> ApiResult<Json<RecommendationOut>> {
+    let user_id = require_user(&actor.0)?;
     let closed_at = match patch.closed_at.as_deref() {
         Some(s) => s
             .parse::<jiff::Timestamp>()
@@ -126,6 +142,7 @@ pub async fn close(
     };
     let row = plutus_storage::queries::recommendations::close(
         &state.db,
+        user_id,
         id,
         plutus_storage::queries::recommendations::ClosePatch {
             status: &patch.status,
@@ -140,8 +157,10 @@ pub async fn close(
 
 pub async fn delete(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Path(id): Path<i64>,
 ) -> ApiResult<axum::http::StatusCode> {
-    plutus_storage::queries::recommendations::delete(&state.db, id).await?;
+    let user_id = require_user(&actor.0)?;
+    plutus_storage::queries::recommendations::delete(&state.db, user_id, id).await?;
     Ok(axum::http::StatusCode::NO_CONTENT)
 }

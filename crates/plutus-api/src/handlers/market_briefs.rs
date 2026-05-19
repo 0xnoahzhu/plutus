@@ -2,8 +2,11 @@ use axum::extract::{Path, Query, State};
 use axum::Json;
 use serde::Deserialize;
 
+use plutus_core::audit::Actor;
+
 use crate::dto::market_brief::{MarketBriefIn, MarketBriefOut};
 use crate::error::{ApiError, ApiResult};
+use crate::handlers::access::require_user;
 use crate::i18n::{apply_overrides, LocaleQuery};
 use crate::state::AppState;
 
@@ -17,12 +20,15 @@ pub struct ListFilter {
 
 pub async fn list(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Query(f): Query<ListFilter>,
     Query(l): Query<LocaleQuery>,
 ) -> ApiResult<Json<Vec<MarketBriefOut>>> {
+    let user_id = require_user(&actor.0)?;
     let mut rows = plutus_storage::queries::market_briefs::list(
         &state.db,
         plutus_storage::queries::market_briefs::ListFilter {
+            user_id,
             country: f.country.as_deref(),
             kind: f.kind.as_deref(),
             from: f.from.as_deref(),
@@ -30,7 +36,6 @@ pub async fn list(
         },
     )
     .await?;
-    // Newest trade_date first; within a date, pre_market before post_market.
     rows.sort_by(|a, b| {
         b.trade_date
             .cmp(&a.trade_date)
@@ -47,10 +52,12 @@ pub async fn list(
 
 pub async fn get(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Path(id): Path<i64>,
     Query(l): Query<LocaleQuery>,
 ) -> ApiResult<Json<MarketBriefOut>> {
-    let row = plutus_storage::queries::market_briefs::get(&state.db, id).await?;
+    let user_id = require_user(&actor.0)?;
+    let row = plutus_storage::queries::market_briefs::get(&state.db, user_id, id).await?;
     let mut out: MarketBriefOut = row.into();
     let trans = out.translations.clone();
     apply_overrides(&mut out, trans.as_deref(), &l.locale);
@@ -59,8 +66,10 @@ pub async fn get(
 
 pub async fn upsert(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Json(input): Json<MarketBriefIn>,
 ) -> ApiResult<Json<MarketBriefOut>> {
+    let user_id = require_user(&actor.0)?;
     let translations = match input.translations {
         Some(v) => Some(
             serde_json::to_string(&v)
@@ -71,6 +80,7 @@ pub async fn upsert(
     let row = plutus_storage::queries::market_briefs::upsert(
         &state.db,
         plutus_storage::queries::market_briefs::NewBrief {
+            user_id,
             country: &input.country,
             kind: &input.kind,
             trade_date: &input.trade_date,
@@ -89,8 +99,10 @@ pub async fn upsert(
 
 pub async fn delete(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Path(id): Path<i64>,
 ) -> ApiResult<axum::http::StatusCode> {
-    plutus_storage::queries::market_briefs::delete(&state.db, id).await?;
+    let user_id = require_user(&actor.0)?;
+    plutus_storage::queries::market_briefs::delete(&state.db, user_id, id).await?;
     Ok(axum::http::StatusCode::NO_CONTENT)
 }

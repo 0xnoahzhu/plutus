@@ -9,6 +9,8 @@ pub struct PortfolioReview {
     #[key]
     #[auto]
     pub id: i64,
+    #[index]
+    pub user_id: i64,
     pub kind: String, // "weekly" / "monthly" / "quarterly"
     pub period_start: String,
     pub period_end: String,

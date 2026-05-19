@@ -8,6 +8,8 @@ pub struct Catalyst {
     #[key]
     #[auto]
     pub id: i64,
+    #[index]
+    pub user_id: i64,
     // ── Mount points (at least one expected) ────────────────────────
     #[index]
     pub stock_id: Option<i64>,

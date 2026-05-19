@@ -9,6 +9,8 @@ pub struct ScreenerRun {
     #[auto]
     pub id: i64,
     #[index]
+    pub user_id: i64,
+    #[index]
     pub name: String, // "momentum_breakout" / "value_low_pe" / "rising_shorts"
     pub kind: String, // "weekly" / "daily" / "ad_hoc"
     pub run_date: String,

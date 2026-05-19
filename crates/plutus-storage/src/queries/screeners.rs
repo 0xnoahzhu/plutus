@@ -4,6 +4,7 @@ use crate::db::{Db, DbError, Result};
 use crate::models::{ScreenerHit, ScreenerRun};
 
 pub struct ListFilter<'a> {
+    pub user_id: i64,
     pub name: Option<&'a str>,
     pub kind: Option<&'a str>,
     pub from: Option<&'a str>,
@@ -46,22 +47,29 @@ pub async fn list_runs(db: &Db, filter: ListFilter<'_>) -> Result<Vec<ScreenerRu
         }
         (None, None) => db.with(async |d| ScreenerRun::all().exec(d).await).await?,
     };
+    let user_id = filter.user_id;
     let from = filter.from.map(str::to_string);
     let to = filter.to.map(str::to_string);
     Ok(rows
         .into_iter()
+        .filter(|r| r.user_id == user_id)
         .filter(|r| from.as_deref().map_or(true, |f| r.run_date.as_str() >= f))
         .filter(|r| to.as_deref().map_or(true, |t| r.run_date.as_str() <= t))
         .collect())
 }
 
-pub async fn get_run(db: &Db, id: i64) -> Result<ScreenerRun> {
-    db.with(async |d| ScreenerRun::filter_by_id(id).first().exec(d).await)
-        .await?
-        .ok_or(DbError::NotFound)
+pub async fn get_run(db: &Db, user_id: i64, id: i64) -> Result<ScreenerRun> {
+    let row = db
+        .with(async |d| ScreenerRun::filter_by_id(id).first().exec(d).await)
+        .await?;
+    match row {
+        Some(r) if r.user_id == user_id => Ok(r),
+        _ => Err(DbError::NotFound),
+    }
 }
 
 pub struct NewRun<'a> {
+    pub user_id: i64,
     pub name: &'a str,
     pub kind: &'a str,
     pub run_date: &'a str,
@@ -77,6 +85,7 @@ pub struct NewRun<'a> {
 }
 
 pub async fn upsert_run(db: &Db, input: NewRun<'_>) -> Result<ScreenerRun> {
+    let user_id = input.user_id;
     let name_owned = input.name.to_string();
     let kind_owned = input.kind.to_string();
     let date_owned = input.run_date.to_string();
@@ -86,11 +95,12 @@ pub async fn upsert_run(db: &Db, input: NewRun<'_>) -> Result<ScreenerRun> {
                 .filter(ScreenerRun::fields().name().eq(&name_owned))
                 .filter(ScreenerRun::fields().kind().eq(&kind_owned))
                 .filter(ScreenerRun::fields().run_date().eq(&date_owned))
-                .first()
                 .exec(d)
                 .await
         })
-        .await?;
+        .await?
+        .into_iter()
+        .find(|r| r.user_id == user_id);
     let universe = input.universe.to_string();
     let universe_size = input.universe_size;
     let criteria = input.criteria.map(str::to_string);
@@ -120,9 +130,7 @@ pub async fn upsert_run(db: &Db, input: NewRun<'_>) -> Result<ScreenerRun> {
                 .await
         })
         .await?;
-        db.with(async |d| ScreenerRun::filter_by_id(id).first().exec(d).await)
-            .await?
-            .ok_or(DbError::NotFound)
+        get_run(db, user_id, id).await
     } else {
         let name = input.name.to_string();
         let kind = input.kind.to_string();
@@ -130,6 +138,7 @@ pub async fn upsert_run(db: &Db, input: NewRun<'_>) -> Result<ScreenerRun> {
         let row = db
             .with(async |d| {
                 toasty::create!(ScreenerRun {
+                    user_id: user_id,
                     name: name,
                     kind: kind,
                     run_date: run_date,
@@ -155,29 +164,32 @@ pub async fn upsert_run(db: &Db, input: NewRun<'_>) -> Result<ScreenerRun> {
 
 // ── Hits ──────────────────────────────────────────────────────────────────
 
-pub async fn list_hits(db: &Db, run_id: i64) -> Result<Vec<ScreenerHit>> {
-    db.with(async |d| {
-        ScreenerHit::all()
-            .filter(ScreenerHit::fields().run_id().eq(run_id))
-            .exec(d)
-            .await
-    })
-    .await
-    .map_err(Into::into)
+pub async fn list_hits(db: &Db, user_id: i64, run_id: i64) -> Result<Vec<ScreenerHit>> {
+    let rows = db
+        .with(async |d| {
+            ScreenerHit::all()
+                .filter(ScreenerHit::fields().run_id().eq(run_id))
+                .exec(d)
+                .await
+        })
+        .await?;
+    Ok(rows.into_iter().filter(|r| r.user_id == user_id).collect())
 }
 
-pub async fn list_hits_for_stock(db: &Db, stock_id: i64) -> Result<Vec<ScreenerHit>> {
-    db.with(async |d| {
-        ScreenerHit::all()
-            .filter(ScreenerHit::fields().stock_id().eq(stock_id))
-            .exec(d)
-            .await
-    })
-    .await
-    .map_err(Into::into)
+pub async fn list_hits_for_stock(db: &Db, user_id: i64, stock_id: i64) -> Result<Vec<ScreenerHit>> {
+    let rows = db
+        .with(async |d| {
+            ScreenerHit::all()
+                .filter(ScreenerHit::fields().stock_id().eq(stock_id))
+                .exec(d)
+                .await
+        })
+        .await?;
+    Ok(rows.into_iter().filter(|r| r.user_id == user_id).collect())
 }
 
 pub struct NewHit<'a> {
+    pub user_id: i64,
     pub run_id: i64,
     pub stock_id: i64,
     pub rank: Option<i32>,
@@ -192,13 +204,19 @@ pub async fn insert_hit(db: &Db, input: NewHit<'_>) -> Result<ScreenerHit> {
     let metrics = input.metrics.map(str::to_string);
     let translations = input.translations.map(str::to_string);
     let now = jiff::Timestamp::now();
+    let user_id = input.user_id;
+    let run_id = input.run_id;
+    let stock_id = input.stock_id;
+    let rank = input.rank;
+    let score = input.score;
     let row = db
         .with(async |d| {
             toasty::create!(ScreenerHit {
-                run_id: input.run_id,
-                stock_id: input.stock_id,
-                rank: input.rank,
-                score: input.score,
+                user_id: user_id,
+                run_id: run_id,
+                stock_id: stock_id,
+                rank: rank,
+                score: score,
                 rationale_md: rationale_md,
                 metrics: metrics,
                 translations: translations,

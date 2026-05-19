@@ -6,6 +6,8 @@ pub struct CorrelationRun {
     #[key]
     #[auto]
     pub id: i64,
+    #[index]
+    pub user_id: i64,
     pub kind: String, // "monthly" / "weekly" / "ad_hoc"
     pub run_date: String,
     #[index]

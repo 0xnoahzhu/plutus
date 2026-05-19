@@ -2,6 +2,7 @@ use crate::db::{Db, DbError, Result};
 use crate::models::SelfExam;
 
 pub struct ListFilter<'a> {
+    pub user_id: i64,
     pub kind: Option<&'a str>,
     pub from: Option<&'a str>,
     pub to: Option<&'a str>,
@@ -20,22 +21,29 @@ pub async fn list(db: &Db, filter: ListFilter<'_>) -> Result<Vec<SelfExam>> {
     } else {
         db.with(async |d| SelfExam::all().exec(d).await).await?
     };
+    let user_id = filter.user_id;
     let from = filter.from.map(str::to_string);
     let to = filter.to.map(str::to_string);
     Ok(rows
         .into_iter()
+        .filter(|r| r.user_id == user_id)
         .filter(|r| from.as_deref().map_or(true, |f| r.period_start.as_str() >= f))
         .filter(|r| to.as_deref().map_or(true, |t| r.period_start.as_str() <= t))
         .collect())
 }
 
-pub async fn get(db: &Db, id: i64) -> Result<SelfExam> {
-    db.with(async |d| SelfExam::filter_by_id(id).first().exec(d).await)
-        .await?
-        .ok_or(DbError::NotFound)
+pub async fn get(db: &Db, user_id: i64, id: i64) -> Result<SelfExam> {
+    let row = db
+        .with(async |d| SelfExam::filter_by_id(id).first().exec(d).await)
+        .await?;
+    match row {
+        Some(r) if r.user_id == user_id => Ok(r),
+        _ => Err(DbError::NotFound),
+    }
 }
 
 pub struct NewExam<'a> {
+    pub user_id: i64,
     pub kind: &'a str,
     pub period_start: &'a str,
     pub period_end: &'a str,
@@ -50,6 +58,7 @@ pub struct NewExam<'a> {
 }
 
 pub async fn upsert(db: &Db, input: NewExam<'_>) -> Result<SelfExam> {
+    let user_id = input.user_id;
     let kind_owned = input.kind.to_string();
     let start_owned = input.period_start.to_string();
     let existing = db
@@ -57,11 +66,12 @@ pub async fn upsert(db: &Db, input: NewExam<'_>) -> Result<SelfExam> {
             SelfExam::all()
                 .filter(SelfExam::fields().kind().eq(&kind_owned))
                 .filter(SelfExam::fields().period_start().eq(&start_owned))
-                .first()
                 .exec(d)
                 .await
         })
-        .await?;
+        .await?
+        .into_iter()
+        .find(|r| r.user_id == user_id);
 
     let period_end = input.period_end.to_string();
     let headline = input.headline.to_string();
@@ -92,15 +102,14 @@ pub async fn upsert(db: &Db, input: NewExam<'_>) -> Result<SelfExam> {
                 .await
         })
         .await?;
-        db.with(async |d| SelfExam::filter_by_id(id).first().exec(d).await)
-            .await?
-            .ok_or(DbError::NotFound)
+        get(db, user_id, id).await
     } else {
         let kind = input.kind.to_string();
         let period_start = input.period_start.to_string();
         let row = db
             .with(async |d| {
                 toasty::create!(SelfExam {
+                    user_id: user_id,
                     kind: kind,
                     period_start: period_start,
                     period_end: period_end,
@@ -123,8 +132,8 @@ pub async fn upsert(db: &Db, input: NewExam<'_>) -> Result<SelfExam> {
     }
 }
 
-pub async fn delete(db: &Db, id: i64) -> Result<()> {
-    let row = get(db, id).await?;
+pub async fn delete(db: &Db, user_id: i64, id: i64) -> Result<()> {
+    let row = get(db, user_id, id).await?;
     db.with(async |d| row.delete().exec(d).await).await?;
     Ok(())
 }

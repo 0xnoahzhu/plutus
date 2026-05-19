@@ -4,6 +4,7 @@ use crate::db::{Db, DbError, Result};
 use crate::models::Recommendation;
 
 pub struct ListFilter<'a> {
+    pub user_id: i64,
     pub stock_id: Option<i64>,
     pub status: Option<&'a str>,
     pub from: Option<&'a str>, // YYYY-MM-DD on issued_at
@@ -44,8 +45,10 @@ pub async fn list(db: &Db, filter: ListFilter<'_>) -> Result<Vec<Recommendation>
         }
         (None, None) => db.with(async |d| Recommendation::all().exec(d).await).await?,
     };
+    let user_id = filter.user_id;
     Ok(rows
         .into_iter()
+        .filter(|r| r.user_id == user_id)
         .filter(|r| {
             filter.from.map_or(true, |f| r.issued_at.to_string().as_str() >= f)
         })
@@ -55,13 +58,18 @@ pub async fn list(db: &Db, filter: ListFilter<'_>) -> Result<Vec<Recommendation>
         .collect())
 }
 
-pub async fn get(db: &Db, id: i64) -> Result<Recommendation> {
-    db.with(async |d| Recommendation::filter_by_id(id).first().exec(d).await)
-        .await?
-        .ok_or(DbError::NotFound)
+pub async fn get(db: &Db, user_id: i64, id: i64) -> Result<Recommendation> {
+    let row = db
+        .with(async |d| Recommendation::filter_by_id(id).first().exec(d).await)
+        .await?;
+    match row {
+        Some(r) if r.user_id == user_id => Ok(r),
+        _ => Err(DbError::NotFound),
+    }
 }
 
 pub struct NewRecommendation<'a> {
+    pub user_id: i64,
     pub stock_id: Option<i64>,
     pub sector_code: Option<&'a str>,
     pub action: &'a str,
@@ -77,6 +85,7 @@ pub struct NewRecommendation<'a> {
 }
 
 pub async fn create(db: &Db, input: NewRecommendation<'_>) -> Result<Recommendation> {
+    let user_id = input.user_id;
     let stock_id = input.stock_id;
     let sector_code = input.sector_code.map(str::to_string);
     let action = input.action.to_string();
@@ -93,6 +102,7 @@ pub async fn create(db: &Db, input: NewRecommendation<'_>) -> Result<Recommendat
     let row = db
         .with(async |d| {
             toasty::create!(Recommendation {
+                user_id: user_id,
                 stock_id: stock_id,
                 sector_code: sector_code,
                 action: action,
@@ -126,8 +136,8 @@ pub struct ClosePatch<'a> {
     pub closed_at: jiff::Timestamp,
 }
 
-pub async fn close(db: &Db, id: i64, patch: ClosePatch<'_>) -> Result<Recommendation> {
-    let mut row = get(db, id).await?;
+pub async fn close(db: &Db, user_id: i64, id: i64, patch: ClosePatch<'_>) -> Result<Recommendation> {
+    let mut row = get(db, user_id, id).await?;
     let status = patch.status.to_string();
     let outcome_md = patch.outcome_md.map(str::to_string);
     let pnl_pct = patch.pnl_pct;
@@ -144,11 +154,11 @@ pub async fn close(db: &Db, id: i64, patch: ClosePatch<'_>) -> Result<Recommenda
             .await
     })
     .await?;
-    get(db, id).await
+    get(db, user_id, id).await
 }
 
-pub async fn delete(db: &Db, id: i64) -> Result<()> {
-    let row = get(db, id).await?;
+pub async fn delete(db: &Db, user_id: i64, id: i64) -> Result<()> {
+    let row = get(db, user_id, id).await?;
     db.with(async |d| row.delete().exec(d).await).await?;
     Ok(())
 }

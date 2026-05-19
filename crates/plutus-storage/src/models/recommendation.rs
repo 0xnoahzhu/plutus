@@ -10,6 +10,8 @@ pub struct Recommendation {
     #[auto]
     pub id: i64,
     #[index]
+    pub user_id: i64,
+    #[index]
     pub stock_id: Option<i64>, // null for macro / sector-level recs
     pub sector_code: Option<String>,
     pub action: String, // "buy" / "sell" / "hold" / "watch" / "avoid"

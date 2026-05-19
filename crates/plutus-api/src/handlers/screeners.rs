@@ -2,8 +2,11 @@ use axum::extract::{Path, Query, State};
 use axum::Json;
 use serde::Deserialize;
 
+use plutus_core::audit::Actor;
+
 use crate::dto::screener::{ScreenerHitIn, ScreenerHitOut, ScreenerRunIn, ScreenerRunOut};
 use crate::error::{ApiError, ApiResult};
+use crate::handlers::access::require_user;
 use crate::i18n::{apply_overrides, LocaleQuery};
 use crate::state::AppState;
 
@@ -27,12 +30,15 @@ fn localize_hit(out: &mut ScreenerHitOut, locale: &str) {
 
 pub async fn list_runs(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Query(f): Query<ListFilter>,
     Query(l): Query<LocaleQuery>,
 ) -> ApiResult<Json<Vec<ScreenerRunOut>>> {
+    let user_id = require_user(&actor.0)?;
     let mut rows = plutus_storage::queries::screeners::list_runs(
         &state.db,
         plutus_storage::queries::screeners::ListFilter {
+            user_id,
             name: f.name.as_deref(),
             kind: f.kind.as_deref(),
             from: f.from.as_deref(),
@@ -50,10 +56,12 @@ pub async fn list_runs(
 
 pub async fn get_run(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Path(id): Path<i64>,
     Query(l): Query<LocaleQuery>,
 ) -> ApiResult<Json<ScreenerRunOut>> {
-    let row = plutus_storage::queries::screeners::get_run(&state.db, id).await?;
+    let user_id = require_user(&actor.0)?;
+    let row = plutus_storage::queries::screeners::get_run(&state.db, user_id, id).await?;
     let mut out: ScreenerRunOut = row.into();
     localize_run(&mut out, &l.locale);
     Ok(Json(out))
@@ -61,8 +69,10 @@ pub async fn get_run(
 
 pub async fn upsert_run(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Json(input): Json<ScreenerRunIn>,
 ) -> ApiResult<Json<ScreenerRunOut>> {
+    let user_id = require_user(&actor.0)?;
     let criteria = match input.criteria {
         Some(v) => Some(serde_json::to_string(&v)
             .map_err(|e| ApiError::BadRequest(format!("criteria: {e}")))?),
@@ -76,6 +86,7 @@ pub async fn upsert_run(
     let row = plutus_storage::queries::screeners::upsert_run(
         &state.db,
         plutus_storage::queries::screeners::NewRun {
+            user_id,
             name: &input.name,
             kind: &input.kind,
             run_date: &input.run_date,
@@ -96,10 +107,13 @@ pub async fn upsert_run(
 
 pub async fn list_hits(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Path(run_id): Path<i64>,
     Query(l): Query<LocaleQuery>,
 ) -> ApiResult<Json<Vec<ScreenerHitOut>>> {
-    let rows = plutus_storage::queries::screeners::list_hits(&state.db, run_id).await?;
+    let user_id = require_user(&actor.0)?;
+    let rows =
+        plutus_storage::queries::screeners::list_hits(&state.db, user_id, run_id).await?;
     let mut out: Vec<ScreenerHitOut> = rows.into_iter().map(Into::into).collect();
     for o in out.iter_mut() {
         localize_hit(o, &l.locale);
@@ -109,11 +123,14 @@ pub async fn list_hits(
 
 pub async fn list_hits_for_stock(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Path(stock_id): Path<i64>,
     Query(l): Query<LocaleQuery>,
 ) -> ApiResult<Json<Vec<ScreenerHitOut>>> {
+    let user_id = require_user(&actor.0)?;
     let rows =
-        plutus_storage::queries::screeners::list_hits_for_stock(&state.db, stock_id).await?;
+        plutus_storage::queries::screeners::list_hits_for_stock(&state.db, user_id, stock_id)
+            .await?;
     let mut out: Vec<ScreenerHitOut> = rows.into_iter().map(Into::into).collect();
     for o in out.iter_mut() {
         localize_hit(o, &l.locale);
@@ -123,9 +140,13 @@ pub async fn list_hits_for_stock(
 
 pub async fn insert_hit(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Path(run_id): Path<i64>,
     Json(input): Json<ScreenerHitIn>,
 ) -> ApiResult<Json<ScreenerHitOut>> {
+    let user_id = require_user(&actor.0)?;
+    // Verify the parent run belongs to this user before inserting a hit under it.
+    plutus_storage::queries::screeners::get_run(&state.db, user_id, run_id).await?;
     let metrics = match input.metrics {
         Some(v) => Some(serde_json::to_string(&v)
             .map_err(|e| ApiError::BadRequest(format!("metrics: {e}")))?),
@@ -139,6 +160,7 @@ pub async fn insert_hit(
     let row = plutus_storage::queries::screeners::insert_hit(
         &state.db,
         plutus_storage::queries::screeners::NewHit {
+            user_id,
             run_id,
             stock_id: input.stock_id,
             rank: input.rank,

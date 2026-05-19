@@ -12,6 +12,8 @@ pub struct MarketBrief {
     #[auto]
     pub id: i64,
     #[index]
+    pub user_id: i64,
+    #[index]
     pub country: String, // "US" / "HK" / "CN" / "global"
     #[index]
     pub kind: String, // "pre_market" / "post_market"

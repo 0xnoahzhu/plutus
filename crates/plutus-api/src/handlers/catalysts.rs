@@ -2,8 +2,11 @@ use axum::extract::{Path, Query, State};
 use axum::Json;
 use serde::Deserialize;
 
+use plutus_core::audit::Actor;
+
 use crate::dto::catalyst::{CatalystIn, CatalystOut};
 use crate::error::{ApiError, ApiResult};
+use crate::handlers::access::require_user;
 use crate::i18n::{apply_overrides, LocaleQuery};
 use crate::state::AppState;
 
@@ -26,12 +29,15 @@ fn localize(out: &mut CatalystOut, locale: &str) {
 
 pub async fn list(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Query(f): Query<ListFilter>,
     Query(l): Query<LocaleQuery>,
 ) -> ApiResult<Json<Vec<CatalystOut>>> {
+    let user_id = require_user(&actor.0)?;
     let mut rows = plutus_storage::queries::catalysts::list(
         &state.db,
         plutus_storage::queries::catalysts::ListFilter {
+            user_id,
             stock_id: f.stock_id,
             sector_code: f.sector_code.as_deref(),
             catalyst_kind: f.catalyst_kind.as_deref(),
@@ -55,10 +61,13 @@ pub async fn list(
 
 pub async fn list_for_stock(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Path(stock_id): Path<i64>,
     Query(l): Query<LocaleQuery>,
 ) -> ApiResult<Json<Vec<CatalystOut>>> {
-    let mut rows = plutus_storage::queries::catalysts::list_for_stock(&state.db, stock_id).await?;
+    let user_id = require_user(&actor.0)?;
+    let mut rows =
+        plutus_storage::queries::catalysts::list_for_stock(&state.db, user_id, stock_id).await?;
     rows.sort_by(|a, b| a.catalyst_date.cmp(&b.catalyst_date));
     let mut out: Vec<CatalystOut> = rows.into_iter().map(Into::into).collect();
     for o in out.iter_mut() {
@@ -69,10 +78,12 @@ pub async fn list_for_stock(
 
 pub async fn get(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Path(id): Path<i64>,
     Query(l): Query<LocaleQuery>,
 ) -> ApiResult<Json<CatalystOut>> {
-    let row = plutus_storage::queries::catalysts::get(&state.db, id).await?;
+    let user_id = require_user(&actor.0)?;
+    let row = plutus_storage::queries::catalysts::get(&state.db, user_id, id).await?;
     let mut out: CatalystOut = row.into();
     localize(&mut out, &l.locale);
     Ok(Json(out))
@@ -80,8 +91,10 @@ pub async fn get(
 
 pub async fn create(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Json(input): Json<CatalystIn>,
 ) -> ApiResult<Json<CatalystOut>> {
+    let user_id = require_user(&actor.0)?;
     let translations = match input.translations {
         Some(v) => Some(serde_json::to_string(&v)
             .map_err(|e| ApiError::BadRequest(format!("translations: {e}")))?),
@@ -90,6 +103,7 @@ pub async fn create(
     let row = plutus_storage::queries::catalysts::create(
         &state.db,
         plutus_storage::queries::catalysts::NewCatalyst {
+            user_id,
             stock_id: input.stock_id,
             sector_code: input.sector_code.as_deref(),
             country: input.country.as_deref(),
@@ -114,8 +128,10 @@ pub async fn create(
 
 pub async fn delete(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Path(id): Path<i64>,
 ) -> ApiResult<axum::http::StatusCode> {
-    plutus_storage::queries::catalysts::delete(&state.db, id).await?;
+    let user_id = require_user(&actor.0)?;
+    plutus_storage::queries::catalysts::delete(&state.db, user_id, id).await?;
     Ok(axum::http::StatusCode::NO_CONTENT)
 }

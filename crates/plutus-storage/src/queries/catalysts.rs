@@ -2,6 +2,7 @@ use crate::db::{Db, DbError, Result};
 use crate::models::Catalyst;
 
 pub struct ListFilter<'a> {
+    pub user_id: i64,
     pub stock_id: Option<i64>,
     pub sector_code: Option<&'a str>,
     pub catalyst_kind: Option<&'a str>,
@@ -14,6 +15,7 @@ pub struct ListFilter<'a> {
 pub async fn list(db: &Db, filter: ListFilter<'_>) -> Result<Vec<Catalyst>> {
     let mut rows: Vec<Catalyst> =
         db.with(async |d| Catalyst::all().exec(d).await).await?;
+    rows.retain(|c| c.user_id == filter.user_id);
     if let Some(s) = filter.stock_id {
         rows.retain(|c| c.stock_id == Some(s));
     }
@@ -38,24 +40,30 @@ pub async fn list(db: &Db, filter: ListFilter<'_>) -> Result<Vec<Catalyst>> {
     Ok(rows)
 }
 
-pub async fn list_for_stock(db: &Db, stock_id: i64) -> Result<Vec<Catalyst>> {
-    db.with(async |d| {
-        Catalyst::all()
-            .filter(Catalyst::fields().stock_id().eq(Some(stock_id)))
-            .exec(d)
-            .await
-    })
-    .await
-    .map_err(Into::into)
+pub async fn list_for_stock(db: &Db, user_id: i64, stock_id: i64) -> Result<Vec<Catalyst>> {
+    let rows = db
+        .with(async |d| {
+            Catalyst::all()
+                .filter(Catalyst::fields().stock_id().eq(Some(stock_id)))
+                .exec(d)
+                .await
+        })
+        .await?;
+    Ok(rows.into_iter().filter(|r| r.user_id == user_id).collect())
 }
 
-pub async fn get(db: &Db, id: i64) -> Result<Catalyst> {
-    db.with(async |d| Catalyst::filter_by_id(id).first().exec(d).await)
-        .await?
-        .ok_or(DbError::NotFound)
+pub async fn get(db: &Db, user_id: i64, id: i64) -> Result<Catalyst> {
+    let row = db
+        .with(async |d| Catalyst::filter_by_id(id).first().exec(d).await)
+        .await?;
+    match row {
+        Some(r) if r.user_id == user_id => Ok(r),
+        _ => Err(DbError::NotFound),
+    }
 }
 
 pub struct NewCatalyst<'a> {
+    pub user_id: i64,
     pub stock_id: Option<i64>,
     pub sector_code: Option<&'a str>,
     pub country: Option<&'a str>,
@@ -75,6 +83,7 @@ pub struct NewCatalyst<'a> {
 }
 
 pub async fn create(db: &Db, input: NewCatalyst<'_>) -> Result<Catalyst> {
+    let user_id = input.user_id;
     let stock_id = input.stock_id;
     let sector_code = input.sector_code.map(str::to_string);
     let country = input.country.map(str::to_string);
@@ -95,6 +104,7 @@ pub async fn create(db: &Db, input: NewCatalyst<'_>) -> Result<Catalyst> {
     let row = db
         .with(async |d| {
             toasty::create!(Catalyst {
+                user_id: user_id,
                 stock_id: stock_id,
                 sector_code: sector_code,
                 country: country,
@@ -121,8 +131,8 @@ pub async fn create(db: &Db, input: NewCatalyst<'_>) -> Result<Catalyst> {
     Ok(row)
 }
 
-pub async fn delete(db: &Db, id: i64) -> Result<()> {
-    let row = get(db, id).await?;
+pub async fn delete(db: &Db, user_id: i64, id: i64) -> Result<()> {
+    let row = get(db, user_id, id).await?;
     db.with(async |d| row.delete().exec(d).await).await?;
     Ok(())
 }

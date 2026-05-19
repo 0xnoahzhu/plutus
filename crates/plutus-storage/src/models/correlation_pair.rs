@@ -10,6 +10,9 @@ pub struct CorrelationPair {
     #[key]
     #[auto]
     pub id: i64,
+    /// Denormalized from the parent run for per-user filtering without a join.
+    #[index]
+    pub user_id: i64,
     #[index]
     pub run_id: i64,
     #[index]

@@ -8,6 +8,9 @@ pub struct ScreenerHit {
     #[key]
     #[auto]
     pub id: i64,
+    /// Denormalized from the parent run so per-user filtering doesn't need a join.
+    #[index]
+    pub user_id: i64,
     #[index]
     pub run_id: i64,
     #[index]

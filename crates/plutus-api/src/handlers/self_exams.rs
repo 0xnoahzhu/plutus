@@ -2,8 +2,11 @@ use axum::extract::{Path, Query, State};
 use axum::Json;
 use serde::Deserialize;
 
+use plutus_core::audit::Actor;
+
 use crate::dto::self_exam::{SelfExamIn, SelfExamOut};
 use crate::error::{ApiError, ApiResult};
+use crate::handlers::access::require_user;
 use crate::i18n::{apply_overrides, LocaleQuery};
 use crate::state::AppState;
 
@@ -21,12 +24,15 @@ fn localize(out: &mut SelfExamOut, locale: &str) {
 
 pub async fn list(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Query(f): Query<ListFilter>,
     Query(l): Query<LocaleQuery>,
 ) -> ApiResult<Json<Vec<SelfExamOut>>> {
+    let user_id = require_user(&actor.0)?;
     let mut rows = plutus_storage::queries::self_exams::list(
         &state.db,
         plutus_storage::queries::self_exams::ListFilter {
+            user_id,
             kind: f.kind.as_deref(),
             from: f.from.as_deref(),
             to: f.to.as_deref(),
@@ -43,10 +49,12 @@ pub async fn list(
 
 pub async fn get(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Path(id): Path<i64>,
     Query(l): Query<LocaleQuery>,
 ) -> ApiResult<Json<SelfExamOut>> {
-    let row = plutus_storage::queries::self_exams::get(&state.db, id).await?;
+    let user_id = require_user(&actor.0)?;
+    let row = plutus_storage::queries::self_exams::get(&state.db, user_id, id).await?;
     let mut out: SelfExamOut = row.into();
     localize(&mut out, &l.locale);
     Ok(Json(out))
@@ -54,8 +62,10 @@ pub async fn get(
 
 pub async fn upsert(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Json(input): Json<SelfExamIn>,
 ) -> ApiResult<Json<SelfExamOut>> {
+    let user_id = require_user(&actor.0)?;
     let metrics = match input.metrics {
         Some(v) => Some(serde_json::to_string(&v)
             .map_err(|e| ApiError::BadRequest(format!("metrics: {e}")))?),
@@ -73,6 +83,7 @@ pub async fn upsert(
     let row = plutus_storage::queries::self_exams::upsert(
         &state.db,
         plutus_storage::queries::self_exams::NewExam {
+            user_id,
             kind: &input.kind,
             period_start: &input.period_start,
             period_end: &input.period_end,
@@ -92,8 +103,10 @@ pub async fn upsert(
 
 pub async fn delete(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Path(id): Path<i64>,
 ) -> ApiResult<axum::http::StatusCode> {
-    plutus_storage::queries::self_exams::delete(&state.db, id).await?;
+    let user_id = require_user(&actor.0)?;
+    plutus_storage::queries::self_exams::delete(&state.db, user_id, id).await?;
     Ok(axum::http::StatusCode::NO_CONTENT)
 }
