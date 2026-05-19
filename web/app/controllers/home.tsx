@@ -24,7 +24,7 @@ export const home: BuildAction<'GET', typeof routes.home> = {
     let url = new URL(request.url)
     let locale = resolveLocale(request, url.searchParams)
     let theme = resolveTheme(request, url.searchParams)
-    let [markets, brokers, accounts, stocks, watchlistItems, transactions, holdings] =
+    let [markets, brokers, accounts, stocks, watchlistItems, transactions, holdings, plans] =
       await Promise.all([
         api.markets().catch(() => []),
         api.brokers().catch(() => []),
@@ -33,6 +33,7 @@ export const home: BuildAction<'GET', typeof routes.home> = {
         api.watchlistItems().catch(() => []),
         api.transactions().catch(() => []),
         api.holdings().catch(() => []),
+        api.tradePlans({ status: 'active' }).catch(() => []),
       ])
     let healthy = markets.length > 0
     return render(
@@ -48,6 +49,7 @@ export const home: BuildAction<'GET', typeof routes.home> = {
           watchlist: watchlistItems.length,
           transactions: transactions.length,
           holdings: holdings.length,
+          tradePlans: plans.length,
         }}
       />,
       request,
@@ -90,6 +92,7 @@ function DashboardPage() {
         <Stat label="Watchlist" value={String(counts.watchlist)} caption="stocks" />
         <Stat label="Transactions" value={String(counts.transactions)} caption="recorded" />
         <Stat label="Open Positions" value={String(counts.holdings)} caption="current" />
+        <Stat label="Trade plans" value={String(counts.tradePlans)} caption="active" />
       </div>
 
       <div

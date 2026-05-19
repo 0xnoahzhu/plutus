@@ -6,15 +6,19 @@ import {
   type NewsItem,
   type NewsStockLink,
   type Stock,
+  type TradePlan,
+  type TradePlanLevel,
 } from '../api.ts'
 import type { routes } from '../routes.ts'
 import {
   Badge,
+  type BadgeTone,
   Card,
   color,
   EmptyState,
   font,
   Layout,
+  radius,
   resolveLocale,
   resolveTheme,
   SectionTitle,
@@ -34,10 +38,11 @@ export const stockDetail: BuildAction<'GET', typeof routes.stockDetail> = {
     let locale = resolveLocale(request, url.searchParams)
     let theme = resolveTheme(request, url.searchParams)
 
-    let [stock, newsLinks, allNews] = await Promise.all([
+    let [stock, newsLinks, allNews, plans] = await Promise.all([
       api.stock(id, locale).catch(() => null),
       api.newsForStock(id).catch(() => [] as NewsStockLink[]),
       api.news(locale).catch(() => [] as NewsItem[]),
+      api.tradePlans({ stock_id: id }).catch(() => [] as TradePlan[]),
     ])
     if (!stock) {
       return new Response('Stock not found', { status: 404 })
@@ -49,6 +54,18 @@ export const stockDetail: BuildAction<'GET', typeof routes.stockDetail> = {
     recentNews.sort((a, b) => b.item.published_at.localeCompare(a.item.published_at))
     let recentTrimmed = recentNews.slice(0, 10)
 
+    // Pull the levels for each plan in parallel. Plans sorted with active
+    // first, then most-recent created within each status group.
+    plans.sort(
+      (a, b) =>
+        Number(b.status === 'active') - Number(a.status === 'active') ||
+        b.created_at.localeCompare(a.created_at),
+    )
+    let levelsPerPlan = await Promise.all(
+      plans.map((p) => api.tradePlanLevels(p.id).catch(() => [] as TradePlanLevel[])),
+    )
+    let plansWithLevels = plans.map((p, i) => ({ plan: p, levels: levelsPerPlan[i] ?? [] }))
+
     return render(
       <StockDetailPage
         stock={stock}
@@ -56,6 +73,7 @@ export const stockDetail: BuildAction<'GET', typeof routes.stockDetail> = {
         theme={theme}
         recentNews={recentTrimmed}
         totalNews={recentNews.length}
+        plans={plansWithLevels}
       />,
       request,
       { locale, theme },
@@ -69,10 +87,11 @@ interface StockDetailProps {
   theme: Theme
   recentNews: Array<{ link: NewsStockLink; item: NewsItem }>
   totalNews: number
+  plans: Array<{ plan: TradePlan; levels: TradePlanLevel[] }>
 }
 
 function StockDetailPage() {
-  return ({ stock, locale, theme, recentNews, totalNews }: StockDetailProps) => {
+  return ({ stock, locale, theme, recentNews, totalNews, plans }: StockDetailProps) => {
     let displayName = stock.name ?? stock.symbol
     return (
       <Layout title={displayName} subtitle={`${stock.symbol} · ${stock.market_code}`} locale={locale} theme={theme}>
@@ -140,6 +159,42 @@ function StockDetailPage() {
 
         <div mix={css({ marginTop: space[4] })}>
           <Card>
+            <div
+              mix={css({
+                display: 'flex',
+                alignItems: 'baseline',
+                justifyContent: 'space-between',
+                gap: space[3],
+              })}
+            >
+              <SectionTitle
+                hint={
+                  plans.length === 0
+                    ? 'none yet'
+                    : `${plans.length} plan${plans.length === 1 ? '' : 's'}`
+                }
+              >
+                Trade plans
+              </SectionTitle>
+              <a
+                href="/trade-plans"
+                mix={css({
+                  fontSize: font.xs,
+                  color: color.brand,
+                  textDecoration: 'none',
+                  fontWeight: 600,
+                  '&:hover': { textDecoration: 'underline' },
+                })}
+              >
+                manage →
+              </a>
+            </div>
+            <TradePlansSection plans={plans} stock={stock} />
+          </Card>
+        </div>
+
+        <div mix={css({ marginTop: space[4] })}>
+          <Card>
             <SectionTitle hint={`${recentNews.length} of ${totalNews} shown`}>
               Recent news
             </SectionTitle>
@@ -147,6 +202,216 @@ function StockDetailPage() {
           </Card>
         </div>
       </Layout>
+    )
+  }
+}
+
+/// Read-only summary of the user's trade plans for this stock. The full
+/// CRUD UI lives on /trade-plans; this card is just a glanceable view
+/// from the stock detail page with a "manage →" link in the header.
+function TradePlansSection() {
+  return ({
+    plans,
+    stock,
+  }: {
+    plans: Array<{ plan: TradePlan; levels: TradePlanLevel[] }>
+    stock: Stock
+  }) => {
+    if (plans.length === 0) {
+      return (
+        <EmptyState
+          title="No trade plans for this stock yet"
+          hint={
+            <>
+              Define entry / stop-loss / take-profit price points on the{' '}
+              <a
+                href="/trade-plans"
+                mix={css({
+                  color: color.brand,
+                  textDecoration: 'none',
+                  '&:hover': { textDecoration: 'underline' },
+                })}
+              >
+                Trade plans
+              </a>{' '}
+              page. They'll show up here once you create them.
+            </>
+          }
+        />
+      )
+    }
+    return (
+      <div mix={css({ display: 'flex', flexDirection: 'column', gap: space[3] })}>
+        {plans.map(({ plan, levels }) => (
+          <TradePlanCard plan={plan} levels={levels} stock={stock} />
+        ))}
+      </div>
+    )
+  }
+}
+
+function TradePlanCard() {
+  return ({
+    plan,
+    levels,
+    stock,
+  }: {
+    plan: TradePlan
+    levels: TradePlanLevel[]
+    stock: Stock
+  }) => {
+    let activeLevels = levels.filter((l) => l.status === 'active')
+    let activeLevelsSorted = [...activeLevels].sort((a, b) => {
+      let ap = Number(a.price)
+      let bp = Number(b.price)
+      return ap - bp
+    })
+    return (
+      <div
+        mix={css({
+          border: `1px solid ${color.border}`,
+          borderRadius: radius.md,
+          padding: space[4],
+          background: color.bg,
+        })}
+      >
+        <div
+          mix={css({
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: space[3],
+            flexWrap: 'wrap',
+            marginBottom: space[3],
+          })}
+        >
+          <div
+            mix={css({
+              display: 'flex',
+              alignItems: 'center',
+              gap: space[2],
+              flexWrap: 'wrap',
+            })}
+          >
+            <Badge tone={plan.status === 'active' ? 'success' : 'neutral'}>
+              {plan.status}
+            </Badge>
+            <span mix={css({ fontSize: font.sm, color: color.textMuted })}>
+              {levels.length} level{levels.length === 1 ? '' : 's'} ·{' '}
+              {activeLevels.length} active
+            </span>
+          </div>
+          <span mix={css({ fontSize: font.xs, color: color.textDim })}>
+            since {plan.created_at.slice(0, 10)}
+          </span>
+        </div>
+
+        {plan.rationale && (
+          <p
+            mix={css({
+              margin: `0 0 ${space[3]}`,
+              fontSize: font.sm,
+              color: color.textMuted,
+              fontStyle: 'italic',
+              lineHeight: 1.5,
+            })}
+          >
+            {plan.rationale}
+          </p>
+        )}
+
+        {activeLevelsSorted.length === 0 ? (
+          <div mix={css({ fontSize: font.sm, color: color.textDim })}>
+            No active levels (all triggered or cancelled). Use{' '}
+            <a
+              href="/trade-plans"
+              mix={css({
+                color: color.brand,
+                textDecoration: 'none',
+                '&:hover': { textDecoration: 'underline' },
+              })}
+            >
+              Trade plans
+            </a>{' '}
+            to add more.
+          </div>
+        ) : (
+          <table
+            mix={css({
+              width: '100%',
+              borderCollapse: 'collapse',
+              fontSize: font.sm,
+            })}
+          >
+            <tbody>
+              {activeLevelsSorted.map((l) => (
+                <LevelRow level={l} stock={stock} />
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    )
+  }
+}
+
+function LevelRow() {
+  return ({ level, stock }: { level: TradePlanLevel; stock: Stock }) => {
+    let toneMap: Record<string, BadgeTone> = {
+      buy: 'brand',
+      stop_loss: 'danger',
+      take_profit: 'success',
+      trim: 'warn',
+    }
+    let kindLabels: Record<string, string> = {
+      buy: 'Buy',
+      stop_loss: 'Stop loss',
+      take_profit: 'Take profit',
+      trim: 'Trim',
+    }
+    let tone = toneMap[level.kind] ?? 'neutral'
+    let label = kindLabels[level.kind] ?? level.kind
+    let sizeDisplay =
+      level.quantity != null
+        ? `${level.quantity} sh`
+        : level.fraction_pct != null
+          ? `${level.fraction_pct}%`
+          : '—'
+    return (
+      <tr mix={css({ borderTop: `1px solid ${color.borderSoft}` })}>
+        <td mix={css({ padding: `${space[2]} ${space[3]} ${space[2]} 0`, width: '110px' })}>
+          <Badge tone={tone}>{label}</Badge>
+        </td>
+        <td
+          mix={css({
+            padding: `${space[2]} ${space[3]}`,
+            fontFamily: font.mono,
+            color: color.text,
+            fontVariantNumeric: 'tabular-nums',
+          })}
+        >
+          {level.price} {stock.currency}
+        </td>
+        <td
+          mix={css({
+            padding: `${space[2]} ${space[3]}`,
+            fontFamily: font.mono,
+            color: color.textMuted,
+            fontVariantNumeric: 'tabular-nums',
+          })}
+        >
+          {sizeDisplay}
+        </td>
+        <td
+          mix={css({
+            padding: `${space[2]} 0 ${space[2]} ${space[3]}`,
+            color: color.textDim,
+            fontSize: font.xs,
+          })}
+        >
+          {level.notes ?? ''}
+        </td>
+      </tr>
     )
   }
 }
