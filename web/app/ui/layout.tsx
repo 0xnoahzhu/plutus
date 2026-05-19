@@ -528,16 +528,16 @@ function ChipLink() {
         fontWeight: 600,
         borderRadius: radius.pill,
         textDecoration: 'none',
-        // Strong contrast on the active state: dark slate fill + white text
-        // so the current pick reads clearly. Inactive chips keep the muted
-        // tone so the hierarchy is unmistakable.
-        color: active ? color.textOnBrand : color.textMuted,
-        background: active ? color.text : 'transparent',
+        // Active state: white pill + dark text on the inset gray track.
+        // Reads clearly without the previous "slate-900 fill" looking
+        // overdone next to the rest of the chrome.
+        color: active ? color.text : color.textMuted,
+        background: active ? color.surface : 'transparent',
         boxShadow: active ? shadow.card : 'none',
         transition: 'background 120ms ease, color 120ms ease',
         '&:hover': active
           ? undefined
-          : { background: color.surface, color: color.text },
+          : { color: color.text },
       })}
     >
       {label}
