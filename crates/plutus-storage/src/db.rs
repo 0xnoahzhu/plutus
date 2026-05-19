@@ -53,7 +53,6 @@ impl Db {
         use crate::models::*;
         let db = toasty::Db::builder()
             .models(toasty::models!(
-                Setting,
                 User,
                 ApiToken,
                 WebSession,
@@ -62,13 +61,11 @@ impl Db {
                 Broker,
                 Account,
                 Stock,
-                BrokerSymbol,
                 WatchlistItem,
                 Transaction,
                 OhlcvDaily,
                 FxRateDaily,
                 AuditLog,
-                IdempotencyKey,
                 Sector,
                 MacroIndicator,
                 MacroObservation,
@@ -136,12 +133,12 @@ impl Db {
 }
 
 /// Post-migrate hook. Runs raw SQL via a side `tokio-postgres` connection for
-/// things toasty 0.6 can't express:
-///   - `news_embeddings` table with a `vector(1536)` column + HNSW index
-///     (pgvector type isn't a first-class toasty field type).
+/// things toasty 0.6 can't express: `ALTER TABLE` on existing tables, JSONB
+/// columns + JSON-op queries, and `DROP TABLE` for tables that were retired
+/// after an audit (see the "Retired tables" block at the bottom).
 ///
-/// All statements are idempotent (`CREATE ... IF NOT EXISTS`), so this can be
-/// safely called on every boot.
+/// All statements are idempotent (`CREATE ... IF NOT EXISTS`, `DROP ... IF EXISTS`,
+/// `ADD COLUMN IF NOT EXISTS`), so this can be safely called on every boot.
 pub async fn post_migrate(url: &str) -> Result<()> {
     let (client, connection) = tokio_postgres::connect(url, tokio_postgres::NoTls)
         .await
@@ -939,18 +936,25 @@ CREATE INDEX IF NOT EXISTS catalysts_date_idx ON catalysts (catalyst_date);
 CREATE INDEX IF NOT EXISTS catalysts_status_idx ON catalysts (status);
 CREATE INDEX IF NOT EXISTS catalysts_kind_idx ON catalysts (catalyst_kind);
 
--- pgvector embeddings table for news. Schema lives outside toasty because the
--- vector type isn't expressible in the derive macro.
-CREATE TABLE IF NOT EXISTS news_embeddings (
-    news_id     BIGINT PRIMARY KEY REFERENCES news_items(id) ON DELETE CASCADE,
-    embedding   vector(1536),
-    model       TEXT NOT NULL,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS news_embeddings_hnsw
-    ON news_embeddings
-    USING hnsw (embedding vector_cosine_ops);
+-- ── Retired tables ─────────────────────────────────────────────────────────
+-- Cleanup pass after auditing usage. Each DROP is idempotent (IF EXISTS)
+-- so re-running migrate on a fresh database is a no-op; on a previously
+-- migrated database the orphaned tables go away.
+--   - news_embeddings: pgvector table for semantic news search. Schema
+--     was set up but nothing ever populated or queried it. Easy to
+--     re-add later if the feature lands (CREATE TABLE + HNSW index).
+--   - idempotency_keys: framework prep for replaying POST responses
+--     across retries. Never wired up; the `IdempotencyKey` newtype was
+--     similarly unused.
+--   - settings: a generic key/value app-settings store. Replaced by env
+--     vars (admin creds, bind addr) and per-browser cookies (locale,
+--     theme).
+--   - broker_symbols: was meant to map broker-side symbols to the
+--     canonical `stocks` table; nothing imported or consulted it.
+DROP TABLE IF EXISTS news_embeddings;
+DROP TABLE IF EXISTS idempotency_keys;
+DROP TABLE IF EXISTS settings;
+DROP TABLE IF EXISTS broker_symbols;
 "#;
 
 // Re-open the impl so the helpers above are inside the type.

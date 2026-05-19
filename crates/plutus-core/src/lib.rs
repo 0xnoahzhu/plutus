@@ -11,7 +11,6 @@ pub mod cost_basis;
 pub mod currency;
 pub mod error;
 pub mod ids;
-pub mod idempotency;
 pub mod market;
 pub mod money;
 pub mod provenance;
@@ -24,7 +23,6 @@ pub use error::CoreError;
 pub use ids::{
     AccountId, AuditLogId, BrokerId, MarketCode, StockId, TransactionId, WatchlistId,
 };
-pub use idempotency::IdempotencyKey;
 pub use market::Market;
 pub use money::Money;
 pub use provenance::{Source, SourceMetadata};

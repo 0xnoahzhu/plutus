@@ -43,10 +43,9 @@ pub async fn update_name(db: &Db, id: i64, name: &str) -> Result<Broker> {
     get(db, id).await
 }
 
-/// Delete a broker. Refuses if any account or broker_symbol references it
-/// (returns `Conflict` so the API layer can map to 409). Transactions and
-/// other downstream rows hang off accounts, so checking accounts +
-/// broker_symbols is sufficient to catch every dependent row.
+/// Delete a broker. Refuses with `Conflict` if any account still
+/// references it — transactions and other downstream rows hang off
+/// accounts, so the account FK is the canonical dependency.
 pub async fn delete(db: &Db, id: i64) -> Result<()> {
     let row = get(db, id).await?;
     let client = db.raw_client().await?;
@@ -61,19 +60,6 @@ pub async fn delete(db: &Db, id: i64) -> Result<()> {
     if account_count > 0 {
         return Err(DbError::Conflict(format!(
             "{account_count} account(s) still reference this broker"
-        )));
-    }
-    let symbol_count: i64 = client
-        .query_one(
-            "SELECT COUNT(*) FROM broker_symbols WHERE broker_id = $1",
-            &[&id],
-        )
-        .await
-        .map_err(DbError::from)?
-        .get(0);
-    if symbol_count > 0 {
-        return Err(DbError::Conflict(format!(
-            "{symbol_count} broker_symbol mapping(s) still reference this broker"
         )));
     }
     db.with(async |d| row.delete().exec(d).await).await?;
