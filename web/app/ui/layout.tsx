@@ -528,11 +528,16 @@ function ChipLink() {
         fontWeight: 600,
         borderRadius: radius.pill,
         textDecoration: 'none',
-        color: active ? color.text : color.textMuted,
-        background: active ? color.surface : 'transparent',
+        // Strong contrast on the active state: dark slate fill + white text
+        // so the current pick reads clearly. Inactive chips keep the muted
+        // tone so the hierarchy is unmistakable.
+        color: active ? color.textOnBrand : color.textMuted,
+        background: active ? color.text : 'transparent',
         boxShadow: active ? shadow.card : 'none',
         transition: 'background 120ms ease, color 120ms ease',
-        '&:hover': active ? undefined : { color: color.text },
+        '&:hover': active
+          ? undefined
+          : { background: color.surface, color: color.text },
       })}
     >
       {label}
