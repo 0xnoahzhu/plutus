@@ -161,8 +161,16 @@ ALTER TABLE web_sessions      ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL
 ALTER TABLE web_sessions      ADD COLUMN IF NOT EXISTS username TEXT NOT NULL DEFAULT '';
 ALTER TABLE watchlist_items   ADD COLUMN IF NOT EXISTS user_id BIGINT NOT NULL DEFAULT 0;
 -- Replace the single-user UNIQUE(stock_id) with UNIQUE(user_id, stock_id) so
--- multiple users can independently watch the same ticker.
+-- multiple users can independently watch the same ticker. Older deployments
+-- where the legacy `watchlist_items_stock_uniq` index was never installed may
+-- have duplicate rows; dedup by keeping the lowest id per (user_id, stock_id)
+-- before promoting to UNIQUE so this migration is replayable.
 DROP INDEX IF EXISTS watchlist_items_stock_uniq;
+DELETE FROM watchlist_items a
+    USING watchlist_items b
+    WHERE a.id > b.id
+      AND a.user_id = b.user_id
+      AND a.stock_id = b.stock_id;
 CREATE UNIQUE INDEX IF NOT EXISTS watchlist_items_user_stock_uniq
     ON watchlist_items (user_id, stock_id);
 CREATE INDEX IF NOT EXISTS accounts_user_idx        ON accounts (user_id);
