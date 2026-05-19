@@ -421,6 +421,31 @@ export interface CorrelationPair {
   correlation: string
 }
 
+export interface TradePlan {
+  id: number
+  stock_id: number
+  rationale: string | null
+  status: string
+  created_at: string
+  updated_at: string
+}
+
+export interface TradePlanLevel {
+  id: number
+  plan_id: number
+  stock_id: number
+  kind: string
+  price: string
+  quantity: string | null
+  fraction_pct: string | null
+  status: string
+  triggered_at: string | null
+  notes: string | null
+  sort_order: number | null
+  created_at: string
+  updated_at: string
+}
+
 export interface Catalyst {
   id: number
   stock_id: number | null
@@ -809,5 +834,114 @@ export const api = {
     let headers: Record<string, string> = { accept: 'application/json' }
     if (cookie) headers.cookie = cookie
     return fetch(`${BASE}/api/v1/admin/tokens/${id}`, { method: 'DELETE', headers })
+  },
+
+  // ── Trade plans (regular user — manage own trade plans + levels) ──────
+  tradePlans: (params: { stock_id?: number; status?: string } = {}) => {
+    let q = new URLSearchParams()
+    if (params.stock_id !== undefined) q.set('stock_id', String(params.stock_id))
+    if (params.status) q.set('status', params.status)
+    let suffix = q.toString() ? `?${q.toString()}` : ''
+    return get<TradePlan[]>(`/trade-plans${suffix}`)
+  },
+
+  tradePlanLevels: (planId: number) =>
+    get<TradePlanLevel[]>(`/trade-plans/${planId}/levels`),
+
+  createTradePlanRaw: (
+    cookie: string | null | undefined,
+    body: { stock_id: number; rationale: string | null },
+  ) => {
+    let headers: Record<string, string> = {
+      'content-type': 'application/json',
+      accept: 'application/json',
+    }
+    if (cookie) headers.cookie = cookie
+    return fetch(`${BASE}/api/v1/trade-plans`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    })
+  },
+
+  updateTradePlanRaw: (
+    cookie: string | null | undefined,
+    id: number,
+    body: { status?: string; rationale?: string | null },
+  ) => {
+    let headers: Record<string, string> = {
+      'content-type': 'application/json',
+      accept: 'application/json',
+    }
+    if (cookie) headers.cookie = cookie
+    return fetch(`${BASE}/api/v1/trade-plans/${id}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(body),
+    })
+  },
+
+  deleteTradePlanRaw: (cookie: string | null | undefined, id: number) => {
+    let headers: Record<string, string> = { accept: 'application/json' }
+    if (cookie) headers.cookie = cookie
+    return fetch(`${BASE}/api/v1/trade-plans/${id}`, { method: 'DELETE', headers })
+  },
+
+  addTradePlanLevelRaw: (
+    cookie: string | null | undefined,
+    planId: number,
+    body: {
+      kind: string
+      price: string
+      quantity?: string | null
+      fraction_pct?: string | null
+      notes?: string | null
+      sort_order?: number | null
+    },
+  ) => {
+    let headers: Record<string, string> = {
+      'content-type': 'application/json',
+      accept: 'application/json',
+    }
+    if (cookie) headers.cookie = cookie
+    return fetch(`${BASE}/api/v1/trade-plans/${planId}/levels`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    })
+  },
+
+  updateTradePlanLevelRaw: (
+    cookie: string | null | undefined,
+    levelId: number,
+    body: {
+      kind?: string
+      price?: string
+      quantity?: string | null
+      fraction_pct?: string | null
+      notes?: string | null
+      sort_order?: number | null
+      status?: string
+    },
+  ) => {
+    let headers: Record<string, string> = {
+      'content-type': 'application/json',
+      accept: 'application/json',
+    }
+    if (cookie) headers.cookie = cookie
+    return fetch(`${BASE}/api/v1/trade-plans/levels/${levelId}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(body),
+    })
+  },
+
+  deleteTradePlanLevelRaw: (cookie: string | null | undefined, levelId: number) => {
+    let headers: Record<string, string> = { accept: 'application/json' }
+    if (cookie) headers.cookie = cookie
+    return fetch(`${BASE}/api/v1/trade-plans/levels/${levelId}`, {
+      method: 'DELETE',
+      headers,
+    })
   },
 }

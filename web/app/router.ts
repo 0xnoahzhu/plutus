@@ -35,6 +35,18 @@ import { selfExams } from './controllers/self-exams.tsx'
 import { settings } from './controllers/settings.tsx'
 import { stockDetail } from './controllers/stock-detail.tsx'
 import { stocks } from './controllers/stocks.tsx'
+import {
+  tradePlanClose,
+  tradePlanCreate,
+  tradePlanDelete,
+  tradePlanLevelCancel,
+  tradePlanLevelCreate,
+  tradePlanLevelDelete,
+  tradePlanLevelReset,
+  tradePlanLevelTrigger,
+  tradePlanReopen,
+  tradePlans,
+} from './controllers/trade-plans.tsx'
 import { transactions } from './controllers/transactions.tsx'
 import { watchlists } from './controllers/watchlists.tsx'
 import { routes } from './routes.ts'
@@ -95,3 +107,13 @@ router.map(routes.apiKeyDelete, withAuth(apiKeyDelete))
 router.map(routes.accounts, withAuth(accounts))
 router.map(routes.accountCreate, withAuth(accountCreate))
 router.map(routes.accountDelete, withAuth(accountDelete))
+router.map(routes.tradePlans, withAuth(tradePlans))
+router.map(routes.tradePlanCreate, withAuth(tradePlanCreate))
+router.map(routes.tradePlanClose, withAuth(tradePlanClose))
+router.map(routes.tradePlanReopen, withAuth(tradePlanReopen))
+router.map(routes.tradePlanDelete, withAuth(tradePlanDelete))
+router.map(routes.tradePlanLevelCreate, withAuth(tradePlanLevelCreate))
+router.map(routes.tradePlanLevelTrigger, withAuth(tradePlanLevelTrigger))
+router.map(routes.tradePlanLevelCancel, withAuth(tradePlanLevelCancel))
+router.map(routes.tradePlanLevelReset, withAuth(tradePlanLevelReset))
+router.map(routes.tradePlanLevelDelete, withAuth(tradePlanLevelDelete))
