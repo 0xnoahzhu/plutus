@@ -22,6 +22,7 @@ pub async fn record(db: &Db, entry: RecordAudit<'_>) -> Result<AuditLog> {
     let actor_kind = match entry.actor.kind {
         plutus_core::audit::ActorKind::Web => "web",
         plutus_core::audit::ActorKind::ApiToken => "api_token",
+        plutus_core::audit::ActorKind::Admin => "admin",
         plutus_core::audit::ActorKind::Anonymous => "anonymous",
         plutus_core::audit::ActorKind::System => "system",
     };
@@ -29,7 +30,10 @@ pub async fn record(db: &Db, entry: RecordAudit<'_>) -> Result<AuditLog> {
     let entity_id = entry.entity_id;
     let action = action_str.to_string();
     let actor_kind = actor_kind.to_string();
-    let actor_id = entry.actor.token_id;
+    // Prefer the user_id (real owner of the change) over the token_id; fall
+    // back to token_id so api-token actors that aren't yet user-scoped still
+    // get a non-null actor_id for the audit row.
+    let actor_id = entry.actor.user_id.or(entry.actor.token_id);
     let actor_label = entry.actor.label.clone();
     let before = entry.before;
     let after = entry.after;

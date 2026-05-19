@@ -15,13 +15,21 @@ pub async fn list(db: &Db) -> Result<Vec<ApiToken>> {
         .map_err(Into::into)
 }
 
-pub async fn create(db: &Db, label: &str, plain_token: &str) -> Result<ApiToken> {
+/// Tokens scoped to a single user. Used by `/tokens` once we filter the
+/// listing to the calling actor's own tokens.
+pub async fn list_for_user(db: &Db, user_id: i64) -> Result<Vec<ApiToken>> {
+    let all = list(db).await?;
+    Ok(all.into_iter().filter(|t| t.user_id == user_id).collect())
+}
+
+pub async fn create(db: &Db, user_id: i64, label: &str, plain_token: &str) -> Result<ApiToken> {
     let label = label.to_string();
     let token_hash = hash_token(plain_token);
     let now = jiff::Timestamp::now();
     let row = db
         .with(async |d| {
             toasty::create!(ApiToken {
+                user_id: user_id,
                 label: label,
                 token_hash: token_hash,
                 created_at: now,

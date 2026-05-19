@@ -33,3 +33,4 @@ pub mod transactions;
 pub mod users;
 pub mod watchlist;
 pub mod watchlist_reports;
+pub mod web_sessions;

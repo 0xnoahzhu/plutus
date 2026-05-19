@@ -157,6 +157,8 @@ ALTER TABLE transactions      ADD COLUMN IF NOT EXISTS user_id BIGINT NOT NULL D
 ALTER TABLE api_tokens        ADD COLUMN IF NOT EXISTS user_id BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE audit_log         ADD COLUMN IF NOT EXISTS user_id BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE web_sessions      ADD COLUMN IF NOT EXISTS user_id BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE web_sessions      ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE web_sessions      ADD COLUMN IF NOT EXISTS username TEXT NOT NULL DEFAULT '';
 ALTER TABLE watchlist_items   ADD COLUMN IF NOT EXISTS user_id BIGINT NOT NULL DEFAULT 0;
 -- Replace the single-user UNIQUE(stock_id) with UNIQUE(user_id, stock_id) so
 -- multiple users can independently watch the same ticker.

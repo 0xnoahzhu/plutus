@@ -64,7 +64,13 @@ async fn serve() -> Result<()> {
         .ok()
         .map(|v| v == "true" || v == "1")
         .unwrap_or(false);
-    let master_password = std::env::var("PLUTUS_MASTER_PASSWORD").unwrap_or_default();
+    let admin_username = std::env::var("PLUTUS_ADMIN_USERNAME").unwrap_or_default();
+    let admin_password = std::env::var("PLUTUS_ADMIN_PASSWORD").unwrap_or_default();
+    if admin_username.is_empty() || admin_password.is_empty() {
+        tracing::warn!(
+            "PLUTUS_ADMIN_USERNAME / PLUTUS_ADMIN_PASSWORD not set — admin login disabled"
+        );
+    }
 
     tracing::info!("connecting to database");
     let db = plutus_storage::Db::connect(&url).await?;
@@ -72,7 +78,8 @@ async fn serve() -> Result<()> {
     let state = plutus_api::AppState {
         db,
         require_auth,
-        master_password,
+        admin_username,
+        admin_password,
     };
 
     let app = plutus_api::build_router(state);
