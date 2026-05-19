@@ -1,6 +1,10 @@
 /// Design tokens for the plutus UI. Single source of truth for colors,
 /// spacing, typography, radii, and shadows. Components reach into these via
 /// `import { color, space, ... } from './tokens.ts'`.
+///
+/// Colors are exposed as CSS-variable strings (`var(--color-bg)`) so a
+/// single `<style>` block in [[Document]] can swap the underlying palette
+/// for dark mode without each component knowing anything about themes.
 
 /// Neutrals — slate ramp. 50 (lightest) → 950 (darkest). Mirrors Tailwind's
 /// slate scale so values feel familiar.
@@ -32,48 +36,151 @@ const teal = {
   900: '#164e63',
 } as const
 
-/// Semantic colors. Stick to these in components instead of raw hex so a
-/// theme swap is a one-place change.
+/// Each semantic color is a CSS variable. The variable's *value* is set by
+/// [[lightPalette]] / [[darkPalette]] below and injected into the document
+/// by [[buildThemeCSS]].
 export const color = {
   // Surfaces
-  bg: slate[50],            // page background
-  surface: '#ffffff',       // cards
-  sidebar: '#ffffff',       // sidebar (light theme)
-  hover: slate[100],        // generic hover background
-  divider: slate[200],
-  border: slate[200],
-  borderSoft: slate[100],
+  bg: 'var(--color-bg)',
+  surface: 'var(--color-surface)',
+  sidebar: 'var(--color-sidebar)',
+  hover: 'var(--color-hover)',
+  divider: 'var(--color-divider)',
+  border: 'var(--color-border)',
+  borderSoft: 'var(--color-border-soft)',
 
   // Text
-  text: slate[900],
-  textMuted: slate[500],
-  textDim: slate[400],
-  textOnBrand: '#ffffff',
+  text: 'var(--color-text)',
+  textMuted: 'var(--color-text-muted)',
+  textDim: 'var(--color-text-dim)',
+  textOnBrand: 'var(--color-text-on-brand)',
 
   // Brand
-  brand: teal[500],
-  brandHover: teal[600],
-  brandSoft: teal[50],
-  brandSoftText: teal[700],
+  brand: 'var(--color-brand)',
+  brandHover: 'var(--color-brand-hover)',
+  brandSoft: 'var(--color-brand-soft)',
+  brandSoftText: 'var(--color-brand-soft-text)',
 
   // Status
-  success: '#10b981',
-  successSoft: '#dcfce7',
-  successText: '#166534',
-  danger: '#ef4444',
-  dangerSoft: '#fee2e2',
-  dangerText: '#991b1b',
-  warn: '#f59e0b',
-  warnSoft: '#fef3c7',
-  warnText: '#92400e',
-  info: '#3b82f6',
-  infoSoft: '#dbeafe',
-  infoText: '#1e40af',
+  success: 'var(--color-success)',
+  successSoft: 'var(--color-success-soft)',
+  successText: 'var(--color-success-text)',
+  danger: 'var(--color-danger)',
+  dangerSoft: 'var(--color-danger-soft)',
+  dangerText: 'var(--color-danger-text)',
+  warn: 'var(--color-warn)',
+  warnSoft: 'var(--color-warn-soft)',
+  warnText: 'var(--color-warn-text)',
+  info: 'var(--color-info)',
+  infoSoft: 'var(--color-info-soft)',
+  infoText: 'var(--color-info-text)',
 
   // Active nav highlight
-  navActiveBg: teal[50],
-  navActiveText: teal[700],
+  navActiveBg: 'var(--color-nav-active-bg)',
+  navActiveText: 'var(--color-nav-active-text)',
 } as const
+
+type Palette = Record<string, string>
+
+/// Default (light) palette values.
+const lightPalette: Palette = {
+  '--color-bg': slate[50],
+  '--color-surface': '#ffffff',
+  '--color-sidebar': '#ffffff',
+  '--color-hover': slate[100],
+  '--color-divider': slate[200],
+  '--color-border': slate[200],
+  '--color-border-soft': slate[100],
+
+  '--color-text': slate[900],
+  '--color-text-muted': slate[500],
+  '--color-text-dim': slate[400],
+  '--color-text-on-brand': '#ffffff',
+
+  '--color-brand': teal[500],
+  '--color-brand-hover': teal[600],
+  '--color-brand-soft': teal[50],
+  '--color-brand-soft-text': teal[700],
+
+  '--color-success': '#10b981',
+  '--color-success-soft': '#dcfce7',
+  '--color-success-text': '#166534',
+  '--color-danger': '#ef4444',
+  '--color-danger-soft': '#fee2e2',
+  '--color-danger-text': '#991b1b',
+  '--color-warn': '#f59e0b',
+  '--color-warn-soft': '#fef3c7',
+  '--color-warn-text': '#92400e',
+  '--color-info': '#3b82f6',
+  '--color-info-soft': '#dbeafe',
+  '--color-info-text': '#1e40af',
+
+  '--color-nav-active-bg': teal[50],
+  '--color-nav-active-text': teal[700],
+}
+
+/// Dark palette. Surfaces flip to slate-900/800 and text inverts; brand stays
+/// teal (cyan reads well on dark). Status colors get softer backgrounds and
+/// brighter foregrounds so badges still pop without burning eyes.
+const darkPalette: Palette = {
+  '--color-bg': slate[950],
+  '--color-surface': slate[900],
+  '--color-sidebar': slate[900],
+  '--color-hover': slate[800],
+  '--color-divider': slate[800],
+  '--color-border': slate[800],
+  '--color-border-soft': slate[800],
+
+  '--color-text': slate[100],
+  '--color-text-muted': slate[400],
+  '--color-text-dim': slate[500],
+  '--color-text-on-brand': slate[950],
+
+  '--color-brand': teal[400],
+  '--color-brand-hover': teal[300],
+  '--color-brand-soft': 'rgba(34, 211, 238, 0.12)',
+  '--color-brand-soft-text': teal[300],
+
+  '--color-success': '#34d399',
+  '--color-success-soft': 'rgba(52, 211, 153, 0.12)',
+  '--color-success-text': '#6ee7b7',
+  '--color-danger': '#f87171',
+  '--color-danger-soft': 'rgba(248, 113, 113, 0.12)',
+  '--color-danger-text': '#fca5a5',
+  '--color-warn': '#fbbf24',
+  '--color-warn-soft': 'rgba(251, 191, 36, 0.12)',
+  '--color-warn-text': '#fcd34d',
+  '--color-info': '#60a5fa',
+  '--color-info-soft': 'rgba(96, 165, 250, 0.12)',
+  '--color-info-text': '#93c5fd',
+
+  '--color-nav-active-bg': 'rgba(34, 211, 238, 0.12)',
+  '--color-nav-active-text': teal[300],
+}
+
+function paletteCSS(p: Palette): string {
+  return Object.entries(p)
+    .map(([k, v]) => `  ${k}: ${v};`)
+    .join('\n')
+}
+
+/// CSS that defines the palette variables. Light is the default on `:root`.
+/// In `system` mode the dark variant kicks in via `prefers-color-scheme`. An
+/// explicit `data-theme` attribute on `<html>` always wins over the media
+/// query.
+export const THEME_CSS = `
+:root {
+${paletteCSS(lightPalette)}
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+${paletteCSS(darkPalette)}
+  }
+}
+[data-theme="dark"] {
+${paletteCSS(darkPalette)}
+}
+`
 
 export const space = {
   0: '0',
@@ -98,22 +205,16 @@ export const radius = {
 } as const
 
 export const shadow = {
-  // Tiny separator shadow; pairs well with a soft border.
   card: '0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 1px rgba(15, 23, 42, 0.03)',
-  /// Slightly lifted — for hovered or focused cards.
   cardHover: '0 4px 12px rgba(15, 23, 42, 0.06)',
-  /// Stack/popover.
   popover: '0 8px 24px rgba(15, 23, 42, 0.08)',
 } as const
 
 export const font = {
-  /// Stack tuned for cross-platform consistency. Inter when available,
-  /// system-ui everywhere else.
   sans:
     'Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
   mono: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
 
-  // Sizes
   xs: '11px',
   sm: '12px',
   base: '14px',

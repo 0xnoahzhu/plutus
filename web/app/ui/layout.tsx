@@ -11,9 +11,12 @@ import {
   Globe,
   LayoutDashboard,
   LogOut,
+  Moon,
+  Monitor,
   Newspaper,
   ScrollText,
   SearchCheck,
+  Sun,
   ThumbsUp,
   TrendingUp,
   Wallet,
@@ -38,6 +41,9 @@ export interface LayoutProps {
   /// Resolved locale for this request — "en" or "zh-CN". Used both for
   /// content rendering and for the language chip group.
   locale: string
+  /// Resolved color-scheme — "system" | "dark" | "light". Drives the theme
+  /// chip group and the Document's `data-theme` attribute.
+  theme?: Theme
 }
 
 // ── Navigation ───────────────────────────────────────────────────────────────
@@ -174,13 +180,68 @@ export function localeCookie(locale: Locale): string {
   return `${LOCALE_COOKIE}=${locale}; Path=/; Max-Age=31536000; SameSite=Lax`
 }
 
+// ── Theme ────────────────────────────────────────────────────────────────────
+
+/// Color-scheme choices. `system` follows the browser's
+/// `prefers-color-scheme`; `dark`/`light` pin the palette.
+export const THEMES = ['system', 'dark', 'light'] as const
+export type Theme = (typeof THEMES)[number]
+
+export const THEME_LABELS: Record<Theme, string> = {
+  system: 'System',
+  dark: 'Dark',
+  light: 'Light',
+}
+
+export const DEFAULT_THEME: Theme = 'system'
+
+const THEME_COOKIE = 'plutus_theme'
+
+function isTheme(v: string | null): v is Theme {
+  return v === 'system' || v === 'dark' || v === 'light'
+}
+
+export function parseTheme(search: URLSearchParams): Theme {
+  let t = search.get('theme')
+  return isTheme(t) ? t : DEFAULT_THEME
+}
+
+/// `?theme=` > cookie > `system`.
+export function resolveTheme(request: Request, search: URLSearchParams): Theme {
+  let q = search.get('theme')
+  if (isTheme(q)) return q
+
+  let cookie = request.headers.get('cookie') ?? ''
+  for (let part of cookie.split(';')) {
+    let [k, v] = part.split('=').map((s) => s.trim())
+    if (k === THEME_COOKIE && isTheme(v)) return v
+  }
+
+  return DEFAULT_THEME
+}
+
+export function themeCookie(theme: Theme): string {
+  return `${THEME_COOKIE}=${theme}; Path=/; Max-Age=31536000; SameSite=Lax`
+}
+
 // ── Layout shell ─────────────────────────────────────────────────────────────
 
 const SIDEBAR_WIDTH = '240px'
 
 export function Layout() {
-  return ({ title, subtitle, children, country, locale }: LayoutProps) => (
-    <Document title={title ? `${title} · Plutus` : 'Plutus'} lang={locale}>
+  return ({
+    title,
+    subtitle,
+    children,
+    country,
+    locale,
+    theme = DEFAULT_THEME,
+  }: LayoutProps) => (
+    <Document
+      title={title ? `${title} · Plutus` : 'Plutus'}
+      lang={locale}
+      theme={theme}
+    >
       <div
         mix={css({
           display: 'grid',
@@ -254,6 +315,7 @@ export function Layout() {
               <CountryChips selected={country} options={ALL_COUNTRIES} locale={locale} />
             )}
             <LocaleChips selected={locale as Locale} country={country} />
+            <ThemeChips selected={theme} country={country} locale={locale} />
           </div>
 
           <div>{children}</div>
@@ -488,6 +550,33 @@ function LocaleChips() {
   )
 }
 
+interface ThemeChipsProps {
+  selected: Theme
+  country?: string
+  locale?: string
+}
+
+const THEME_ICONS: Record<Theme, string> = {
+  system: Monitor,
+  dark: Moon,
+  light: Sun,
+}
+
+function ThemeChips() {
+  return ({ selected, country, locale }: ThemeChipsProps) => (
+    <ChipGroup label="Theme">
+      {THEMES.map((t) => (
+        <ChipLink
+          href={buildHref({ country, locale, theme: t })}
+          active={t === selected}
+          label={THEME_LABELS[t]}
+          icon={THEME_ICONS[t]}
+        />
+      ))}
+    </ChipGroup>
+  )
+}
+
 function ChipGroup() {
   return ({ label, children }: { label: string; children: RemixNode }) => (
     <div
@@ -518,11 +607,23 @@ function ChipGroup() {
   )
 }
 
+interface ChipLinkProps {
+  href: string
+  active: boolean
+  label: string
+  /// Optional lucide SVG string rendered before the label. Used for the
+  /// theme chips so each row carries its own glyph.
+  icon?: string
+}
+
 function ChipLink() {
-  return ({ href, active, label }: { href: string; active: boolean; label: string }) => (
+  return ({ href, active, label, icon }: ChipLinkProps) => (
     <a
       href={href}
       mix={css({
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: space[1],
         padding: `${space[1]} ${space[3]}`,
         fontSize: font.sm,
         fontWeight: 600,
@@ -540,17 +641,23 @@ function ChipLink() {
           : { color: color.text },
       })}
     >
+      {icon && <Icon svg={icon} size={14} />}
       {label}
     </a>
   )
 }
 
-/// Build a relative href preserving country + locale together. Switching one
-/// chip keeps the other intact.
-function buildHref(params: { country?: string; locale?: string }): string {
+/// Build a relative href preserving country + locale + theme together so
+/// flipping one chip doesn't reset the others.
+function buildHref(params: {
+  country?: string
+  locale?: string
+  theme?: Theme
+}): string {
   let qs = new URLSearchParams()
   if (params.country) qs.set('country', params.country)
   if (params.locale) qs.set('locale', params.locale)
+  if (params.theme) qs.set('theme', params.theme)
   let s = qs.toString()
   return s ? `?${s}` : '?'
 }
