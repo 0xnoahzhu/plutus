@@ -4,45 +4,23 @@ use crate::db::{Db, DbError, Result};
 use crate::models::WatchlistReport;
 
 pub struct ListFilter<'a> {
-    pub watchlist_id: Option<i64>,
     pub kind: Option<&'a str>,
     pub from: Option<&'a str>,
     pub to: Option<&'a str>,
 }
 
 pub async fn list(db: &Db, filter: ListFilter<'_>) -> Result<Vec<WatchlistReport>> {
-    let rows = match (filter.watchlist_id, filter.kind) {
-        (Some(w), Some(k)) => {
-            let k_owned = k.to_string();
-            db.with(async |d| {
-                WatchlistReport::all()
-                    .filter(WatchlistReport::fields().watchlist_id().eq(w))
-                    .filter(WatchlistReport::fields().kind().eq(&k_owned))
-                    .exec(d)
-                    .await
-            })
-            .await?
-        }
-        (Some(w), None) => {
-            db.with(async |d| {
-                WatchlistReport::all()
-                    .filter(WatchlistReport::fields().watchlist_id().eq(w))
-                    .exec(d)
-                    .await
-            })
-            .await?
-        }
-        (None, Some(k)) => {
-            let k_owned = k.to_string();
-            db.with(async |d| {
-                WatchlistReport::all()
-                    .filter(WatchlistReport::fields().kind().eq(&k_owned))
-                    .exec(d)
-                    .await
-            })
-            .await?
-        }
-        (None, None) => db.with(async |d| WatchlistReport::all().exec(d).await).await?,
+    let rows = if let Some(k) = filter.kind {
+        let k_owned = k.to_string();
+        db.with(async |d| {
+            WatchlistReport::all()
+                .filter(WatchlistReport::fields().kind().eq(&k_owned))
+                .exec(d)
+                .await
+        })
+        .await?
+    } else {
+        db.with(async |d| WatchlistReport::all().exec(d).await).await?
     };
     let from = filter.from.map(str::to_string);
     let to = filter.to.map(str::to_string);
@@ -60,7 +38,6 @@ pub async fn get(db: &Db, id: i64) -> Result<WatchlistReport> {
 }
 
 pub struct NewReport<'a> {
-    pub watchlist_id: i64,
     pub kind: &'a str,
     pub period_start: &'a str,
     pub period_end: &'a str,
@@ -82,7 +59,6 @@ pub async fn upsert(db: &Db, input: NewReport<'_>) -> Result<WatchlistReport> {
     let existing = db
         .with(async |d| {
             WatchlistReport::all()
-                .filter(WatchlistReport::fields().watchlist_id().eq(input.watchlist_id))
                 .filter(WatchlistReport::fields().kind().eq(&kind_owned))
                 .filter(WatchlistReport::fields().period_start().eq(&start_owned))
                 .first()
@@ -128,13 +104,11 @@ pub async fn upsert(db: &Db, input: NewReport<'_>) -> Result<WatchlistReport> {
             .await?
             .ok_or(DbError::NotFound)
     } else {
-        let watchlist_id = input.watchlist_id;
         let kind = input.kind.to_string();
         let period_start = input.period_start.to_string();
         let row = db
             .with(async |d| {
                 toasty::create!(WatchlistReport {
-                    watchlist_id: watchlist_id,
                     kind: kind,
                     period_start: period_start,
                     period_end: period_end,

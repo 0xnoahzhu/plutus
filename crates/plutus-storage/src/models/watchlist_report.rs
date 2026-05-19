@@ -1,5 +1,5 @@
-//! Daily and weekly reports scoped to a single watchlist. Natural key
-//! (watchlist_id, kind, period_start) enforced at the app layer via upsert.
+//! Daily and weekly reports on the watchlist. Natural key
+//! (kind, period_start) enforced at the app layer via upsert.
 
 use rust_decimal::Decimal;
 
@@ -9,8 +9,6 @@ pub struct WatchlistReport {
     #[key]
     #[auto]
     pub id: i64,
-    #[index]
-    pub watchlist_id: i64,
     /// "daily" / "weekly". Keep loose so we can add "monthly" later without
     /// schema changes.
     pub kind: String,

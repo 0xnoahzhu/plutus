@@ -30,5 +30,5 @@ pub mod stock_translations;
 pub mod stocks;
 pub mod tokens;
 pub mod transactions;
+pub mod watchlist;
 pub mod watchlist_reports;
-pub mod watchlists;
