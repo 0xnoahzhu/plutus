@@ -288,9 +288,7 @@ function ReportCard() {
             {r.kind}
           </span>
           {r.sentiment && <Badge tone={tone}>{r.sentiment}</Badge>}
-          <span mix={css({ marginLeft: 'auto' })}>
-            {r.source} · {r.language}
-          </span>
+          <span mix={css({ marginLeft: 'auto' })}>{r.source}</span>
         </div>
         <div
           mix={css({
@@ -301,7 +299,7 @@ function ReportCard() {
             lineHeight: 1.4,
           })}
         >
-          {r.headline}
+          {r.headline ?? '(untitled)'}
         </div>
         {r.summary_md && (
           <p

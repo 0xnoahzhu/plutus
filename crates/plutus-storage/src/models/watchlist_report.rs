@@ -1,5 +1,12 @@
-//! Daily and weekly reports on the watchlist. Natural key
-//! (kind, period_start) enforced at the app layer via upsert.
+//! Daily and weekly reports on the watchlist. Per-user (uniqueness on
+//! `(user_id, kind, period_start)`).
+//!
+//! Translatable content (headline / summary_md / content_md / notes) lives
+//! in the `content` JSONB column on the DB side. Because toasty 0.6 doesn't
+//! speak JSONB, the model omits that column entirely — raw `tokio_postgres`
+//! SQL in `queries::watchlist_reports` handles read/write of localized
+//! content. The fields declared here are the metadata columns toasty can
+//! manage (filtering, indexing, ownership checks).
 
 use rust_decimal::Decimal;
 
@@ -18,20 +25,12 @@ pub struct WatchlistReport {
     /// Monday of the week.
     pub period_start: String,
     pub period_end: String,
-    pub headline: String,
-    pub summary_md: Option<String>,
-    pub content_md: Option<String>,
     pub sentiment: Option<String>,
     pub sentiment_score: Option<Decimal>,
-    /// Free-form JSON blob the agent populates. We don't validate shape so
-    /// each watchlist can carry the metrics that matter for its theme.
+    /// Free-form JSON blob the agent populates. Not translated — metrics
+    /// are numbers / codes, not human-readable text.
     pub metrics: Option<String>,
-    pub notes: Option<String>,
-    pub language: String,
     pub source: String,
-    /// JSON map of locale → translated overrides for headline / summary_md /
-    /// content_md / notes. Read by API handlers on `?locale=`.
-    pub translations: Option<String>,
     pub created_at: jiff::Timestamp,
     pub updated_at: jiff::Timestamp,
 }

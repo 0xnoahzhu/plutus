@@ -1942,6 +1942,8 @@ dependencies = [
  "fallible-iterator",
  "jiff",
  "postgres-protocol",
+ "serde_core",
+ "serde_json",
  "uuid",
 ]
 

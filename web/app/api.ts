@@ -225,14 +225,16 @@ export interface WatchlistReport {
   kind: string
   period_start: string
   period_end: string
-  headline: string
+  /// Already projected for the request locale by the storage layer (with
+  /// fallback to `en`). Null when neither the requested locale nor `en`
+  /// has the field populated.
+  headline: string | null
   summary_md: string | null
   content_md: string | null
+  notes: string | null
   sentiment: string | null
   sentiment_score: string | null
   metrics: string | null
-  notes: string | null
-  language: string
   source: string
   created_at: string
   updated_at: string
