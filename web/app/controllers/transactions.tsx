@@ -14,8 +14,10 @@ import {
   Layout,
   parseCountry,
   resolveLocale,
+  resolveTheme,
   space,
   StockBadge,
+  type Theme,
 } from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
@@ -24,6 +26,7 @@ export const transactions: BuildAction<'GET', typeof routes.transactions> = {
     let url = new URL(request.url)
     let country = parseCountry(url.searchParams)
     let locale = resolveLocale(request, url.searchParams)
+    let theme = resolveTheme(request, url.searchParams)
     let [txs, stocks] = await Promise.all([
       api.transactions().catch(() => []),
       api.stocks().catch(() => []),
@@ -33,9 +36,9 @@ export const transactions: BuildAction<'GET', typeof routes.transactions> = {
       t.stock_id != null ? stockMap.get(t.stock_id)?.market_code : undefined,
     )
     return render(
-      <TransactionsPage rows={filtered} stocks={stockMap} country={country} locale={locale} />,
+      <TransactionsPage rows={filtered} stocks={stockMap} country={country} locale={locale} theme={theme} />,
       request,
-      { locale },
+      { locale, theme },
     )
   },
 }
@@ -45,15 +48,17 @@ interface TxnProps {
   stocks: Map<number, Stock>
   country: string
   locale: string
+  theme: Theme
 }
 
 function TransactionsPage() {
-  return ({ rows, stocks, country, locale }: TxnProps) => (
+  return ({ rows, stocks, country, locale, theme }: TxnProps) => (
     <Layout
       title="Transactions"
       subtitle={`${rows.length} in ${country}`}
       country={country}
       locale={locale}
+      theme={theme}
     >
       {rows.length === 0 ? (
         <Card>

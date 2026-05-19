@@ -12,7 +12,9 @@ import {
   Layout,
   radius,
   resolveLocale,
+  resolveTheme,
   space,
+  type Theme,
 } from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
@@ -20,12 +22,13 @@ export const selfExams: BuildAction<'GET', typeof routes.selfExams> = {
   async handler({ request }) {
     let url = new URL(request.url)
     let locale = resolveLocale(request, url.searchParams)
+    let theme = resolveTheme(request, url.searchParams)
     let exams = await api.selfExams({ locale }).catch(() => [])
     exams.sort((a, b) => b.period_start.localeCompare(a.period_start))
     return render(
-      <SelfExamsPage exams={exams} locale={locale} />,
+      <SelfExamsPage exams={exams} locale={locale} theme={theme} />,
       request,
-      { locale },
+      { locale, theme },
     )
   },
 }
@@ -33,14 +36,16 @@ export const selfExams: BuildAction<'GET', typeof routes.selfExams> = {
 interface SelfExamsProps {
   exams: SelfExam[]
   locale: string
+  theme: Theme
 }
 
 function SelfExamsPage() {
-  return ({ exams, locale }: SelfExamsProps) => (
+  return ({ exams, locale, theme }: SelfExamsProps) => (
     <Layout
       title="Self-exam"
       subtitle={`${exams.length} ${exams.length === 1 ? 'entry' : 'entries'}`}
       locale={locale}
+      theme={theme}
     >
       <p
         mix={css({

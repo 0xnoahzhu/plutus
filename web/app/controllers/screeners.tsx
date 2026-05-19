@@ -13,9 +13,11 @@ import {
   Layout,
   radius,
   resolveLocale,
+  resolveTheme,
   SectionTitle,
   space,
   StockBadge,
+  type Theme,
 } from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
@@ -23,6 +25,7 @@ export const screeners: BuildAction<'GET', typeof routes.screeners> = {
   async handler({ request }) {
     let url = new URL(request.url)
     let locale = resolveLocale(request, url.searchParams)
+    let theme = resolveTheme(request, url.searchParams)
     let [runs, stocks] = await Promise.all([
       api.screenerRuns(locale).catch(() => []),
       api.stocks().catch(() => []),
@@ -44,9 +47,10 @@ export const screeners: BuildAction<'GET', typeof routes.screeners> = {
         hits={hits}
         stocks={stockMap}
         locale={locale}
+        theme={theme}
       />,
       request,
-      { locale },
+      { locale, theme },
     )
   },
 }
@@ -57,14 +61,16 @@ interface ScreenersProps {
   hits: ScreenerHit[]
   stocks: Map<number, Stock>
   locale: string
+  theme: Theme
 }
 
 function ScreenersPage() {
-  return ({ runs, latest, hits, stocks, locale }: ScreenersProps) => (
+  return ({ runs, latest, hits, stocks, locale, theme }: ScreenersProps) => (
     <Layout
       title="Screeners"
       subtitle="Recurring screener runs — weekly value/quality/momentum scans, IPO watchlists, and ad-hoc filters."
       locale={locale}
+      theme={theme}
     >
       {!latest ? (
         <Card>

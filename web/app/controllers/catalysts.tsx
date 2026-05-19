@@ -14,9 +14,11 @@ import {
   parseCountry,
   radius,
   resolveLocale,
+  resolveTheme,
   SectionTitle,
   space,
   StockBadge,
+  type Theme,
 } from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
@@ -30,6 +32,7 @@ export const catalysts: BuildAction<'GET', typeof routes.catalysts> = {
     let url = new URL(request.url)
     let country = parseCountry(url.searchParams)
     let locale = resolveLocale(request, url.searchParams)
+    let theme = resolveTheme(request, url.searchParams)
 
     let [all, stocks] = await Promise.all([
       api.catalysts({ country, locale }).catch(() => []),
@@ -53,10 +56,11 @@ export const catalysts: BuildAction<'GET', typeof routes.catalysts> = {
         past={past}
         country={country}
         locale={locale}
+        theme={theme}
         today={today}
       />,
       request,
-      { locale },
+      { locale, theme },
     )
   },
 }
@@ -86,16 +90,18 @@ interface CatalystsProps {
   past: DayGroup[]
   country: string
   locale: string
+  theme: Theme
   today: string
 }
 
 function CatalystsPage() {
-  return ({ upcoming, past, country, locale, today }: CatalystsProps) => (
+  return ({ upcoming, past, country, locale, theme, today }: CatalystsProps) => (
     <Layout
       title="Catalysts"
       subtitle={`Forward-looking catalysts for ${country}`}
       country={country}
       locale={locale}
+      theme={theme}
     >
       <SectionTitle hint={`from ${today}`}>Upcoming</SectionTitle>
       {upcoming.length === 0 ? (

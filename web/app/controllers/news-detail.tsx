@@ -22,9 +22,11 @@ import {
   Layout,
   radius,
   resolveLocale,
+  resolveTheme,
   SectionTitle,
   space,
   StockBadge,
+  type Theme,
 } from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
@@ -34,6 +36,7 @@ export const newsDetail: BuildAction<'GET', typeof routes.newsDetail> = {
     if (!Number.isFinite(id)) return new Response('Bad news id', { status: 400 })
     let url = new URL(request.url)
     let locale = resolveLocale(request, url.searchParams)
+    let theme = resolveTheme(request, url.searchParams)
 
     let [item, stockLinks, sectorLinks, macroLinks, countryLinks, translations, stocks, sectors] =
       await Promise.all([
@@ -60,11 +63,12 @@ export const newsDetail: BuildAction<'GET', typeof routes.newsDetail> = {
         countryLinks={countryLinks}
         translations={translations}
         locale={locale}
+        theme={theme}
         stocks={stockMap}
         sectors={sectorMap}
       />,
       request,
-      { locale },
+      { locale, theme },
     )
   },
 }
@@ -77,6 +81,7 @@ interface NewsDetailProps {
   countryLinks: NewsCountryLink[]
   translations: NewsTranslation[]
   locale: string
+  theme: Theme
   stocks: Map<number, Stock>
   sectors: Map<string, Sector>
 }
@@ -90,6 +95,7 @@ function NewsDetailPage() {
     countryLinks,
     translations,
     locale,
+    theme,
     stocks,
     sectors,
   }: NewsDetailProps) => {
@@ -98,7 +104,7 @@ function NewsDetailPage() {
     let missingTranslation = !isOriginal && !chosen
 
     return (
-      <Layout title={n.title} locale={locale}>
+      <Layout title={n.title} locale={locale} theme={theme}>
         <Breadcrumb />
 
         <div

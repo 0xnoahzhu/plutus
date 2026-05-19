@@ -12,7 +12,9 @@ import {
   font,
   Layout,
   resolveLocale,
+  resolveTheme,
   space,
+  type Theme,
 } from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
@@ -31,14 +33,15 @@ export const audit: BuildAction<'GET', typeof routes.audit> = {
   async handler({ request }) {
     let url = new URL(request.url)
     let locale = resolveLocale(request, url.searchParams)
+    let theme = resolveTheme(request, url.searchParams)
     let rows = (await api.audit().catch(() => [])) as AuditRow[]
-    return render(<AuditPage rows={rows} locale={locale} />, request, { locale })
+    return render(<AuditPage rows={rows} locale={locale} theme={theme} />, request, { locale, theme })
   },
 }
 
 function AuditPage() {
-  return ({ rows, locale }: { rows: AuditRow[]; locale: string }) => (
-    <Layout title="Audit log" subtitle="Server-side write log" locale={locale}>
+  return ({ rows, locale, theme }: { rows: AuditRow[]; locale: string; theme: Theme }) => (
+    <Layout title="Audit log" subtitle="Server-side write log" locale={locale} theme={theme}>
       {rows.length === 0 ? (
         <Card>
           <EmptyState

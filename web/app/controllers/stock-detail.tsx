@@ -17,9 +17,11 @@ import {
   font,
   Layout,
   resolveLocale,
+  resolveTheme,
   SectionTitle,
   space,
   StockBadge,
+  type Theme,
 } from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
@@ -31,6 +33,7 @@ export const stockDetail: BuildAction<'GET', typeof routes.stockDetail> = {
     }
     let url = new URL(request.url)
     let locale = resolveLocale(request, url.searchParams)
+    let theme = resolveTheme(request, url.searchParams)
 
     let [stock, translations, newsLinks, allNews] = await Promise.all([
       api.stock(id).catch(() => null),
@@ -53,11 +56,12 @@ export const stockDetail: BuildAction<'GET', typeof routes.stockDetail> = {
         stock={stock}
         translations={translations}
         locale={locale}
+        theme={theme}
         recentNews={recentTrimmed}
         totalNews={recentNews.length}
       />,
       request,
-      { locale },
+      { locale, theme },
     )
   },
 }
@@ -66,17 +70,18 @@ interface StockDetailProps {
   stock: Stock
   translations: StockTranslation[]
   locale: string
+  theme: Theme
   recentNews: Array<{ link: NewsStockLink; item: NewsItem }>
   totalNews: number
 }
 
 function StockDetailPage() {
-  return ({ stock, translations, locale, recentNews, totalNews }: StockDetailProps) => {
+  return ({ stock, translations, locale, theme, recentNews, totalNews }: StockDetailProps) => {
     let current =
       translations.find((t) => t.locale === locale) ?? translations[0] ?? null
     let displayName = current?.name ?? stock.symbol
     return (
-      <Layout title={displayName} subtitle={`${stock.symbol} · ${stock.market_code}`} locale={locale}>
+      <Layout title={displayName} subtitle={`${stock.symbol} · ${stock.market_code}`} locale={locale} theme={theme}>
         <Breadcrumb stock={stock} />
 
         <div

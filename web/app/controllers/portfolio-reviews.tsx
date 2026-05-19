@@ -13,7 +13,9 @@ import {
   Layout,
   radius,
   resolveLocale,
+  resolveTheme,
   space,
+  type Theme,
 } from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
@@ -21,13 +23,14 @@ export const portfolioReviews: BuildAction<'GET', typeof routes.portfolioReviews
   async handler({ request }) {
     let url = new URL(request.url)
     let locale = resolveLocale(request, url.searchParams)
+    let theme = resolveTheme(request, url.searchParams)
     let reviews = await api.portfolioReviews(locale).catch(() => [])
     // Newest first.
     reviews.sort((a, b) => b.period_start.localeCompare(a.period_start))
     return render(
-      <PortfolioReviewsPage reviews={reviews} locale={locale} />,
+      <PortfolioReviewsPage reviews={reviews} locale={locale} theme={theme} />,
       request,
-      { locale },
+      { locale, theme },
     )
   },
 }
@@ -35,14 +38,16 @@ export const portfolioReviews: BuildAction<'GET', typeof routes.portfolioReviews
 interface ReviewsProps {
   reviews: PortfolioReview[]
   locale: string
+  theme: Theme
 }
 
 function PortfolioReviewsPage() {
-  return ({ reviews, locale }: ReviewsProps) => (
+  return ({ reviews, locale, theme }: ReviewsProps) => (
     <Layout
       title="Portfolio reviews"
       subtitle={`${reviews.length} ${reviews.length === 1 ? 'review' : 'reviews'}`}
       locale={locale}
+      theme={theme}
     >
       <p
         mix={css({

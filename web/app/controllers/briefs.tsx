@@ -14,7 +14,9 @@ import {
   parseCountry,
   radius,
   resolveLocale,
+  resolveTheme,
   space,
+  type Theme,
 } from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
@@ -31,6 +33,7 @@ export const briefs: BuildAction<'GET', typeof routes.briefs> = {
     let url = new URL(request.url)
     let country = parseCountry(url.searchParams)
     let locale = resolveLocale(request, url.searchParams)
+    let theme = resolveTheme(request, url.searchParams)
     let all = await api.marketBriefs(country, locale).catch(() => [])
 
     let byDate = new Map<string, DayGroup>()
@@ -48,9 +51,9 @@ export const briefs: BuildAction<'GET', typeof routes.briefs> = {
       b.date.localeCompare(a.date),
     )
     return render(
-      <BriefsPage days={days} country={country} locale={locale} />,
+      <BriefsPage days={days} country={country} locale={locale} theme={theme} />,
       request,
-      { locale },
+      { locale, theme },
     )
   },
 }
@@ -59,15 +62,17 @@ interface BriefsProps {
   days: DayGroup[]
   country: string
   locale: string
+  theme: Theme
 }
 
 function BriefsPage() {
-  return ({ days, country, locale }: BriefsProps) => (
+  return ({ days, country, locale, theme }: BriefsProps) => (
     <Layout
       title="Market Briefs"
       subtitle={`Daily pre/post-market analysis for ${country}`}
       country={country}
       locale={locale}
+      theme={theme}
     >
       {days.length === 0 ? (
         <Card>

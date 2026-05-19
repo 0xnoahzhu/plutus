@@ -18,9 +18,11 @@ import {
   Layout,
   radius,
   resolveLocale,
+  resolveTheme,
   SectionTitle,
   space,
   StockBadge,
+  type Theme,
 } from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
@@ -30,6 +32,7 @@ export const correlations: BuildAction<'GET', typeof routes.correlations> = {
   async handler({ request }) {
     let url = new URL(request.url)
     let locale = resolveLocale(request, url.searchParams)
+    let theme = resolveTheme(request, url.searchParams)
     let [runs, universes, stocks] = await Promise.all([
       api.correlationRuns(locale).catch(() => []),
       api.universes().catch(() => []),
@@ -56,9 +59,10 @@ export const correlations: BuildAction<'GET', typeof routes.correlations> = {
         universeMap={universeMap}
         stocks={stockMap}
         locale={locale}
+        theme={theme}
       />,
       request,
-      { locale },
+      { locale, theme },
     )
   },
 }
@@ -72,6 +76,7 @@ interface CorrelationsProps {
   universeMap: Map<number, UniverseDefinition>
   stocks: Map<number, Stock>
   locale: string
+  theme: Theme
 }
 
 function CorrelationsPage() {
@@ -84,11 +89,13 @@ function CorrelationsPage() {
     universeMap,
     stocks,
     locale,
+    theme,
   }: CorrelationsProps) => (
     <Layout
       title="Correlation map"
       subtitle={latest ? `Latest run ${latest.run_date}` : 'No runs yet'}
       locale={locale}
+      theme={theme}
     >
       <p
         mix={css({

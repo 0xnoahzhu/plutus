@@ -14,8 +14,10 @@ import {
   parseCountry,
   radius,
   resolveLocale,
+  resolveTheme,
   SectionTitle,
   space,
+  type Theme,
 } from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
@@ -29,6 +31,7 @@ export const macroEvents: BuildAction<'GET', typeof routes.macroEvents> = {
     let url = new URL(request.url)
     let country = parseCountry(url.searchParams)
     let locale = resolveLocale(request, url.searchParams)
+    let theme = resolveTheme(request, url.searchParams)
 
     let [events, indicators] = await Promise.all([
       api.macroEvents(country, locale).catch(() => []),
@@ -49,10 +52,11 @@ export const macroEvents: BuildAction<'GET', typeof routes.macroEvents> = {
         indicators={indicatorMap}
         country={country}
         locale={locale}
+        theme={theme}
         today={today}
       />,
       request,
-      { locale },
+      { locale, theme },
     )
   },
 }
@@ -79,16 +83,18 @@ interface MacroEventsProps {
   indicators: Map<string, MacroIndicator>
   country: string
   locale: string
+  theme: Theme
   today: string
 }
 
 function MacroEventsPage() {
-  return ({ upcoming, past, indicators, country, locale, today }: MacroEventsProps) => (
+  return ({ upcoming, past, indicators, country, locale, theme, today }: MacroEventsProps) => (
     <Layout
       title="Macro calendar"
       subtitle={`Discrete macro and policy events for ${country}`}
       country={country}
       locale={locale}
+      theme={theme}
     >
       <SectionTitle hint={`from ${today}`}>Upcoming</SectionTitle>
       {upcoming.length === 0 ? (

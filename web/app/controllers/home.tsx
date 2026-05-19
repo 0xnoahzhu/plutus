@@ -10,9 +10,11 @@ import {
   font,
   Layout,
   resolveLocale,
+  resolveTheme,
   SectionTitle,
   space,
   Stat,
+  type Theme,
 } from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
@@ -20,6 +22,7 @@ export const home: BuildAction<'GET', typeof routes.home> = {
   async handler({ request }) {
     let url = new URL(request.url)
     let locale = resolveLocale(request, url.searchParams)
+    let theme = resolveTheme(request, url.searchParams)
     let [markets, brokers, accounts, stocks, watchlistItems, transactions, holdings] =
       await Promise.all([
         api.markets().catch(() => []),
@@ -35,6 +38,7 @@ export const home: BuildAction<'GET', typeof routes.home> = {
       <DashboardPage
         healthy={healthy}
         locale={locale}
+        theme={theme}
         counts={{
           markets: markets.length,
           brokers: brokers.length,
@@ -46,7 +50,7 @@ export const home: BuildAction<'GET', typeof routes.home> = {
         }}
       />,
       request,
-      { locale },
+      { locale, theme },
     )
   },
 }
@@ -54,12 +58,13 @@ export const home: BuildAction<'GET', typeof routes.home> = {
 interface DashboardProps {
   healthy: boolean
   locale: string
+  theme: Theme
   counts: Record<string, number>
 }
 
 function DashboardPage() {
-  return ({ healthy, locale, counts }: DashboardProps) => (
-    <Layout title="Dashboard" subtitle="Today's snapshot" locale={locale}>
+  return ({ healthy, locale, theme, counts }: DashboardProps) => (
+    <Layout title="Dashboard" subtitle="Today's snapshot" locale={locale} theme={theme}>
       <SectionTitle hint="real-time">Quick Stats</SectionTitle>
       <div
         mix={css({

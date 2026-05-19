@@ -14,9 +14,11 @@ import {
   parseCountry,
   radius,
   resolveLocale,
+  resolveTheme,
   SectionTitle,
   space,
   StockBadge,
+  type Theme,
 } from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
@@ -30,6 +32,7 @@ export const earnings: BuildAction<'GET', typeof routes.earnings> = {
     let url = new URL(request.url)
     let country = parseCountry(url.searchParams)
     let locale = resolveLocale(request, url.searchParams)
+    let theme = resolveTheme(request, url.searchParams)
 
     let [events, stocks] = await Promise.all([
       api.earnings(country).catch(() => []),
@@ -53,10 +56,11 @@ export const earnings: BuildAction<'GET', typeof routes.earnings> = {
         past={past}
         country={country}
         locale={locale}
+        theme={theme}
         today={today}
       />,
       request,
-      { locale },
+      { locale, theme },
     )
   },
 }
@@ -87,16 +91,18 @@ interface EarningsProps {
   past: DayGroup[]
   country: string
   locale: string
+  theme: Theme
   today: string
 }
 
 function EarningsPage() {
-  return ({ upcoming, past, country, locale, today }: EarningsProps) => (
+  return ({ upcoming, past, country, locale, theme, today }: EarningsProps) => (
     <Layout
       title="Earnings"
       subtitle={`Calendar for ${country}`}
       country={country}
       locale={locale}
+      theme={theme}
     >
       <SectionTitle hint={`from ${today}`}>Upcoming</SectionTitle>
       {upcoming.length === 0 ? (

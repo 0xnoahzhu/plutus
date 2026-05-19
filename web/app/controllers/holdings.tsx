@@ -14,8 +14,10 @@ import {
   Layout,
   parseCountry,
   resolveLocale,
+  resolveTheme,
   space,
   StockBadge,
+  type Theme,
 } from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
@@ -24,6 +26,7 @@ export const holdings: BuildAction<'GET', typeof routes.holdings> = {
     let url = new URL(request.url)
     let country = parseCountry(url.searchParams)
     let locale = resolveLocale(request, url.searchParams)
+    let theme = resolveTheme(request, url.searchParams)
     let method = url.searchParams.get('method') ?? 'fifo'
 
     let [holdingsList, stocks] = await Promise.all([
@@ -41,10 +44,11 @@ export const holdings: BuildAction<'GET', typeof routes.holdings> = {
         stocks={stockMap}
         country={country}
         locale={locale}
+        theme={theme}
         method={method}
       />,
       request,
-      { locale },
+      { locale, theme },
     )
   },
 }
@@ -54,16 +58,18 @@ interface HoldingsProps {
   stocks: Map<number, Stock>
   country: string
   locale: string
+  theme: Theme
   method: string
 }
 
 function HoldingsPage() {
-  return ({ rows, stocks, country, locale, method }: HoldingsProps) => (
+  return ({ rows, stocks, country, locale, theme, method }: HoldingsProps) => (
     <Layout
       title="Holdings"
       subtitle={`Cost basis: ${method.toUpperCase()}`}
       country={country}
       locale={locale}
+      theme={theme}
     >
       {rows.length === 0 ? (
         <Card>

@@ -13,9 +13,11 @@ import {
   Layout,
   radius,
   resolveLocale,
+  resolveTheme,
   SectionTitle,
   space,
   StockBadge,
+  type Theme,
 } from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
@@ -23,6 +25,7 @@ export const recommendations: BuildAction<'GET', typeof routes.recommendations> 
   async handler({ request }) {
     let url = new URL(request.url)
     let locale = resolveLocale(request, url.searchParams)
+    let theme = resolveTheme(request, url.searchParams)
     let [recs, stocks] = await Promise.all([
       api.recommendations({ locale }).catch(() => []),
       api.stocks().catch(() => []),
@@ -38,9 +41,10 @@ export const recommendations: BuildAction<'GET', typeof routes.recommendations> 
         closed={closed}
         stocks={stockMap}
         locale={locale}
+        theme={theme}
       />,
       request,
-      { locale },
+      { locale, theme },
     )
   },
 }
@@ -50,14 +54,16 @@ interface RecommendationsProps {
   closed: Recommendation[]
   stocks: Map<number, Stock>
   locale: string
+  theme: Theme
 }
 
 function RecommendationsPage() {
-  return ({ open, closed, stocks, locale }: RecommendationsProps) => (
+  return ({ open, closed, stocks, locale, theme }: RecommendationsProps) => (
     <Layout
       title="Recommendations"
       subtitle="Standalone buy / sell / reduce / hold calls the agent tracks from issue until close-out with PnL."
       locale={locale}
+      theme={theme}
     >
       <div mix={css({ display: 'flex', flexDirection: 'column', gap: space[6] })}>
         <div>

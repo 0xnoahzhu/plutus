@@ -13,8 +13,10 @@ import {
   Layout,
   parseCountry,
   resolveLocale,
+  resolveTheme,
   space,
   StockBadge,
+  type Theme,
 } from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
@@ -23,12 +25,13 @@ export const stocks: BuildAction<'GET', typeof routes.stocks> = {
     let url = new URL(request.url)
     let country = parseCountry(url.searchParams)
     let locale = resolveLocale(request, url.searchParams)
+    let theme = resolveTheme(request, url.searchParams)
     let list = await api.stocks().catch(() => [])
     let filtered = filterByCountry(list, country, (s) => s.market_code)
     return render(
-      <StocksPage rows={filtered} country={country} locale={locale} />,
+      <StocksPage rows={filtered} country={country} locale={locale} theme={theme} />,
       request,
-      { locale },
+      { locale, theme },
     )
   },
 }
@@ -37,15 +40,17 @@ interface StocksProps {
   rows: Stock[]
   country: string
   locale: string
+  theme: Theme
 }
 
 function StocksPage() {
-  return ({ rows, country, locale }: StocksProps) => (
+  return ({ rows, country, locale, theme }: StocksProps) => (
     <Layout
       title="Stocks"
       subtitle={`${rows.length} tracked in ${country}`}
       country={country}
       locale={locale}
+      theme={theme}
     >
       {rows.length === 0 ? (
         <Card>

@@ -14,7 +14,9 @@ import {
   parseCountry,
   radius,
   resolveLocale,
+  resolveTheme,
   space,
+  type Theme,
 } from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
@@ -23,6 +25,7 @@ export const news: BuildAction<'GET', typeof routes.news> = {
     let url = new URL(request.url)
     let country = parseCountry(url.searchParams)
     let locale = resolveLocale(request, url.searchParams)
+    let theme = resolveTheme(request, url.searchParams)
 
     let all = await api.news(locale).catch(() => [])
     let filtered = all.filter((n) => n.region === country || n.region === 'global')
@@ -34,9 +37,10 @@ export const news: BuildAction<'GET', typeof routes.news> = {
         totalRaw={all.length}
         country={country}
         locale={locale}
+        theme={theme}
       />,
       request,
-      { locale },
+      { locale, theme },
     )
   },
 }
@@ -46,15 +50,17 @@ interface NewsListProps {
   totalRaw: number
   country: string
   locale: string
+  theme: Theme
 }
 
 function NewsListPage() {
-  return ({ rows, totalRaw, country, locale }: NewsListProps) => (
+  return ({ rows, totalRaw, country, locale, theme }: NewsListProps) => (
     <Layout
       title="News"
       subtitle={`${rows.length} of ${totalRaw} items · region ${country} or global`}
       country={country}
       locale={locale}
+      theme={theme}
     >
       {rows.length === 0 ? (
         <Card>

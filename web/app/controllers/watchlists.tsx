@@ -18,9 +18,11 @@ import {
   Layout,
   radius,
   resolveLocale,
+  resolveTheme,
   SectionTitle,
   space,
   StockBadge,
+  type Theme,
 } from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
@@ -28,6 +30,7 @@ export const watchlists: BuildAction<'GET', typeof routes.watchlists> = {
   async handler({ request }) {
     let url = new URL(request.url)
     let locale = resolveLocale(request, url.searchParams)
+    let theme = resolveTheme(request, url.searchParams)
     let reportTab: 'daily' | 'weekly' =
       url.searchParams.get('reports') === 'weekly' ? 'weekly' : 'daily'
 
@@ -50,9 +53,10 @@ export const watchlists: BuildAction<'GET', typeof routes.watchlists> = {
         reports={reports}
         reportTab={reportTab}
         locale={locale}
+        theme={theme}
       />,
       request,
-      { locale },
+      { locale, theme },
     )
   },
 }
@@ -63,14 +67,16 @@ interface WatchlistPageProps {
   reports: WatchlistReport[]
   reportTab: 'daily' | 'weekly'
   locale: string
+  theme: Theme
 }
 
 function WatchlistPage() {
-  return ({ items, stocks, reports, reportTab, locale }: WatchlistPageProps) => (
+  return ({ items, stocks, reports, reportTab, locale, theme }: WatchlistPageProps) => (
     <Layout
       title="Watchlist"
       subtitle={`${items.length} ${items.length === 1 ? 'stock' : 'stocks'}`}
       locale={locale}
+      theme={theme}
     >
       {items.length === 0 ? (
         <Card>

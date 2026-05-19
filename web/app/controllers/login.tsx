@@ -4,19 +4,20 @@ import { css } from 'remix/ui'
 import { api } from '../api.ts'
 import type { routes } from '../routes.ts'
 import { Document } from '../ui/document.tsx'
-import { BrandMark, color, font, radius, resolveLocale, space } from '../ui/layout.tsx'
+import { BrandMark, color, font, radius, resolveLocale, resolveTheme, space, type Theme } from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
 const showForm: BuildAction<'GET', typeof routes.login.index> = {
   async handler({ request }) {
     let url = new URL(request.url)
     let locale = resolveLocale(request, url.searchParams)
+    let theme = resolveTheme(request, url.searchParams)
     let next = url.searchParams.get('next') ?? '/'
     let error = url.searchParams.get('error')
     return render(
-      <LoginPage locale={locale} next={next} error={error} />,
+      <LoginPage locale={locale} theme={theme} next={next} error={error} />,
       request,
-      { locale },
+      { locale, theme },
     )
   },
 }
@@ -48,6 +49,7 @@ export const login = { index: showForm, action: submitForm }
 
 interface LoginProps {
   locale: string
+  theme: Theme
   next: string
   error: string | null
 }
@@ -56,8 +58,8 @@ interface LoginProps {
 /// don't appear before the user is signed in. Just centers the brand mark
 /// + a single card on a full-bleed background.
 function LoginPage() {
-  return ({ locale, next, error }: LoginProps) => (
-    <Document title="Sign in · Plutus" lang={locale}>
+  return ({ locale, theme, next, error }: LoginProps) => (
+    <Document title="Sign in · Plutus" lang={locale} theme={theme}>
       <div
         mix={css({
           minHeight: '100vh',
