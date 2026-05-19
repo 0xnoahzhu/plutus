@@ -54,6 +54,14 @@ pub fn build_router(state: AppState) -> Router {
             "/admin/brokers/:id",
             patch(handlers::admin::brokers::update).delete(handlers::admin::brokers::delete),
         )
+        .route(
+            "/admin/tokens",
+            get(handlers::admin::tokens::list).post(handlers::admin::tokens::create),
+        )
+        .route(
+            "/admin/tokens/:id",
+            delete(handlers::admin::tokens::revoke),
+        )
         // Tokens (web-only)
         .route("/tokens", get(handlers::tokens::list).post(handlers::tokens::create))
         .route("/tokens/:id", delete(handlers::tokens::revoke))

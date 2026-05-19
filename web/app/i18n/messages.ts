@@ -70,6 +70,7 @@ const en = {
         'Your broker accounts. Transactions and holdings are scoped to one of these.',
     },
     adminBrokers: { title: 'Brokers' },
+    adminTokens: { title: 'API tokens' },
   },
 
   auth: {
@@ -105,6 +106,7 @@ const en = {
       'Manage end-user accounts. Admin credentials live in env vars, not the database.',
     tabUsers: 'Users',
     tabBrokers: 'Brokers',
+    tabTokens: 'API tokens',
     createSection: 'Create user',
     createUsername: 'username',
     createPassword: 'initial password',
@@ -126,6 +128,32 @@ const en = {
     errTaken: 'That username is already taken (or matches the admin name).',
     errForbidden: 'Admin privileges required.',
     errNotFound: 'User not found.',
+    errServer: 'Request failed.',
+  },
+
+  adminTokens: {
+    title: 'API tokens',
+    subtitle:
+      "Admin-grade bearer tokens. Each one authenticates as the env-configured admin and can call every /admin/* endpoint — useful for automation (e.g. the hermes agent doing user / broker housekeeping). Distinct from a regular user's tokens, which are scoped to that user's own data.",
+    createSection: 'Create admin token',
+    labelPlaceholder: 'label (e.g. "hermes admin")',
+    createSubmit: 'Create',
+    listSection: 'Existing admin tokens',
+    emptyTitle: 'No admin tokens yet',
+    emptyHint: 'Create one above for programmatic admin access.',
+    columnLabel: 'Label',
+    columnCreated: 'Created',
+    columnLastUsed: 'Last used',
+    columnStatus: 'Status',
+    statusActive: 'active',
+    statusRevoked: 'revoked',
+    revokeSubmit: 'Revoke',
+    neverUsed: 'never',
+    flashCreatedTitle: 'Admin token created — copy it now',
+    flashCreatedHint:
+      'This is the only time the full token is shown. Store it somewhere safe.',
+    flashRevoked: 'Token revoked.',
+    errMissingLabel: 'Label is required.',
     errServer: 'Request failed.',
   },
 
@@ -288,6 +316,7 @@ const zhCN: Messages = {
       subtitle: '你的券商账户。交易和持仓都归属于其中一个。',
     },
     adminBrokers: { title: '券商' },
+    adminTokens: { title: 'API 密钥' },
   },
 
   auth: {
@@ -321,6 +350,7 @@ const zhCN: Messages = {
     subtitle: '管理终端用户账号。管理员凭证存放于环境变量，不入库。',
     tabUsers: '用户',
     tabBrokers: '券商',
+    tabTokens: 'API 密钥',
     createSection: '创建用户',
     createUsername: '用户名',
     createPassword: '初始密码',
@@ -341,6 +371,31 @@ const zhCN: Messages = {
     errTaken: '该用户名已被使用（或与管理员账号冲突）。',
     errForbidden: '需要管理员权限。',
     errNotFound: '用户不存在。',
+    errServer: '请求失败。',
+  },
+
+  adminTokens: {
+    title: 'API 密钥',
+    subtitle:
+      '管理员级 Bearer Token。每个 token 以管理员身份认证，可调用所有 /admin/* 接口 —— 适合自动化场景（如 hermes 用脚本管理用户/券商）。与普通用户的 token 不同，普通 token 只能访问对应用户自己的数据。',
+    createSection: '创建管理员密钥',
+    labelPlaceholder: '标签（如 "hermes admin"）',
+    createSubmit: '创建',
+    listSection: '现有管理员密钥',
+    emptyTitle: '暂无管理员密钥',
+    emptyHint: '请在上方创建一个，以便程序化访问管理员接口。',
+    columnLabel: '标签',
+    columnCreated: '创建时间',
+    columnLastUsed: '最近使用',
+    columnStatus: '状态',
+    statusActive: '生效中',
+    statusRevoked: '已吊销',
+    revokeSubmit: '吊销',
+    neverUsed: '从未使用',
+    flashCreatedTitle: '管理员密钥已创建 —— 立刻复制',
+    flashCreatedHint: '完整 token 仅此一次显示，请妥善保存。',
+    flashRevoked: '密钥已吊销。',
+    errMissingLabel: '请填写标签。',
     errServer: '请求失败。',
   },
 

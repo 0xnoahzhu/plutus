@@ -504,7 +504,13 @@ const dangerButtonStyle = {
 /// `/admin/brokers`. Style copies the soft "white pill on inset gray
 /// track" pattern that the rest of the chrome uses.
 export function AdminTabs() {
-  return ({ locale, active }: { locale: string; active: 'users' | 'brokers' }) => {
+  return ({
+    locale,
+    active,
+  }: {
+    locale: string
+    active: 'users' | 'brokers' | 'tokens'
+  }) => {
     let m = messages(locale).admin
     return (
       <div
@@ -520,6 +526,7 @@ export function AdminTabs() {
       >
         <AdminTab href="/admin" label={m.tabUsers} active={active === 'users'} />
         <AdminTab href="/admin/brokers" label={m.tabBrokers} active={active === 'brokers'} />
+        <AdminTab href="/admin/tokens" label={m.tabTokens} active={active === 'tokens'} />
       </div>
     )
   }

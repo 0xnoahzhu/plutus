@@ -35,8 +35,11 @@ pub async fn create(
 ) -> ApiResult<Json<TokenCreatedOut>> {
     let user_id = require_user_session(&actor.0)?;
     let plain = crate::auth::token::generate();
-    let row = plutus_storage::queries::tokens::create(&state.db, user_id, &input.label, &plain)
-        .await?;
+    // Regular per-user tokens — `is_admin = false`. Admin-grade tokens
+    // are minted exclusively through the `/admin/tokens` surface.
+    let row =
+        plutus_storage::queries::tokens::create(&state.db, user_id, false, &input.label, &plain)
+            .await?;
     Ok(Json(TokenCreatedOut {
         id: row.id,
         label: row.label,

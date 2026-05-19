@@ -2,6 +2,7 @@
 //! reaching these handlers without an admin session returns 403.
 
 pub mod brokers;
+pub mod tokens;
 pub mod users;
 
 use plutus_core::audit::Actor;

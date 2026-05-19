@@ -89,6 +89,17 @@ async fn identify(state: &AppState, headers: &HeaderMap) -> Option<Actor> {
         if let Ok(Some(row)) =
             plutus_storage::queries::tokens::find_active_by_plain(&state.db, &plain).await
         {
+            // Admin-grade tokens authenticate as the env-configured admin —
+            // full `/admin/*` access, no per-user data scope. Regular tokens
+            // authenticate as their owning user.
+            if row.is_admin {
+                return Some(Actor {
+                    kind: plutus_core::audit::ActorKind::Admin,
+                    user_id: None,
+                    token_id: Some(row.id),
+                    label: row.label,
+                });
+            }
             return Some(Actor::api_token(row.user_id, row.id, row.label));
         }
     }

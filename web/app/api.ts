@@ -778,4 +778,35 @@ export const api = {
     if (cookie) headers.cookie = cookie
     return fetch(`${BASE}/api/v1/admin/brokers/${id}`, { method: 'DELETE', headers })
   },
+
+  // ── Admin tokens (admin only — admin-grade bearer tokens) ─────────────
+  adminListTokens: (cookie?: string | null) =>
+    get<
+      Array<{
+        id: number
+        label: string
+        created_at: string
+        last_used_at: string | null
+        revoked_at: string | null
+      }>
+    >('/admin/tokens', cookie),
+
+  adminCreateTokenRaw: (cookie: string | null | undefined, label: string) => {
+    let headers: Record<string, string> = {
+      'content-type': 'application/json',
+      accept: 'application/json',
+    }
+    if (cookie) headers.cookie = cookie
+    return fetch(`${BASE}/api/v1/admin/tokens`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ label }),
+    })
+  },
+
+  adminRevokeTokenRaw: (cookie: string | null | undefined, id: number) => {
+    let headers: Record<string, string> = { accept: 'application/json' }
+    if (cookie) headers.cookie = cookie
+    return fetch(`${BASE}/api/v1/admin/tokens/${id}`, { method: 'DELETE', headers })
+  },
 }
