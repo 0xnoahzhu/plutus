@@ -27,6 +27,7 @@ pub fn build_router(state: AppState) -> Router {
         // Meta
         .route("/healthz", get(handlers::meta::healthz))
         .route("/openapi.json", get(handlers::meta::openapi_json))
+        .route("/docs", get(handlers::meta::docs))
         // Auth
         .route("/auth/login", post(handlers::auth::login))
         .route("/auth/logout", post(handlers::auth::logout))

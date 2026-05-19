@@ -111,6 +111,9 @@ fn paths() -> Value {
     paths.insert("/openapi.json".into(), json!({
         "get": op("meta", "This OpenAPI document.")
     }));
+    paths.insert("/docs".into(), json!({
+        "get": op("meta", "Browseable Scalar UI rendering this spec.")
+    }));
 
     // ── auth ──────────────────────────────────────────────────────────────
     paths.insert("/auth/login".into(), json!({
