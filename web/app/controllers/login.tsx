@@ -3,20 +3,10 @@ import { css } from 'remix/ui'
 
 import { api } from '../api.ts'
 import type { routes } from '../routes.ts'
-import {
-  color,
-  font,
-  Layout,
-  radius,
-  resolveLocale,
-  space,
-} from '../ui/layout.tsx'
+import { Document } from '../ui/document.tsx'
+import { color, font, radius, resolveLocale, space } from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
-/// `routes.login` is a `form()` pair — `routes.login.index` is the GET that
-/// shows the form, `routes.login.action` is the POST that handles submit.
-/// We propagate the upstream `Set-Cookie` from the API response so the
-/// browser keeps the plutus_session cookie.
 const showForm: BuildAction<'GET', typeof routes.login.index> = {
   async handler({ request }) {
     let url = new URL(request.url)
@@ -47,9 +37,6 @@ const submitForm: BuildAction<'POST', typeof routes.login.action> = {
       return Response.redirect(new URL(`/login?error=${code}`, request.url), 303)
     }
 
-    // Forward the session cookie back to the browser. The API sets it as
-    // HttpOnly + SameSite=Lax + Path=/ — passing the value through verbatim
-    // keeps those attributes intact.
     let headers = new Headers({ Location: next })
     let setCookie = upstream.headers.get('set-cookie')
     if (setCookie) headers.set('Set-Cookie', setCookie)
@@ -65,117 +52,156 @@ interface LoginProps {
   error: string | null
 }
 
+/// Standalone auth page — bypasses [[Layout]] so the sidebar and chip row
+/// don't appear before the user is signed in. Just centers the brand mark
+/// + a single card on a full-bleed background.
 function LoginPage() {
   return ({ locale, next, error }: LoginProps) => (
-    <Layout title="Sign in" locale={locale}>
+    <Document title="Sign in · plutus" lang={locale}>
       <div
         mix={css({
+          minHeight: '100vh',
           display: 'flex',
+          alignItems: 'center',
           justifyContent: 'center',
-          paddingTop: space[10],
+          padding: space[6],
+          background: color.bg,
         })}
       >
         <div
           mix={css({
             width: '100%',
-            maxWidth: '420px',
-            background: color.surface,
-            border: `1px solid ${color.border}`,
-            borderRadius: radius.lg,
-            padding: `${space[6]} ${space[6]}`,
+            maxWidth: '380px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
           })}
         >
-          <h2
+          <BrandMark />
+
+          <div
             mix={css({
-              margin: 0,
-              fontSize: font.xl,
-              fontWeight: 700,
-              color: color.text,
-              letterSpacing: '-0.01em',
+              marginTop: space[6],
+              width: '100%',
+              background: color.surface,
+              border: `1px solid ${color.border}`,
+              borderRadius: radius.lg,
+              padding: `${space[6]} ${space[6]}`,
             })}
           >
-            Sign in
-          </h2>
-          <p
-            mix={css({
-              margin: `${space[2]} 0 ${space[5]}`,
-              fontSize: font.sm,
-              color: color.textMuted,
-            })}
-          >
-            Single-user mode. Enter the master password configured via{' '}
-            <code>PLUTUS_MASTER_PASSWORD_HASH</code>.
-          </p>
-
-          {error && <ErrorBanner code={error} />}
-
-          <form method="post" action="/login">
-            <input type="hidden" name="next" value={next} />
-            <Label htmlFor="password">Master password</Label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              autoFocus
-              autoComplete="current-password"
+            <h1
               mix={css({
-                width: '100%',
-                padding: `${space[3]} ${space[3]}`,
-                background: color.bg,
-                border: `1px solid ${color.border}`,
-                borderRadius: radius.md,
-                fontSize: font.base,
+                margin: 0,
+                fontSize: font.xl,
+                fontWeight: 700,
                 color: color.text,
-                fontFamily: font.sans,
-                outline: 'none',
-                '&:focus': {
-                  borderColor: color.brand,
-                  background: color.surface,
-                },
-              })}
-            />
-            <button
-              type="submit"
-              mix={css({
-                marginTop: space[4],
-                width: '100%',
-                padding: `${space[3]} ${space[4]}`,
-                background: color.brand,
-                color: '#fff',
-                border: 'none',
-                borderRadius: radius.md,
-                fontSize: font.base,
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'background 120ms ease',
-                '&:hover': { background: color.brandHover },
+                letterSpacing: '-0.01em',
+                textAlign: 'center',
               })}
             >
               Sign in
-            </button>
-          </form>
+            </h1>
+
+            {error && (
+              <div mix={css({ marginTop: space[4] })}>
+                <ErrorBanner code={error} />
+              </div>
+            )}
+
+            <form
+              method="post"
+              action="/login"
+              mix={css({ marginTop: space[5] })}
+            >
+              <input type="hidden" name="next" value={next} />
+              <input
+                id="password"
+                name="password"
+                type="password"
+                placeholder="Master password"
+                autoFocus
+                autoComplete="current-password"
+                mix={css({
+                  width: '100%',
+                  padding: `${space[3]} ${space[3]}`,
+                  background: color.bg,
+                  border: `1px solid ${color.border}`,
+                  borderRadius: radius.md,
+                  fontSize: font.base,
+                  color: color.text,
+                  fontFamily: font.sans,
+                  outline: 'none',
+                  '&:focus': {
+                    borderColor: color.brand,
+                    background: color.surface,
+                  },
+                  '&::placeholder': { color: color.textDim },
+                })}
+              />
+              <button
+                type="submit"
+                mix={css({
+                  marginTop: space[3],
+                  width: '100%',
+                  padding: `${space[3]} ${space[4]}`,
+                  background: color.brand,
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: radius.md,
+                  fontSize: font.base,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'background 120ms ease',
+                  '&:hover': { background: color.brandHover },
+                })}
+              >
+                Sign in
+              </button>
+            </form>
+          </div>
         </div>
       </div>
-    </Layout>
+    </Document>
   )
 }
 
-function Label() {
-  return ({ htmlFor, children }: { htmlFor: string; children: string }) => (
-    <label
-      htmlFor={htmlFor}
+function BrandMark() {
+  return () => (
+    <div
       mix={css({
-        display: 'block',
-        marginBottom: space[2],
-        fontSize: font.xs,
-        fontWeight: 600,
-        color: color.textMuted,
-        textTransform: 'uppercase',
-        letterSpacing: '0.08em',
+        display: 'flex',
+        alignItems: 'center',
+        gap: space[2],
       })}
     >
-      {children}
-    </label>
+      <div
+        mix={css({
+          width: '36px',
+          height: '36px',
+          borderRadius: radius.md,
+          background: `linear-gradient(135deg, ${color.brand}, ${color.brandHover})`,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#fff',
+          fontWeight: 700,
+          fontSize: font.lg,
+          letterSpacing: '-0.02em',
+        })}
+      >
+        P
+      </div>
+      <span
+        mix={css({
+          fontSize: font.xl,
+          fontWeight: 700,
+          color: color.text,
+          letterSpacing: '-0.02em',
+        })}
+      >
+        plutus
+      </span>
+    </div>
   )
 }
 
@@ -183,19 +209,19 @@ function ErrorBanner() {
   return ({ code }: { code: string }) => {
     let message =
       code === 'bad-password'
-        ? 'Wrong password. Try again.'
+        ? 'Wrong password.'
         : code === 'missing'
           ? 'Enter the password.'
-          : 'Login failed — check the server logs.'
+          : 'Login failed.'
     return (
       <div
         mix={css({
-          marginBottom: space[4],
           padding: `${space[2]} ${space[3]}`,
           background: color.dangerSoft,
           color: color.dangerText,
           borderRadius: radius.md,
           fontSize: font.sm,
+          textAlign: 'center',
         })}
       >
         {message}
