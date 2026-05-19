@@ -138,7 +138,7 @@ function NewsCard() {
           lineHeight: 1.4,
         })}
       >
-        {n.title}
+        {n.title ?? '(untitled)'}
       </div>
       {n.summary && (
         <div

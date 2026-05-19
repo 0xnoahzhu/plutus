@@ -16,7 +16,7 @@ pub use error::ApiError;
 pub use state::AppState;
 
 use axum::http::{header, HeaderValue, Method};
-use axum::routing::{delete, get, post, put};
+use axum::routing::{delete, get, post};
 use axum::Router;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
@@ -56,14 +56,6 @@ pub fn build_router(state: AppState) -> Router {
             get(handlers::stocks::get)
                 .patch(handlers::stocks::update)
                 .delete(handlers::stocks::delete),
-        )
-        .route(
-            "/stocks/:id/translations",
-            get(handlers::stocks::list_translations),
-        )
-        .route(
-            "/stocks/:id/translations/:locale",
-            put(handlers::stocks::put_translation),
         )
         .route(
             "/stocks/:id/ohlcv",
@@ -266,14 +258,6 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/news/:id/country-links",
             get(handlers::news::list_country_links).post(handlers::news::add_country_link),
-        )
-        .route(
-            "/news/:id/translations",
-            get(handlers::news::list_translations),
-        )
-        .route(
-            "/news/:id/translations/:locale",
-            put(handlers::news::put_translation),
         )
         .route("/stocks/:id/news", get(handlers::news::list_news_for_stock))
         // Filings

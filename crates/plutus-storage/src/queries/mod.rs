@@ -26,7 +26,6 @@ pub mod screeners;
 pub mod sectors;
 pub mod self_exams;
 pub mod settings;
-pub mod stock_translations;
 pub mod stocks;
 pub mod tokens;
 pub mod transactions;

@@ -27,7 +27,7 @@ export const stocks: BuildAction<'GET', typeof routes.stocks> = {
     let country = parseCountry(url.searchParams)
     let locale = resolveLocale(request, url.searchParams)
     let theme = resolveTheme(request, url.searchParams)
-    let list = await api.stocks().catch(() => [])
+    let list = await api.stocks(locale).catch(() => [])
     let filtered = filterByCountry(list, country, (s) => s.market_code)
     return render(
       <StocksPage rows={filtered} country={country} locale={locale} theme={theme} />,

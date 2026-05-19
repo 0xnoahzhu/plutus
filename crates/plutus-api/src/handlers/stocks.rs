@@ -3,10 +3,9 @@ use axum::Json;
 use serde::Deserialize;
 use std::collections::HashSet;
 
-use crate::dto::stock::{
-    StockIn, StockOut, StockPatch, StockTranslationIn, StockTranslationOut,
-};
+use crate::dto::stock::{StockIn, StockOut, StockPatch};
 use crate::error::{ApiError, ApiResult};
+use crate::i18n::LocaleQuery;
 use crate::state::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -17,8 +16,9 @@ pub struct StocksListFilter {
 pub async fn list(
     State(state): State<AppState>,
     Query(filter): Query<StocksListFilter>,
+    Query(l): Query<LocaleQuery>,
 ) -> ApiResult<Json<Vec<StockOut>>> {
-    let rows = plutus_storage::queries::stocks::list(&state.db).await?;
+    let rows = plutus_storage::queries::stocks::list(&state.db, &l.locale).await?;
     let Some(country) = filter.country.as_deref() else {
         return Ok(Json(rows.into_iter().map(Into::into).collect()));
     };
@@ -40,8 +40,9 @@ pub async fn list(
 pub async fn get(
     State(state): State<AppState>,
     Path(id): Path<i64>,
+    Query(l): Query<LocaleQuery>,
 ) -> ApiResult<Json<StockOut>> {
-    let row = plutus_storage::queries::stocks::get(&state.db, id).await?;
+    let row = plutus_storage::queries::stocks::get(&state.db, &l.locale, id).await?;
     Ok(Json(row.into()))
 }
 
@@ -49,6 +50,11 @@ pub async fn create(
     State(state): State<AppState>,
     Json(input): Json<StockIn>,
 ) -> ApiResult<Json<StockOut>> {
+    if !input.content.is_object() {
+        return Err(ApiError::BadRequest(
+            "content must be a JSON object keyed by locale".into(),
+        ));
+    }
     let row = plutus_storage::queries::stocks::create(
         &state.db,
         plutus_storage::queries::stocks::NewStock {
@@ -60,6 +66,7 @@ pub async fn create(
             lot_size: input.lot_size,
             asset_class: &input.asset_class,
             sector_code: input.sector_code.as_deref(),
+            content: input.content,
         },
     )
     .await?;
@@ -67,15 +74,24 @@ pub async fn create(
 }
 
 pub async fn update(
-    State(_state): State<AppState>,
-    Path(_id): Path<i64>,
-    Json(_patch): Json<StockPatch>,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    Query(l): Query<LocaleQuery>,
+    Json(patch): Json<StockPatch>,
 ) -> ApiResult<Json<StockOut>> {
-    // Field-by-field updates not implemented in Phase 0; the agent can delete + recreate
-    // or update translations. Returning 501 keeps the contract honest.
-    Err(ApiError::BadRequest(
-        "PATCH /stocks/:id is reserved for Phase 1".into(),
-    ))
+    let Some(content) = patch.content else {
+        return Err(ApiError::BadRequest(
+            "PATCH body must include `content` (full multi-locale blob)".into(),
+        ));
+    };
+    if !content.is_object() {
+        return Err(ApiError::BadRequest(
+            "content must be a JSON object keyed by locale".into(),
+        ));
+    }
+    let row =
+        plutus_storage::queries::stocks::update_content(&state.db, &l.locale, id, &content).await?;
+    Ok(Json(row.into()))
 }
 
 pub async fn delete(
@@ -84,28 +100,4 @@ pub async fn delete(
 ) -> ApiResult<axum::http::StatusCode> {
     plutus_storage::queries::stocks::delete(&state.db, id).await?;
     Ok(axum::http::StatusCode::NO_CONTENT)
-}
-
-pub async fn list_translations(
-    State(state): State<AppState>,
-    Path(id): Path<i64>,
-) -> ApiResult<Json<Vec<StockTranslationOut>>> {
-    let rows = plutus_storage::queries::stock_translations::list_for_stock(&state.db, id).await?;
-    Ok(Json(rows.into_iter().map(Into::into).collect()))
-}
-
-pub async fn put_translation(
-    State(state): State<AppState>,
-    Path((id, locale)): Path<(i64, String)>,
-    Json(input): Json<StockTranslationIn>,
-) -> ApiResult<Json<StockTranslationOut>> {
-    let row = plutus_storage::queries::stock_translations::upsert(
-        &state.db,
-        id,
-        &locale,
-        &input.name,
-        input.description_md.as_deref(),
-    )
-    .await?;
-    Ok(Json(row.into()))
 }

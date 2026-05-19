@@ -8,7 +8,6 @@ import {
   type NewsMacroLink,
   type NewsSectorLink,
   type NewsStockLink,
-  type NewsTranslation,
   type Sector,
   type Stock,
 } from '../api.ts'
@@ -38,15 +37,14 @@ export const newsDetail: BuildAction<'GET', typeof routes.newsDetail> = {
     let locale = resolveLocale(request, url.searchParams)
     let theme = resolveTheme(request, url.searchParams)
 
-    let [item, stockLinks, sectorLinks, macroLinks, countryLinks, translations, stocks, sectors] =
+    let [item, stockLinks, sectorLinks, macroLinks, countryLinks, stocks, sectors] =
       await Promise.all([
         api.newsItem(id, locale).catch(() => null),
         api.newsStockLinks(id).catch(() => [] as NewsStockLink[]),
         api.newsSectorLinks(id).catch(() => [] as NewsSectorLink[]),
         api.newsMacroLinks(id).catch(() => [] as NewsMacroLink[]),
         api.newsCountryLinks(id).catch(() => [] as NewsCountryLink[]),
-        api.newsTranslations(id).catch(() => [] as NewsTranslation[]),
-        api.stocks().catch(() => [] as Stock[]),
+        api.stocks(locale).catch(() => [] as Stock[]),
         api.sectors().catch(() => [] as Sector[]),
       ])
     if (!item) return new Response('News not found', { status: 404 })
@@ -61,7 +59,6 @@ export const newsDetail: BuildAction<'GET', typeof routes.newsDetail> = {
         sectorLinks={sectorLinks}
         macroLinks={macroLinks}
         countryLinks={countryLinks}
-        translations={translations}
         locale={locale}
         theme={theme}
         stocks={stockMap}
@@ -79,7 +76,6 @@ interface NewsDetailProps {
   sectorLinks: NewsSectorLink[]
   macroLinks: NewsMacroLink[]
   countryLinks: NewsCountryLink[]
-  translations: NewsTranslation[]
   locale: string
   theme: Theme
   stocks: Map<number, Stock>
@@ -93,18 +89,16 @@ function NewsDetailPage() {
     sectorLinks,
     macroLinks,
     countryLinks,
-    translations,
     locale,
     theme,
     stocks,
     sectors,
   }: NewsDetailProps) => {
-    let chosen = translations.find((t) => t.locale === locale) ?? null
-    let isOriginal = locale === n.language
-    let missingTranslation = !isOriginal && !chosen
+    let displayTitle = n.title ?? '(untitled)'
+    let missingTitle = n.title == null
 
     return (
-      <Layout title={n.title} locale={locale} theme={theme}>
+      <Layout title={displayTitle} locale={locale} theme={theme}>
         <Breadcrumb />
 
         <div
@@ -140,19 +134,8 @@ function NewsDetailPage() {
               )}
             </div>
 
-            {/* Translation provenance / missing-hint */}
-            {chosen ? (
-              <div
-                mix={css({
-                  fontSize: font.xs,
-                  color: color.textDim,
-                  marginBottom: space[3],
-                })}
-              >
-                translation ({chosen.locale}) by {chosen.translator} · updated{' '}
-                {chosen.updated_at.slice(0, 10)}
-              </div>
-            ) : missingTranslation ? (
+            {/* Missing-locale hint */}
+            {missingTitle ? (
               <div
                 mix={css({
                   padding: `${space[2]} ${space[3]}`,
@@ -163,9 +146,7 @@ function NewsDetailPage() {
                   marginBottom: space[3],
                 })}
               >
-                No translation for <code>{locale}</code> yet — showing original ({n.language}).
-                Add via{' '}
-                <code>{`PUT /api/v1/news/${n.id}/translations/${locale}`}</code>.
+                No content for <code>{locale}</code> (or English fallback) yet.
               </div>
             ) : null}
 
@@ -179,7 +160,7 @@ function NewsDetailPage() {
                 letterSpacing: '-0.01em',
               })}
             >
-              {n.title}
+              {displayTitle}
             </h1>
 
             {n.summary && (

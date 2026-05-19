@@ -61,6 +61,11 @@ export interface Stock {
   currency: string
   lot_size: number | null
   asset_class: string
+  /// Already projected for the request locale by the storage layer (with
+  /// fallback to `en`). Null when neither the requested locale nor `en`
+  /// has the field populated.
+  name: string | null
+  description_md: string | null
   created_at: string
   updated_at: string
 }
@@ -134,14 +139,6 @@ async function post<T>(path: string, body: unknown, cookie?: string | null): Pro
   return (await res.json()) as T
 }
 
-export interface StockTranslation {
-  stock_id: number
-  locale: string
-  name: string
-  description_md: string | null
-  updated_at: string
-}
-
 export interface WatchlistItem {
   id: number
   stock_id: number
@@ -157,11 +154,13 @@ export interface NewsItem {
   archive_url: string | null
   url_status: number | null
   last_verified_at: string | null
-  title: string
+  /// Already projected for the request locale by the storage layer (with
+  /// fallback to `en`). Null when neither the requested locale nor `en`
+  /// has the field populated.
+  title: string | null
   summary: string | null
   content_md: string | null
   agent_summary_md: string | null
-  language: string
   source: string
   source_kind: string
   category: string
@@ -199,18 +198,6 @@ export interface NewsCountryLink {
   id: number
   news_id: number
   country: string
-}
-
-export interface NewsTranslation {
-  id: number
-  news_id: number
-  locale: string
-  title: string
-  summary: string | null
-  content_md: string | null
-  agent_summary_md: string | null
-  translator: string
-  updated_at: string
 }
 
 export interface Sector {
@@ -463,10 +450,9 @@ export const api = {
   markets: () => get<Market[]>('/markets'),
   brokers: () => get<Broker[]>('/brokers'),
   accounts: () => get<Account[]>('/accounts'),
-  stocks: () => get<Stock[]>('/stocks'),
-  stock: (id: number) => get<Stock>(`/stocks/${id}`),
-  stockTranslations: (id: number) =>
-    get<StockTranslation[]>(`/stocks/${id}/translations`),
+  stocks: (locale?: string) => get<Stock[]>(withLocale('/stocks', locale)),
+  stock: (id: number, locale?: string) =>
+    get<Stock>(withLocale(`/stocks/${id}`, locale)),
   createStock: (input: {
     market_code: string
     symbol: string
@@ -475,6 +461,7 @@ export const api = {
     isin?: string
     figi?: string
     lot_size?: number
+    content: unknown
   }) => post<Stock>('/stocks', input),
   holdings: (params: { market?: string[]; method?: string } = {}) => {
     let q = new URLSearchParams()
@@ -500,8 +487,6 @@ export const api = {
     get<NewsCountryLink[]>(`/news/${newsId}/country-links`),
   newsForStock: (stockId: number) =>
     get<NewsStockLink[]>(`/stocks/${stockId}/news`),
-  newsTranslations: (newsId: number) =>
-    get<NewsTranslation[]>(`/news/${newsId}/translations`),
   sectors: () => get<Sector[]>('/sectors'),
   marketBriefs: (country?: string, locale?: string) => {
     let q = new URLSearchParams()

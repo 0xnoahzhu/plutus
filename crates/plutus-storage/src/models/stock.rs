@@ -2,6 +2,13 @@
 //! also expose an auto-increment id so URLs and FKs stay short. Uniqueness on
 //! the pair is enforced at the application layer for now (toasty 0.6 doesn't
 //! support multi-column unique constraints in the derive).
+//!
+//! Translatable content (`name`, `description_md`) lives in the `content`
+//! JSONB column on the DB side. Because toasty 0.6 doesn't speak JSONB, the
+//! model omits that column entirely — raw `tokio_postgres` SQL in
+//! `queries::stocks` handles read/write of localized content. The fields
+//! declared here are the metadata columns toasty can manage (filtering,
+//! indexing).
 
 #[derive(Debug, toasty::Model)]
 #[table = "stocks"]

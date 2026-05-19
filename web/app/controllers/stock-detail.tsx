@@ -6,7 +6,6 @@ import {
   type NewsItem,
   type NewsStockLink,
   type Stock,
-  type StockTranslation,
 } from '../api.ts'
 import type { routes } from '../routes.ts'
 import {
@@ -35,9 +34,8 @@ export const stockDetail: BuildAction<'GET', typeof routes.stockDetail> = {
     let locale = resolveLocale(request, url.searchParams)
     let theme = resolveTheme(request, url.searchParams)
 
-    let [stock, translations, newsLinks, allNews] = await Promise.all([
-      api.stock(id).catch(() => null),
-      api.stockTranslations(id).catch(() => [] as StockTranslation[]),
+    let [stock, newsLinks, allNews] = await Promise.all([
+      api.stock(id, locale).catch(() => null),
       api.newsForStock(id).catch(() => [] as NewsStockLink[]),
       api.news(locale).catch(() => [] as NewsItem[]),
     ])
@@ -54,7 +52,6 @@ export const stockDetail: BuildAction<'GET', typeof routes.stockDetail> = {
     return render(
       <StockDetailPage
         stock={stock}
-        translations={translations}
         locale={locale}
         theme={theme}
         recentNews={recentTrimmed}
@@ -68,7 +65,6 @@ export const stockDetail: BuildAction<'GET', typeof routes.stockDetail> = {
 
 interface StockDetailProps {
   stock: Stock
-  translations: StockTranslation[]
   locale: string
   theme: Theme
   recentNews: Array<{ link: NewsStockLink; item: NewsItem }>
@@ -76,10 +72,8 @@ interface StockDetailProps {
 }
 
 function StockDetailPage() {
-  return ({ stock, translations, locale, theme, recentNews, totalNews }: StockDetailProps) => {
-    let current =
-      translations.find((t) => t.locale === locale) ?? translations[0] ?? null
-    let displayName = current?.name ?? stock.symbol
+  return ({ stock, locale, theme, recentNews, totalNews }: StockDetailProps) => {
+    let displayName = stock.name ?? stock.symbol
     return (
       <Layout title={displayName} subtitle={`${stock.symbol} · ${stock.market_code}`} locale={locale} theme={theme}>
         <Breadcrumb stock={stock} />
@@ -112,25 +106,26 @@ function StockDetailPage() {
                     letterSpacing: '-0.01em',
                   })}
                 >
-                  {current?.name ?? stock.symbol}
+                  {displayName}
                 </div>
                 <div mix={css({ fontSize: font.sm, color: color.textMuted })}>
-                  {current
-                    ? `${current.locale} · updated ${current.updated_at.slice(0, 10)}`
-                    : 'no translation yet'}
+                  {stock.name
+                    ? `${locale} · updated ${stock.updated_at.slice(0, 10)}`
+                    : 'no name for this locale'}
                 </div>
               </div>
             </div>
 
-            {current?.description_md ? (
-              <Description text={current.description_md} />
+            {stock.description_md ? (
+              <Description text={stock.description_md} />
             ) : (
               <EmptyState
                 title="No description for this locale"
                 hint={
                   <>
-                    Add one with{' '}
-                    <code>{`PUT /api/v1/stocks/${stock.id}/translations/${locale}`}</code>
+                    Update via{' '}
+                    <code>{`PATCH /api/v1/stocks/${stock.id}`}</code>{' '}
+                    with the full multi-locale <code>content</code> blob.
                   </>
                 }
               />
@@ -252,7 +247,7 @@ function NewsList() {
                 '&:hover': { color: color.brandHover },
               })}
             >
-              {n.title}
+              {n.title ?? '(untitled)'}
             </a>
           </li>
         ))}

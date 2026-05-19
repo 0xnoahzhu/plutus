@@ -2,10 +2,14 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use plutus_storage::models::{
-    NewsCountryLink, NewsItem, NewsMacroLink, NewsSectorLink, NewsStockLink, NewsTranslation,
-};
+use plutus_storage::models::{NewsCountryLink, NewsMacroLink, NewsSectorLink, NewsStockLink};
+use plutus_storage::queries::news::LocalizedNewsItem;
 
+/// One news item with translatable text already projected for the caller's
+/// locale by the storage layer. `title` / `summary` / `content_md` /
+/// `agent_summary_md` come from the row's `content` JSONB blob; if the
+/// requested locale is missing a particular field the storage layer falls
+/// back to `en`.
 #[derive(Debug, Serialize, ToSchema)]
 pub struct NewsOut {
     pub id: i64,
@@ -15,11 +19,10 @@ pub struct NewsOut {
     pub archive_url: Option<String>,
     pub url_status: Option<i32>,
     pub last_verified_at: Option<String>,
-    pub title: String,
+    pub title: Option<String>,
     pub summary: Option<String>,
     pub content_md: Option<String>,
     pub agent_summary_md: Option<String>,
-    pub language: String,
     pub source: String,
     pub source_kind: String,
     pub category: String,
@@ -34,8 +37,8 @@ pub struct NewsOut {
     pub updated_at: String,
 }
 
-impl From<NewsItem> for NewsOut {
-    fn from(n: NewsItem) -> Self {
+impl From<LocalizedNewsItem> for NewsOut {
+    fn from(n: LocalizedNewsItem) -> Self {
         Self {
             id: n.id,
             external_id: n.external_id,
@@ -48,7 +51,6 @@ impl From<NewsItem> for NewsOut {
             summary: n.summary,
             content_md: n.content_md,
             agent_summary_md: n.agent_summary_md,
-            language: n.language,
             source: n.source,
             source_kind: n.source_kind,
             category: n.category,
@@ -64,6 +66,11 @@ impl From<NewsItem> for NewsOut {
     }
 }
 
+/// Create input. `content` is the full multi-locale blob —
+/// `{ "<locale>": { "title": "...", "summary": "...", "content_md": "...",
+///                   "agent_summary_md": "..." } }`. The storage layer
+/// writes it verbatim; partial-locale updates are the caller's
+/// responsibility to merge before sending.
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct NewsIn {
     pub external_id: Option<String>,
@@ -72,12 +79,6 @@ pub struct NewsIn {
     pub archive_url: Option<String>,
     pub url_status: Option<i32>,
     pub last_verified_at: Option<String>, // RFC 3339
-    pub title: String,
-    pub summary: Option<String>,
-    pub content_md: Option<String>,
-    pub agent_summary_md: Option<String>,
-    #[serde(default = "default_language")]
-    pub language: String,
     pub source: String,
     #[serde(default = "default_source_kind")]
     pub source_kind: String,
@@ -93,9 +94,9 @@ pub struct NewsIn {
     pub sentiment_score: Option<Decimal>,
     #[serde(default = "default_importance")]
     pub importance: String,
+    pub content: serde_json::Value,
 }
 
-fn default_language() -> String { "en".into() }
 fn default_source_kind() -> String { "news".into() }
 fn default_category() -> String { "company".into() }
 fn default_region() -> String { "global".into() }
@@ -183,44 +184,3 @@ impl From<NewsCountryLink> for NewsCountryLinkOut {
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct NewsCountryLinkIn { pub country: String }
-
-#[derive(Debug, Serialize, ToSchema)]
-pub struct NewsTranslationOut {
-    pub id: i64,
-    pub news_id: i64,
-    pub locale: String,
-    pub title: String,
-    pub summary: Option<String>,
-    pub content_md: Option<String>,
-    pub agent_summary_md: Option<String>,
-    pub translator: String,
-    pub updated_at: String,
-}
-
-impl From<NewsTranslation> for NewsTranslationOut {
-    fn from(t: NewsTranslation) -> Self {
-        Self {
-            id: t.id,
-            news_id: t.news_id,
-            locale: t.locale,
-            title: t.title,
-            summary: t.summary,
-            content_md: t.content_md,
-            agent_summary_md: t.agent_summary_md,
-            translator: t.translator,
-            updated_at: t.updated_at.to_string(),
-        }
-    }
-}
-
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct NewsTranslationIn {
-    pub title: String,
-    pub summary: Option<String>,
-    pub content_md: Option<String>,
-    pub agent_summary_md: Option<String>,
-    #[serde(default = "default_translator")]
-    pub translator: String,
-}
-
-fn default_translator() -> String { "agent".into() }

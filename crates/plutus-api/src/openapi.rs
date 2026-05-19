@@ -36,8 +36,7 @@ use crate::dto::{
     market_brief::{MarketBriefIn, MarketBriefOut},
     news::{
         NewsCountryLinkIn, NewsCountryLinkOut, NewsIn, NewsMacroLinkIn, NewsMacroLinkOut, NewsOut,
-        NewsSectorLinkIn, NewsSectorLinkOut, NewsStockLinkIn, NewsStockLinkOut, NewsTranslationIn,
-        NewsTranslationOut,
+        NewsSectorLinkIn, NewsSectorLinkOut, NewsStockLinkIn, NewsStockLinkOut,
     },
     ohlcv::{OhlcvIn, OhlcvOut},
     portfolio_review::{PortfolioReviewIn, PortfolioReviewOut},
@@ -45,7 +44,7 @@ use crate::dto::{
     screener::{ScreenerHitIn, ScreenerHitOut, ScreenerRunIn, ScreenerRunOut},
     sector::{SectorIn, SectorOut},
     self_exam::{SelfExamIn, SelfExamOut},
-    stock::{StockIn, StockOut, StockPatch, StockTranslationIn, StockTranslationOut},
+    stock::{StockIn, StockOut, StockPatch},
     token::{TokenCreatedOut, TokenIn, TokenOut},
     transaction::{TransactionIn, TransactionOut},
     user::{AdminCreateUserIn, AdminResetPasswordIn, ChangePasswordIn, UserOut},
@@ -84,7 +83,6 @@ use crate::dto::{
     NewsSectorLinkIn, NewsSectorLinkOut,
     NewsMacroLinkIn, NewsMacroLinkOut,
     NewsCountryLinkIn, NewsCountryLinkOut,
-    NewsTranslationIn, NewsTranslationOut,
     OhlcvIn, OhlcvOut,
     PortfolioReviewIn, PortfolioReviewOut,
     RecommendationIn, RecommendationOut, RecommendationClosePatch,
@@ -93,7 +91,6 @@ use crate::dto::{
     SectorIn, SectorOut,
     SelfExamIn, SelfExamOut,
     StockIn, StockOut, StockPatch,
-    StockTranslationIn, StockTranslationOut,
     TokenIn, TokenOut, TokenCreatedOut,
     TransactionIn, TransactionOut,
     UserOut, AdminCreateUserIn, AdminResetPasswordIn, ChangePasswordIn,
@@ -269,14 +266,6 @@ fn get_op(tag: &str, summary: &str, item_schema: &str) -> Value {
     json!({ "tags": [tag], "summary": summary, "responses": ok_item(item_schema) })
 }
 fn post_op(tag: &str, summary: &str, body_schema: &str, response_schema: &str) -> Value {
-    json!({
-        "tags": [tag],
-        "summary": summary,
-        "requestBody": body(body_schema),
-        "responses": ok_item(response_schema)
-    })
-}
-fn put_op(tag: &str, summary: &str, body_schema: &str, response_schema: &str) -> Value {
     json!({
         "tags": [tag],
         "summary": summary,
@@ -507,28 +496,15 @@ fn paths() -> Value {
             "stocks",
             "List stocks (filter by country via stock.market_code).",
             "StockOut",
-            vec![country_param()]
+            vec![country_param(), locale_param()]
         ),
         "post": post_op("stocks", "Create a stock.", "StockIn", "StockOut")
     }));
     paths.insert("/stocks/{id}".into(), json!({
         "parameters": [id_param(), locale_param()],
         "get": get_op("stocks", "Fetch one stock.", "StockOut"),
-        "patch": patch_op("stocks", "Update mutable stock fields.", "StockPatch", "StockOut"),
+        "patch": patch_op("stocks", "Update the multi-locale content blob.", "StockPatch", "StockOut"),
         "delete": delete_op("stocks", "Delete a stock.")
-    }));
-    paths.insert("/stocks/{id}/translations".into(), json!({
-        "parameters": [id_param()],
-        "get": list_op("stocks", "List all locale translations for a stock.", "StockTranslationOut")
-    }));
-    paths.insert("/stocks/{id}/translations/{locale}".into(), json!({
-        "parameters": [id_param(), path_str_param("locale")],
-        "put": put_op(
-            "stocks",
-            "Upsert a single-locale translation (name + description_md).",
-            "StockTranslationIn",
-            "StockTranslationOut"
-        )
     }));
     paths.insert("/stocks/{id}/ohlcv".into(), json!({
         "parameters": [id_param()],
@@ -708,23 +684,6 @@ fn paths() -> Value {
         "parameters": [id_param()],
         "get": list_op("news", "List linked countries.", "NewsCountryLinkOut"),
         "post": post_op("news", "Link a country.", "NewsCountryLinkIn", "NewsCountryLinkOut")
-    }));
-    paths.insert("/news/{id}/translations".into(), json!({
-        "parameters": [id_param()],
-        "get": list_op(
-            "news",
-            "List all locale translations for a news item.",
-            "NewsTranslationOut"
-        )
-    }));
-    paths.insert("/news/{id}/translations/{locale}".into(), json!({
-        "parameters": [id_param(), path_str_param("locale")],
-        "put": put_op(
-            "news",
-            "Upsert a single-locale translation (title / summary / content_md / agent_summary_md).",
-            "NewsTranslationIn",
-            "NewsTranslationOut"
-        )
     }));
 
     // ── calendar (briefs / earnings / macro events / catalysts) ───────────

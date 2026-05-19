@@ -1,9 +1,14 @@
 //! News / blog / research note / social post entries.
 //!
 //! `external_id` and `url` are both unique (when present) so the same article
-//! pulled from two sources isn't stored twice. `content_md` is the full body
-//! captured for posterity in case the source URL rots; `agent_summary_md` is
-//! the LLM's own take.
+//! pulled from two sources isn't stored twice.
+//!
+//! Translatable content (`title`, `summary`, `content_md`, `agent_summary_md`)
+//! lives in the `content` JSONB column on the DB side. Because toasty 0.6
+//! doesn't speak JSONB, the model omits that column entirely — raw
+//! `tokio_postgres` SQL in `queries::news` handles read/write of localized
+//! content. The fields declared here are the metadata columns toasty can
+//! manage (filtering, indexing).
 
 #[derive(Debug, toasty::Model)]
 #[table = "news_items"]
@@ -18,11 +23,6 @@ pub struct NewsItem {
     pub archive_url: Option<String>,
     pub url_status: Option<i32>, // last observed HTTP code
     pub last_verified_at: Option<jiff::Timestamp>,
-    pub title: String,
-    pub summary: Option<String>,
-    pub content_md: Option<String>,
-    pub agent_summary_md: Option<String>,
-    pub language: String, // "en" / "zh-CN" / ...
     pub source: String,   // "Reuters" / "Bloomberg" / "财新"
     pub source_kind: String, // "news" / "filing" / "research_note" / "blog" / "social"
     pub category: String, // "company" / "macro" / "regulatory" / "industry" / "earnings" / "ma"
