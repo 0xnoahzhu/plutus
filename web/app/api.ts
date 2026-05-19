@@ -674,4 +674,108 @@ export const api = {
     if (cookie) headers.cookie = cookie
     return fetch(`${BASE}/api/v1/admin/users/${id}`, { method: 'DELETE', headers })
   },
+
+  // ── API tokens (regular user — manage own keys) ────────────────────────
+  tokens: () =>
+    get<
+      Array<{
+        id: number
+        label: string
+        created_at: string
+        last_used_at: string | null
+        revoked_at: string | null
+      }>
+    >('/tokens'),
+
+  /// Returns the freshly minted plain token in the body — visible only this
+  /// once (the server stores a SHA-256 hash). Caller is responsible for
+  /// surfacing it to the user with a copy hint.
+  createTokenRaw: (cookie: string | null | undefined, label: string) => {
+    let headers: Record<string, string> = {
+      'content-type': 'application/json',
+      accept: 'application/json',
+    }
+    if (cookie) headers.cookie = cookie
+    return fetch(`${BASE}/api/v1/tokens`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ label }),
+    })
+  },
+
+  revokeTokenRaw: (cookie: string | null | undefined, id: number) => {
+    let headers: Record<string, string> = { accept: 'application/json' }
+    if (cookie) headers.cookie = cookie
+    return fetch(`${BASE}/api/v1/tokens/${id}`, { method: 'DELETE', headers })
+  },
+
+  // ── Accounts (regular user — manage own broker accounts) ───────────────
+  createAccountRaw: (
+    cookie: string | null | undefined,
+    input: {
+      broker_id: number
+      name: string
+      account_number: string | null
+      base_currency: string
+    },
+  ) => {
+    let headers: Record<string, string> = {
+      'content-type': 'application/json',
+      accept: 'application/json',
+    }
+    if (cookie) headers.cookie = cookie
+    return fetch(`${BASE}/api/v1/accounts`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(input),
+    })
+  },
+
+  deleteAccountRaw: (cookie: string | null | undefined, id: number) => {
+    let headers: Record<string, string> = { accept: 'application/json' }
+    if (cookie) headers.cookie = cookie
+    return fetch(`${BASE}/api/v1/accounts/${id}`, { method: 'DELETE', headers })
+  },
+
+  // ── Admin brokers (admin only — manage the shared brokers table) ──────
+  adminListBrokers: (cookie?: string | null) => get<Broker[]>('/admin/brokers', cookie),
+
+  adminCreateBrokerRaw: (
+    cookie: string | null | undefined,
+    body: { code: string; name: string },
+  ) => {
+    let headers: Record<string, string> = {
+      'content-type': 'application/json',
+      accept: 'application/json',
+    }
+    if (cookie) headers.cookie = cookie
+    return fetch(`${BASE}/api/v1/admin/brokers`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    })
+  },
+
+  adminUpdateBrokerRaw: (
+    cookie: string | null | undefined,
+    id: number,
+    name: string,
+  ) => {
+    let headers: Record<string, string> = {
+      'content-type': 'application/json',
+      accept: 'application/json',
+    }
+    if (cookie) headers.cookie = cookie
+    return fetch(`${BASE}/api/v1/admin/brokers/${id}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ name }),
+    })
+  },
+
+  adminDeleteBrokerRaw: (cookie: string | null | undefined, id: number) => {
+    let headers: Record<string, string> = { accept: 'application/json' }
+    if (cookie) headers.cookie = cookie
+    return fetch(`${BASE}/api/v1/admin/brokers/${id}`, { method: 'DELETE', headers })
+  },
 }

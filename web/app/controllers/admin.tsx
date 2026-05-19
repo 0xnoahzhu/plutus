@@ -202,13 +202,15 @@ function AdminPage() {
           </h1>
           <p
             mix={css({
-              margin: `0 0 ${space[6]}`,
+              margin: `0 0 ${space[4]}`,
               fontSize: font.sm,
               color: color.textMuted,
             })}
           >
             {m.admin.subtitle}
           </p>
+
+          <AdminTabs locale={locale} active="users" />
 
           {(error || flash) && (
             <div mix={css({ marginBottom: space[4] })}>
@@ -496,4 +498,52 @@ const dangerButtonStyle = {
   fontFamily: font.sans,
   cursor: 'pointer',
   '&:hover': { background: color.dangerSoft, borderColor: color.danger },
+}
+
+/// Tab nav for the admin shell. Reused by `/admin` (Users) and
+/// `/admin/brokers`. Style copies the soft "white pill on inset gray
+/// track" pattern that the rest of the chrome uses.
+export function AdminTabs() {
+  return ({ locale, active }: { locale: string; active: 'users' | 'brokers' }) => {
+    let m = messages(locale).admin
+    return (
+      <div
+        mix={css({
+          display: 'inline-flex',
+          gap: space[1],
+          padding: '3px',
+          background: color.bg,
+          border: `1px solid ${color.border}`,
+          borderRadius: radius.pill,
+          marginBottom: space[5],
+        })}
+      >
+        <AdminTab href="/admin" label={m.tabUsers} active={active === 'users'} />
+        <AdminTab href="/admin/brokers" label={m.tabBrokers} active={active === 'brokers'} />
+      </div>
+    )
+  }
+}
+
+function AdminTab() {
+  return ({ href, label, active }: { href: string; label: string; active: boolean }) => (
+    <a
+      href={href}
+      mix={css({
+        display: 'inline-flex',
+        alignItems: 'center',
+        padding: `${space[1]} ${space[3]}`,
+        fontSize: font.sm,
+        fontWeight: 600,
+        borderRadius: radius.pill,
+        textDecoration: 'none',
+        color: active ? color.text : color.textMuted,
+        background: active ? color.surface : 'transparent',
+        transition: 'background 120ms ease, color 120ms ease',
+        '&:hover': active ? undefined : { color: color.text },
+      })}
+    >
+      {label}
+    </a>
+  )
 }

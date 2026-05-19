@@ -1,7 +1,15 @@
 import { createRouter } from 'remix/fetch-router'
 
 import { assets } from './assets.ts'
+import { accountCreate, accountDelete, accounts } from './controllers/accounts.tsx'
 import { admin, adminUserCreate, adminUserDelete, adminUserReset } from './controllers/admin.tsx'
+import {
+  adminBrokerCreate,
+  adminBrokerDelete,
+  adminBrokerRename,
+  adminBrokers,
+} from './controllers/admin-brokers.tsx'
+import { apiKeyCreate, apiKeyRevoke, apiKeys } from './controllers/api-keys.tsx'
 import { audit } from './controllers/audit.tsx'
 import { briefs } from './controllers/briefs.tsx'
 import { catalysts } from './controllers/catalysts.tsx'
@@ -45,9 +53,13 @@ router.map(routes.logout, logout)
 router.map(routes.changePassword.index, changePassword.index)
 router.map(routes.changePassword.action, changePassword.action)
 router.map(routes.admin, admin)
+router.map(routes.adminBrokers, adminBrokers)
 router.map(routes.adminUserCreate, adminUserCreate)
 router.map(routes.adminUserReset, adminUserReset)
 router.map(routes.adminUserDelete, adminUserDelete)
+router.map(routes.adminBrokerCreate, adminBrokerCreate)
+router.map(routes.adminBrokerRename, adminBrokerRename)
+router.map(routes.adminBrokerDelete, adminBrokerDelete)
 
 // Protected user routes — anonymous lands on /login, admin lands on /admin.
 router.map(routes.home, withAuth(home))
@@ -69,3 +81,9 @@ router.map(routes.correlations, withAuth(correlations))
 router.map(routes.selfExams, withAuth(selfExams))
 router.map(routes.audit, withAuth(audit))
 router.map(routes.settings, withAuth(settings))
+router.map(routes.apiKeys, withAuth(apiKeys))
+router.map(routes.apiKeyCreate, withAuth(apiKeyCreate))
+router.map(routes.apiKeyRevoke, withAuth(apiKeyRevoke))
+router.map(routes.accounts, withAuth(accounts))
+router.map(routes.accountCreate, withAuth(accountCreate))
+router.map(routes.accountDelete, withAuth(accountDelete))
