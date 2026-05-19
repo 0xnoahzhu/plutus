@@ -7,7 +7,7 @@ use plutus_core::audit::Actor;
 use crate::dto::screener::{ScreenerHitIn, ScreenerHitOut, ScreenerRunIn, ScreenerRunOut};
 use crate::error::{ApiError, ApiResult};
 use crate::handlers::access::require_user;
-use crate::i18n::{apply_overrides, LocaleQuery};
+use crate::i18n::LocaleQuery;
 use crate::state::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -18,16 +18,6 @@ pub struct ListFilter {
     pub to: Option<String>,
 }
 
-fn localize_run(out: &mut ScreenerRunOut, locale: &str) {
-    let trans = out.translations.clone();
-    apply_overrides(out, trans.as_deref(), locale);
-}
-
-fn localize_hit(out: &mut ScreenerHitOut, locale: &str) {
-    let trans = out.translations.clone();
-    apply_overrides(out, trans.as_deref(), locale);
-}
-
 pub async fn list_runs(
     State(state): State<AppState>,
     actor: axum::extract::Extension<Actor>,
@@ -35,10 +25,11 @@ pub async fn list_runs(
     Query(l): Query<LocaleQuery>,
 ) -> ApiResult<Json<Vec<ScreenerRunOut>>> {
     let user_id = require_user(&actor.0)?;
-    let mut rows = plutus_storage::queries::screeners::list_runs(
+    let rows = plutus_storage::queries::screeners::list_runs(
         &state.db,
         plutus_storage::queries::screeners::ListFilter {
             user_id,
+            locale: &l.locale,
             name: f.name.as_deref(),
             kind: f.kind.as_deref(),
             from: f.from.as_deref(),
@@ -46,12 +37,7 @@ pub async fn list_runs(
         },
     )
     .await?;
-    rows.sort_by(|a, b| b.run_date.cmp(&a.run_date).then(a.name.cmp(&b.name)));
-    let mut out: Vec<ScreenerRunOut> = rows.into_iter().map(Into::into).collect();
-    for o in out.iter_mut() {
-        localize_run(o, &l.locale);
-    }
-    Ok(Json(out))
+    Ok(Json(rows.into_iter().map(Into::into).collect()))
 }
 
 pub async fn get_run(
@@ -61,10 +47,9 @@ pub async fn get_run(
     Query(l): Query<LocaleQuery>,
 ) -> ApiResult<Json<ScreenerRunOut>> {
     let user_id = require_user(&actor.0)?;
-    let row = plutus_storage::queries::screeners::get_run(&state.db, user_id, id).await?;
-    let mut out: ScreenerRunOut = row.into();
-    localize_run(&mut out, &l.locale);
-    Ok(Json(out))
+    let row =
+        plutus_storage::queries::screeners::get_run(&state.db, user_id, &l.locale, id).await?;
+    Ok(Json(row.into()))
 }
 
 pub async fn upsert_run(
@@ -73,14 +58,16 @@ pub async fn upsert_run(
     Json(input): Json<ScreenerRunIn>,
 ) -> ApiResult<Json<ScreenerRunOut>> {
     let user_id = require_user(&actor.0)?;
+    if !input.content.is_object() {
+        return Err(ApiError::BadRequest(
+            "content must be a JSON object keyed by locale".into(),
+        ));
+    }
     let criteria = match input.criteria {
-        Some(v) => Some(serde_json::to_string(&v)
-            .map_err(|e| ApiError::BadRequest(format!("criteria: {e}")))?),
-        None => None,
-    };
-    let translations = match input.translations {
-        Some(v) => Some(serde_json::to_string(&v)
-            .map_err(|e| ApiError::BadRequest(format!("translations: {e}")))?),
+        Some(v) => Some(
+            serde_json::to_string(&v)
+                .map_err(|e| ApiError::BadRequest(format!("criteria: {e}")))?,
+        ),
         None => None,
     };
     let row = plutus_storage::queries::screeners::upsert_run(
@@ -93,12 +80,9 @@ pub async fn upsert_run(
             universe: &input.universe,
             universe_size: input.universe_size,
             criteria: criteria.as_deref(),
-            description_md: input.description_md.as_deref(),
-            summary_md: input.summary_md.as_deref(),
             sentiment: input.sentiment.as_deref(),
-            language: &input.language,
             source: &input.source,
-            translations: translations.as_deref(),
+            content: input.content,
         },
     )
     .await?;
@@ -113,12 +97,9 @@ pub async fn list_hits(
 ) -> ApiResult<Json<Vec<ScreenerHitOut>>> {
     let user_id = require_user(&actor.0)?;
     let rows =
-        plutus_storage::queries::screeners::list_hits(&state.db, user_id, run_id).await?;
-    let mut out: Vec<ScreenerHitOut> = rows.into_iter().map(Into::into).collect();
-    for o in out.iter_mut() {
-        localize_hit(o, &l.locale);
-    }
-    Ok(Json(out))
+        plutus_storage::queries::screeners::list_hits(&state.db, user_id, &l.locale, run_id)
+            .await?;
+    Ok(Json(rows.into_iter().map(Into::into).collect()))
 }
 
 pub async fn list_hits_for_stock(
@@ -128,14 +109,14 @@ pub async fn list_hits_for_stock(
     Query(l): Query<LocaleQuery>,
 ) -> ApiResult<Json<Vec<ScreenerHitOut>>> {
     let user_id = require_user(&actor.0)?;
-    let rows =
-        plutus_storage::queries::screeners::list_hits_for_stock(&state.db, user_id, stock_id)
-            .await?;
-    let mut out: Vec<ScreenerHitOut> = rows.into_iter().map(Into::into).collect();
-    for o in out.iter_mut() {
-        localize_hit(o, &l.locale);
-    }
-    Ok(Json(out))
+    let rows = plutus_storage::queries::screeners::list_hits_for_stock(
+        &state.db,
+        user_id,
+        &l.locale,
+        stock_id,
+    )
+    .await?;
+    Ok(Json(rows.into_iter().map(Into::into).collect()))
 }
 
 pub async fn insert_hit(
@@ -145,16 +126,18 @@ pub async fn insert_hit(
     Json(input): Json<ScreenerHitIn>,
 ) -> ApiResult<Json<ScreenerHitOut>> {
     let user_id = require_user(&actor.0)?;
+    if !input.content.is_object() {
+        return Err(ApiError::BadRequest(
+            "content must be a JSON object keyed by locale".into(),
+        ));
+    }
     // Verify the parent run belongs to this user before inserting a hit under it.
-    plutus_storage::queries::screeners::get_run(&state.db, user_id, run_id).await?;
+    plutus_storage::queries::screeners::get_run(&state.db, user_id, "en", run_id).await?;
     let metrics = match input.metrics {
-        Some(v) => Some(serde_json::to_string(&v)
-            .map_err(|e| ApiError::BadRequest(format!("metrics: {e}")))?),
-        None => None,
-    };
-    let translations = match input.translations {
-        Some(v) => Some(serde_json::to_string(&v)
-            .map_err(|e| ApiError::BadRequest(format!("translations: {e}")))?),
+        Some(v) => Some(
+            serde_json::to_string(&v)
+                .map_err(|e| ApiError::BadRequest(format!("metrics: {e}")))?,
+        ),
         None => None,
     };
     let row = plutus_storage::queries::screeners::insert_hit(
@@ -165,9 +148,8 @@ pub async fn insert_hit(
             stock_id: input.stock_id,
             rank: input.rank,
             score: input.score,
-            rationale_md: input.rationale_md.as_deref(),
             metrics: metrics.as_deref(),
-            translations: translations.as_deref(),
+            content: input.content,
         },
     )
     .await?;

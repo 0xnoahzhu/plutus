@@ -7,7 +7,7 @@ use plutus_core::audit::Actor;
 use crate::dto::market_brief::{MarketBriefIn, MarketBriefOut};
 use crate::error::{ApiError, ApiResult};
 use crate::handlers::access::require_user;
-use crate::i18n::{apply_overrides, LocaleQuery};
+use crate::i18n::LocaleQuery;
 use crate::state::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -25,10 +25,11 @@ pub async fn list(
     Query(l): Query<LocaleQuery>,
 ) -> ApiResult<Json<Vec<MarketBriefOut>>> {
     let user_id = require_user(&actor.0)?;
-    let mut rows = plutus_storage::queries::market_briefs::list(
+    let rows = plutus_storage::queries::market_briefs::list(
         &state.db,
         plutus_storage::queries::market_briefs::ListFilter {
             user_id,
+            locale: &l.locale,
             country: f.country.as_deref(),
             kind: f.kind.as_deref(),
             from: f.from.as_deref(),
@@ -36,18 +37,7 @@ pub async fn list(
         },
     )
     .await?;
-    rows.sort_by(|a, b| {
-        b.trade_date
-            .cmp(&a.trade_date)
-            .then(a.kind.cmp(&b.kind))
-            .then(a.country.cmp(&b.country))
-    });
-    let mut out: Vec<MarketBriefOut> = rows.into_iter().map(Into::into).collect();
-    for o in out.iter_mut() {
-        let trans = o.translations.clone();
-        apply_overrides(o, trans.as_deref(), &l.locale);
-    }
-    Ok(Json(out))
+    Ok(Json(rows.into_iter().map(Into::into).collect()))
 }
 
 pub async fn get(
@@ -57,11 +47,9 @@ pub async fn get(
     Query(l): Query<LocaleQuery>,
 ) -> ApiResult<Json<MarketBriefOut>> {
     let user_id = require_user(&actor.0)?;
-    let row = plutus_storage::queries::market_briefs::get(&state.db, user_id, id).await?;
-    let mut out: MarketBriefOut = row.into();
-    let trans = out.translations.clone();
-    apply_overrides(&mut out, trans.as_deref(), &l.locale);
-    Ok(Json(out))
+    let row =
+        plutus_storage::queries::market_briefs::get(&state.db, user_id, &l.locale, id).await?;
+    Ok(Json(row.into()))
 }
 
 pub async fn upsert(
@@ -70,13 +58,11 @@ pub async fn upsert(
     Json(input): Json<MarketBriefIn>,
 ) -> ApiResult<Json<MarketBriefOut>> {
     let user_id = require_user(&actor.0)?;
-    let translations = match input.translations {
-        Some(v) => Some(
-            serde_json::to_string(&v)
-                .map_err(|e| ApiError::BadRequest(format!("translations: {e}")))?,
-        ),
-        None => None,
-    };
+    if !input.content.is_object() {
+        return Err(ApiError::BadRequest(
+            "content must be a JSON object keyed by locale".into(),
+        ));
+    }
     let row = plutus_storage::queries::market_briefs::upsert(
         &state.db,
         plutus_storage::queries::market_briefs::NewBrief {
@@ -84,13 +70,10 @@ pub async fn upsert(
             country: &input.country,
             kind: &input.kind,
             trade_date: &input.trade_date,
-            headline: &input.headline,
-            content_md: input.content_md.as_deref(),
             sentiment: input.sentiment.as_deref(),
             sentiment_score: input.sentiment_score,
             source: &input.source,
-            language: &input.language,
-            translations: translations.as_deref(),
+            content: input.content,
         },
     )
     .await?;

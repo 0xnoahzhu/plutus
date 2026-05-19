@@ -1,6 +1,11 @@
 //! A single execution of a named screener (e.g. "momentum_breakout").
-//! Hits per run live in `screener_hits`. Natural key (name, kind, run_date)
-//! enforced at the app layer.
+//! Hits per run live in `screener_hits`. Natural key (user_id, name, kind,
+//! run_date) enforced at the app layer.
+//!
+//! Translatable content (description_md, summary_md) lives in the `content`
+//! JSONB column on the DB side. Because toasty 0.6 doesn't speak JSONB, the
+//! model omits that column entirely — raw `tokio_postgres` SQL in
+//! `queries::screeners` handles read/write of localized content.
 
 #[derive(Debug, toasty::Model)]
 #[table = "screener_runs"]
@@ -17,13 +22,8 @@ pub struct ScreenerRun {
     pub universe: String, // free-form label, e.g. "US_LARGE_CAP" / "WATCHLIST_2"
     pub universe_size: Option<i32>,
     pub criteria: Option<String>,       // JSON
-    pub description_md: Option<String>,
-    pub summary_md: Option<String>,
     pub sentiment: Option<String>,
-    pub language: String,
     pub source: String,
-    /// JSON map of locale → overrides for name / description_md / summary_md.
-    pub translations: Option<String>,
     pub created_at: jiff::Timestamp,
     pub updated_at: jiff::Timestamp,
 }

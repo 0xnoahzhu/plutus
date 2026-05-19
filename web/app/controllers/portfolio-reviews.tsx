@@ -130,7 +130,7 @@ function ReviewCard() {
             color: color.textDim,
           })}
         >
-          {review.source} · {review.language}
+          {review.source}
         </span>
       </div>
       <div
@@ -142,7 +142,7 @@ function ReviewCard() {
           lineHeight: 1.4,
         })}
       >
-        {review.headline}
+        {review.headline ?? '(untitled)'}
       </div>
       {review.summary_md && <Block label="Summary" body={review.summary_md} />}
       {review.content_md && <Block label="Full content" body={review.content_md} />}

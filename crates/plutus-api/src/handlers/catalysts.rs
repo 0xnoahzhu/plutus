@@ -7,7 +7,7 @@ use plutus_core::audit::Actor;
 use crate::dto::catalyst::{CatalystIn, CatalystOut};
 use crate::error::{ApiError, ApiResult};
 use crate::handlers::access::require_user;
-use crate::i18n::{apply_overrides, LocaleQuery};
+use crate::i18n::LocaleQuery;
 use crate::state::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -22,11 +22,6 @@ pub struct ListFilter {
     pub to: Option<String>,
 }
 
-fn localize(out: &mut CatalystOut, locale: &str) {
-    let trans = out.translations.clone();
-    apply_overrides(out, trans.as_deref(), locale);
-}
-
 pub async fn list(
     State(state): State<AppState>,
     actor: axum::extract::Extension<Actor>,
@@ -34,12 +29,14 @@ pub async fn list(
     Query(l): Query<LocaleQuery>,
 ) -> ApiResult<Json<Vec<CatalystOut>>> {
     let user_id = require_user(&actor.0)?;
-    let mut rows = plutus_storage::queries::catalysts::list(
+    let rows = plutus_storage::queries::catalysts::list(
         &state.db,
         plutus_storage::queries::catalysts::ListFilter {
             user_id,
+            locale: &l.locale,
             stock_id: f.stock_id,
             sector_code: f.sector_code.as_deref(),
+            country: f.country.as_deref(),
             catalyst_kind: f.catalyst_kind.as_deref(),
             status: f.status.as_deref(),
             impact_level: f.impact_level.as_deref(),
@@ -48,15 +45,7 @@ pub async fn list(
         },
     )
     .await?;
-    if let Some(country) = f.country.as_deref() {
-        rows.retain(|c| c.country.as_deref() == Some(country));
-    }
-    rows.sort_by(|a, b| a.catalyst_date.cmp(&b.catalyst_date));
-    let mut out: Vec<CatalystOut> = rows.into_iter().map(Into::into).collect();
-    for o in out.iter_mut() {
-        localize(o, &l.locale);
-    }
-    Ok(Json(out))
+    Ok(Json(rows.into_iter().map(Into::into).collect()))
 }
 
 pub async fn list_for_stock(
@@ -66,14 +55,14 @@ pub async fn list_for_stock(
     Query(l): Query<LocaleQuery>,
 ) -> ApiResult<Json<Vec<CatalystOut>>> {
     let user_id = require_user(&actor.0)?;
-    let mut rows =
-        plutus_storage::queries::catalysts::list_for_stock(&state.db, user_id, stock_id).await?;
-    rows.sort_by(|a, b| a.catalyst_date.cmp(&b.catalyst_date));
-    let mut out: Vec<CatalystOut> = rows.into_iter().map(Into::into).collect();
-    for o in out.iter_mut() {
-        localize(o, &l.locale);
-    }
-    Ok(Json(out))
+    let rows = plutus_storage::queries::catalysts::list_for_stock(
+        &state.db,
+        user_id,
+        &l.locale,
+        stock_id,
+    )
+    .await?;
+    Ok(Json(rows.into_iter().map(Into::into).collect()))
 }
 
 pub async fn get(
@@ -83,10 +72,9 @@ pub async fn get(
     Query(l): Query<LocaleQuery>,
 ) -> ApiResult<Json<CatalystOut>> {
     let user_id = require_user(&actor.0)?;
-    let row = plutus_storage::queries::catalysts::get(&state.db, user_id, id).await?;
-    let mut out: CatalystOut = row.into();
-    localize(&mut out, &l.locale);
-    Ok(Json(out))
+    let row =
+        plutus_storage::queries::catalysts::get(&state.db, user_id, &l.locale, id).await?;
+    Ok(Json(row.into()))
 }
 
 pub async fn create(
@@ -95,11 +83,11 @@ pub async fn create(
     Json(input): Json<CatalystIn>,
 ) -> ApiResult<Json<CatalystOut>> {
     let user_id = require_user(&actor.0)?;
-    let translations = match input.translations {
-        Some(v) => Some(serde_json::to_string(&v)
-            .map_err(|e| ApiError::BadRequest(format!("translations: {e}")))?),
-        None => None,
-    };
+    if !input.content.is_object() {
+        return Err(ApiError::BadRequest(
+            "content must be a JSON object keyed by locale".into(),
+        ));
+    }
     let row = plutus_storage::queries::catalysts::create(
         &state.db,
         plutus_storage::queries::catalysts::NewCatalyst {
@@ -108,18 +96,13 @@ pub async fn create(
             sector_code: input.sector_code.as_deref(),
             country: input.country.as_deref(),
             catalyst_kind: &input.catalyst_kind,
-            title: &input.title,
-            summary_md: input.summary_md.as_deref(),
             catalyst_date: &input.catalyst_date,
             date_confidence: &input.date_confidence,
             impact_level: &input.impact_level,
-            bull_case_md: input.bull_case_md.as_deref(),
-            bear_case_md: input.bear_case_md.as_deref(),
             status: &input.status,
-            notes: input.notes.as_deref(),
             url: input.url.as_deref(),
             source: &input.source,
-            translations: translations.as_deref(),
+            content: input.content,
         },
     )
     .await?;

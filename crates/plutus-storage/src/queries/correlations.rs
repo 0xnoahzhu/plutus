@@ -1,7 +1,7 @@
 use rust_decimal::Decimal;
 
 use crate::db::{Db, DbError, Result};
-use crate::models::{CorrelationPair, CorrelationRun, UniverseDefinition};
+use crate::models::{CorrelationPair, UniverseDefinition};
 
 // ── Universe definitions ──────────────────────────────────────────────────
 
@@ -87,21 +87,87 @@ pub async fn upsert_universe(
 
 // ── Runs ──────────────────────────────────────────────────────────────────
 
-pub async fn list_runs(db: &Db, user_id: i64) -> Result<Vec<CorrelationRun>> {
-    let rows = db
-        .with(async |d| CorrelationRun::all().exec(d).await)
-        .await?;
-    Ok(rows.into_iter().filter(|r| r.user_id == user_id).collect())
+#[derive(Debug)]
+pub struct LocalizedCorrelationRun {
+    pub id: i64,
+    pub user_id: i64,
+    pub kind: String,
+    pub run_date: String,
+    pub universe_id: i64,
+    pub lookback_days: i32,
+    pub method: String,
+    pub metrics: Option<String>,
+    pub source: String,
+    pub summary_md: Option<String>,
+    pub created_at: jiff::Timestamp,
+    pub updated_at: jiff::Timestamp,
 }
 
-pub async fn get_run(db: &Db, user_id: i64, id: i64) -> Result<CorrelationRun> {
-    let row = db
-        .with(async |d| CorrelationRun::filter_by_id(id).first().exec(d).await)
-        .await?;
-    match row {
-        Some(r) if r.user_id == user_id => Ok(r),
-        _ => Err(DbError::NotFound),
+const RUN_PROJECTION: &str = r#"
+    id,
+    user_id,
+    kind,
+    run_date,
+    universe_id,
+    lookback_days,
+    method,
+    metrics,
+    source,
+    COALESCE(content -> $1 ->> 'summary_md', content -> 'en' ->> 'summary_md') AS summary_md,
+    created_at,
+    updated_at
+"#;
+
+fn row_to_run(row: &tokio_postgres::Row) -> LocalizedCorrelationRun {
+    LocalizedCorrelationRun {
+        id: row.get("id"),
+        user_id: row.get("user_id"),
+        kind: row.get("kind"),
+        run_date: row.get("run_date"),
+        universe_id: row.get("universe_id"),
+        lookback_days: row.get("lookback_days"),
+        method: row.get("method"),
+        metrics: row.get("metrics"),
+        source: row.get("source"),
+        summary_md: row.get("summary_md"),
+        created_at: row.get("created_at"),
+        updated_at: row.get("updated_at"),
     }
+}
+
+pub async fn list_runs(
+    db: &Db,
+    user_id: i64,
+    locale: &str,
+) -> Result<Vec<LocalizedCorrelationRun>> {
+    let client = db.raw_client().await?;
+    let sql = format!(
+        "SELECT {projection} FROM correlation_runs WHERE user_id = $2 ORDER BY run_date DESC",
+        projection = RUN_PROJECTION,
+    );
+    let rows = client
+        .query(&sql, &[&locale, &user_id])
+        .await
+        .map_err(DbError::from)?;
+    Ok(rows.iter().map(row_to_run).collect())
+}
+
+pub async fn get_run(
+    db: &Db,
+    user_id: i64,
+    locale: &str,
+    id: i64,
+) -> Result<LocalizedCorrelationRun> {
+    let client = db.raw_client().await?;
+    let sql = format!(
+        "SELECT {projection} FROM correlation_runs WHERE id = $2 AND user_id = $3",
+        projection = RUN_PROJECTION,
+    );
+    let row = client
+        .query_opt(&sql, &[&locale, &id, &user_id])
+        .await
+        .map_err(DbError::from)?;
+    row.as_ref().map(row_to_run).ok_or(DbError::NotFound)
 }
 
 pub struct NewRun<'a> {
@@ -111,45 +177,42 @@ pub struct NewRun<'a> {
     pub universe_id: i64,
     pub lookback_days: i32,
     pub method: &'a str,
-    pub summary_md: Option<&'a str>,
     pub metrics: Option<&'a str>,
     pub source: &'a str,
-    pub translations: Option<&'a str>,
+    pub content: serde_json::Value,
 }
 
-pub async fn create_run(db: &Db, input: NewRun<'_>) -> Result<CorrelationRun> {
-    let user_id = input.user_id;
-    let kind = input.kind.to_string();
-    let run_date = input.run_date.to_string();
-    let universe_id = input.universe_id;
-    let lookback_days = input.lookback_days;
-    let method = input.method.to_string();
-    let summary_md = input.summary_md.map(str::to_string);
-    let metrics = input.metrics.map(str::to_string);
-    let source = input.source.to_string();
-    let translations = input.translations.map(str::to_string);
+pub async fn create_run(db: &Db, input: NewRun<'_>) -> Result<LocalizedCorrelationRun> {
+    let client = db.raw_client().await?;
     let now = jiff::Timestamp::now();
-    let row = db
-        .with(async |d| {
-            toasty::create!(CorrelationRun {
-                user_id: user_id,
-                kind: kind,
-                run_date: run_date,
-                universe_id: universe_id,
-                lookback_days: lookback_days,
-                method: method,
-                summary_md: summary_md,
-                metrics: metrics,
-                source: source,
-                translations: translations,
-                created_at: now,
-                updated_at: now,
-            })
-            .exec(d)
-            .await
-        })
-        .await?;
-    Ok(row)
+    let content = &input.content;
+    let sql = r#"
+        INSERT INTO correlation_runs
+            (user_id, kind, run_date, universe_id, lookback_days, method,
+             metrics, source, content, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
+        RETURNING id
+    "#;
+    let row = client
+        .query_one(
+            sql,
+            &[
+                &input.user_id,
+                &input.kind,
+                &input.run_date,
+                &input.universe_id,
+                &input.lookback_days,
+                &input.method,
+                &input.metrics,
+                &input.source,
+                &content,
+                &now,
+            ],
+        )
+        .await
+        .map_err(DbError::from)?;
+    let id: i64 = row.get(0);
+    get_run(db, input.user_id, "en", id).await
 }
 
 // ── Pairs ─────────────────────────────────────────────────────────────────

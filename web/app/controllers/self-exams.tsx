@@ -136,7 +136,7 @@ function ExamCard() {
               color: color.textDim,
             })}
           >
-            {exam.source} · {exam.language}
+            {exam.source}
           </span>
         </div>
         <div
@@ -148,7 +148,7 @@ function ExamCard() {
             lineHeight: 1.4,
           })}
         >
-          {exam.headline}
+          {exam.headline ?? '(untitled)'}
         </div>
         {exam.content_md && (
           <pre

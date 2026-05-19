@@ -2,7 +2,8 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use plutus_storage::models::{CorrelationPair, CorrelationRun, UniverseDefinition};
+use plutus_storage::models::{CorrelationPair, UniverseDefinition};
+use plutus_storage::queries::correlations::LocalizedCorrelationRun;
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct UniverseOut {
@@ -42,19 +43,24 @@ pub struct CorrelationRunOut {
     pub summary_md: Option<String>,
     pub metrics: Option<String>,
     pub source: String,
-    pub translations: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
 
-impl From<CorrelationRun> for CorrelationRunOut {
-    fn from(r: CorrelationRun) -> Self {
+impl From<LocalizedCorrelationRun> for CorrelationRunOut {
+    fn from(r: LocalizedCorrelationRun) -> Self {
         Self {
-            id: r.id, kind: r.kind, run_date: r.run_date, universe_id: r.universe_id,
-            lookback_days: r.lookback_days, method: r.method, summary_md: r.summary_md,
-            metrics: r.metrics, source: r.source,
-            translations: r.translations,
-            created_at: r.created_at.to_string(), updated_at: r.updated_at.to_string(),
+            id: r.id,
+            kind: r.kind,
+            run_date: r.run_date,
+            universe_id: r.universe_id,
+            lookback_days: r.lookback_days,
+            method: r.method,
+            summary_md: r.summary_md,
+            metrics: r.metrics,
+            source: r.source,
+            created_at: r.created_at.to_string(),
+            updated_at: r.updated_at.to_string(),
         }
     }
 }
@@ -67,11 +73,11 @@ pub struct CorrelationRunIn {
     pub lookback_days: i32,
     #[serde(default = "default_method")]
     pub method: String,
-    pub summary_md: Option<String>,
     pub metrics: Option<serde_json::Value>,
     #[serde(default = "default_source")]
     pub source: String,
-    pub translations: Option<serde_json::Value>,
+    /// Multi-locale content blob — `{ "<locale>": { "summary_md": "..." } }`.
+    pub content: serde_json::Value,
 }
 
 #[derive(Debug, Serialize, ToSchema)]

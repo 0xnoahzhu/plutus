@@ -1,4 +1,9 @@
 //! Per-stock hit from one `screener_runs` row.
+//!
+//! Translatable content (rationale_md) lives in the `content` JSONB column
+//! on the DB side. Because toasty 0.6 doesn't speak JSONB, the model omits
+//! that column entirely — raw `tokio_postgres` SQL in `queries::screeners`
+//! handles read/write of localized content.
 
 use rust_decimal::Decimal;
 
@@ -17,9 +22,6 @@ pub struct ScreenerHit {
     pub stock_id: i64,
     pub rank: Option<i32>,
     pub score: Option<Decimal>,
-    pub rationale_md: Option<String>,
     pub metrics: Option<String>, // JSON: per-stock metrics at scan time
-    /// JSON map of locale → overrides for rationale_md.
-    pub translations: Option<String>,
     pub created_at: jiff::Timestamp,
 }

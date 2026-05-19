@@ -164,7 +164,7 @@ function RunCard() {
               color: color.textDim,
             })}
           >
-            {run.source} · {run.language}
+            {run.source}
           </span>
         </div>
         <div

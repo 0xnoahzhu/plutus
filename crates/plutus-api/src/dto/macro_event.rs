@@ -2,7 +2,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use plutus_storage::models::MacroEvent;
+use plutus_storage::queries::macro_events::LocalizedMacroEvent;
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct MacroEventOut {
@@ -10,7 +10,7 @@ pub struct MacroEventOut {
     pub indicator_code: String,
     pub event_date: String,
     pub event_kind: String,
-    pub title: String,
+    pub title: Option<String>,
     pub summary_md: Option<String>,
     pub decision: Option<String>,
     pub decision_bps: Option<i32>,
@@ -22,13 +22,12 @@ pub struct MacroEventOut {
     pub dot_plot: Option<String>,
     pub url: Option<String>,
     pub source: String,
-    pub translations: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
 
-impl From<MacroEvent> for MacroEventOut {
-    fn from(e: MacroEvent) -> Self {
+impl From<LocalizedMacroEvent> for MacroEventOut {
+    fn from(e: LocalizedMacroEvent) -> Self {
         Self {
             id: e.id,
             indicator_code: e.indicator_code,
@@ -46,7 +45,6 @@ impl From<MacroEvent> for MacroEventOut {
             dot_plot: e.dot_plot,
             url: e.url,
             source: e.source,
-            translations: e.translations,
             created_at: e.created_at.to_string(),
             updated_at: e.updated_at.to_string(),
         }
@@ -58,8 +56,6 @@ pub struct MacroEventIn {
     pub indicator_code: String,
     pub event_date: String,
     pub event_kind: String,
-    pub title: String,
-    pub summary_md: Option<String>,
     pub decision: Option<String>,
     pub decision_bps: Option<i32>,
     #[schema(value_type = Option<String>)] pub new_value: Option<Decimal>,
@@ -73,7 +69,9 @@ pub struct MacroEventIn {
     pub url: Option<String>,
     #[serde(default = "default_source")]
     pub source: String,
-    pub translations: Option<serde_json::Value>,
+    /// Multi-locale content blob — `{ "<locale>": { "title": "...",
+    /// "summary_md": "..." } }`.
+    pub content: serde_json::Value,
 }
 
 fn default_source() -> String { "agent".into() }

@@ -7,7 +7,7 @@ use plutus_core::audit::Actor;
 use crate::dto::portfolio_review::{PortfolioReviewIn, PortfolioReviewOut};
 use crate::error::{ApiError, ApiResult};
 use crate::handlers::access::require_user;
-use crate::i18n::{apply_overrides, LocaleQuery};
+use crate::i18n::LocaleQuery;
 use crate::state::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -17,11 +17,6 @@ pub struct ListFilter {
     pub to: Option<String>,
 }
 
-fn localize(out: &mut PortfolioReviewOut, locale: &str) {
-    let trans = out.translations.clone();
-    apply_overrides(out, trans.as_deref(), locale);
-}
-
 pub async fn list(
     State(state): State<AppState>,
     actor: axum::extract::Extension<Actor>,
@@ -29,22 +24,18 @@ pub async fn list(
     Query(l): Query<LocaleQuery>,
 ) -> ApiResult<Json<Vec<PortfolioReviewOut>>> {
     let user_id = require_user(&actor.0)?;
-    let mut rows = plutus_storage::queries::portfolio_reviews::list(
+    let rows = plutus_storage::queries::portfolio_reviews::list(
         &state.db,
         plutus_storage::queries::portfolio_reviews::ListFilter {
             user_id,
+            locale: &l.locale,
             kind: f.kind.as_deref(),
             from: f.from.as_deref(),
             to: f.to.as_deref(),
         },
     )
     .await?;
-    rows.sort_by(|a, b| b.period_start.cmp(&a.period_start).then(a.kind.cmp(&b.kind)));
-    let mut out: Vec<PortfolioReviewOut> = rows.into_iter().map(Into::into).collect();
-    for o in out.iter_mut() {
-        localize(o, &l.locale);
-    }
-    Ok(Json(out))
+    Ok(Json(rows.into_iter().map(Into::into).collect()))
 }
 
 pub async fn get(
@@ -54,10 +45,9 @@ pub async fn get(
     Query(l): Query<LocaleQuery>,
 ) -> ApiResult<Json<PortfolioReviewOut>> {
     let user_id = require_user(&actor.0)?;
-    let row = plutus_storage::queries::portfolio_reviews::get(&state.db, user_id, id).await?;
-    let mut out: PortfolioReviewOut = row.into();
-    localize(&mut out, &l.locale);
-    Ok(Json(out))
+    let row =
+        plutus_storage::queries::portfolio_reviews::get(&state.db, user_id, &l.locale, id).await?;
+    Ok(Json(row.into()))
 }
 
 pub async fn upsert(
@@ -66,14 +56,16 @@ pub async fn upsert(
     Json(input): Json<PortfolioReviewIn>,
 ) -> ApiResult<Json<PortfolioReviewOut>> {
     let user_id = require_user(&actor.0)?;
+    if !input.content.is_object() {
+        return Err(ApiError::BadRequest(
+            "content must be a JSON object keyed by locale".into(),
+        ));
+    }
     let metrics = match input.metrics {
-        Some(v) => Some(serde_json::to_string(&v)
-            .map_err(|e| ApiError::BadRequest(format!("metrics: {e}")))?),
-        None => None,
-    };
-    let translations = match input.translations {
-        Some(v) => Some(serde_json::to_string(&v)
-            .map_err(|e| ApiError::BadRequest(format!("translations: {e}")))?),
+        Some(v) => Some(
+            serde_json::to_string(&v)
+                .map_err(|e| ApiError::BadRequest(format!("metrics: {e}")))?,
+        ),
         None => None,
     };
     let row = plutus_storage::queries::portfolio_reviews::upsert(
@@ -83,16 +75,11 @@ pub async fn upsert(
             kind: &input.kind,
             period_start: &input.period_start,
             period_end: &input.period_end,
-            headline: &input.headline,
-            summary_md: input.summary_md.as_deref(),
-            content_md: input.content_md.as_deref(),
-            decisions_md: input.decisions_md.as_deref(),
             sentiment: input.sentiment.as_deref(),
             sentiment_score: input.sentiment_score,
             metrics: metrics.as_deref(),
-            language: &input.language,
             source: &input.source,
-            translations: translations.as_deref(),
+            content: input.content,
         },
     )
     .await?;

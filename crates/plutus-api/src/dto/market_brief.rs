@@ -2,31 +2,30 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use plutus_storage::models::MarketBrief;
+use plutus_storage::queries::market_briefs::LocalizedMarketBrief;
 
+/// One market brief, with translatable text already projected for the
+/// caller's locale by the storage layer. `headline` / `content_md` come from
+/// the row's `content` JSONB blob; if the requested locale is missing a
+/// particular field the storage layer falls back to `en`.
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct MarketBriefOut {
     pub id: i64,
     pub country: String,
     pub kind: String,
     pub trade_date: String,
-    pub headline: String,
+    pub headline: Option<String>,
     pub content_md: Option<String>,
     pub sentiment: Option<String>,
     #[schema(value_type = Option<String>)]
     pub sentiment_score: Option<Decimal>,
     pub source: String,
-    pub language: String,
-    /// Raw JSON: `{ "zh-CN": { "headline": "...", "content_md": "..." } }`.
-    /// Returned alongside the (possibly localized) base columns so the agent
-    /// can read/update the full translation set.
-    pub translations: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
 
-impl From<MarketBrief> for MarketBriefOut {
-    fn from(b: MarketBrief) -> Self {
+impl From<LocalizedMarketBrief> for MarketBriefOut {
+    fn from(b: LocalizedMarketBrief) -> Self {
         Self {
             id: b.id,
             country: b.country,
@@ -37,14 +36,14 @@ impl From<MarketBrief> for MarketBriefOut {
             sentiment: b.sentiment,
             sentiment_score: b.sentiment_score,
             source: b.source,
-            language: b.language,
-            translations: b.translations,
             created_at: b.created_at.to_string(),
             updated_at: b.updated_at.to_string(),
         }
     }
 }
 
+/// Upsert input. `content` is the full multi-locale blob —
+/// `{ "<locale>": { "headline": "...", "content_md": "..." } }`.
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct MarketBriefIn {
     pub country: String,
@@ -52,17 +51,12 @@ pub struct MarketBriefIn {
     pub kind: String,
     /// ISO YYYY-MM-DD.
     pub trade_date: String,
-    pub headline: String,
-    pub content_md: Option<String>,
     pub sentiment: Option<String>,
     #[schema(value_type = Option<String>)]
     pub sentiment_score: Option<Decimal>,
     #[serde(default = "default_source")]
     pub source: String,
-    #[serde(default = "default_language")]
-    pub language: String,
-    pub translations: Option<serde_json::Value>,
+    pub content: serde_json::Value,
 }
 
 fn default_source() -> String { "agent".into() }
-fn default_language() -> String { "en".into() }

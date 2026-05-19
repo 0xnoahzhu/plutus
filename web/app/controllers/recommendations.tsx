@@ -208,7 +208,7 @@ function RecRow() {
             fontFamily: 'inherit',
           })}
         >
-          {rec.rationale_md}
+          {rec.rationale_md ?? ''}
         </pre>
 
         {rec.outcome_md && (

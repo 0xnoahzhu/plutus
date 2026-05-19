@@ -222,7 +222,7 @@ function BriefCard() {
               color: color.textDim,
             })}
           >
-            {brief.source} · {brief.language}
+            {brief.source}
           </span>
         </div>
         <div
@@ -234,7 +234,7 @@ function BriefCard() {
             lineHeight: 1.4,
           })}
         >
-          {brief.headline}
+          {brief.headline ?? '(untitled)'}
         </div>
         {brief.content_md && (
           <pre

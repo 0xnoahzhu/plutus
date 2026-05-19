@@ -245,7 +245,10 @@ export interface MacroEvent {
   indicator_code: string
   event_date: string
   event_kind: string
-  title: string
+  /// Already projected for the request locale by the storage layer (with
+  /// fallback to `en`). Null when neither the requested locale nor `en`
+  /// has the field populated.
+  title: string | null
   summary_md: string | null
   decision: string | null
   decision_bps: number | null
@@ -257,7 +260,6 @@ export interface MacroEvent {
   dot_plot: string | null
   url: string | null
   source: string
-  translations: string | null
   created_at: string
   updated_at: string
 }
@@ -299,12 +301,14 @@ export interface MarketBrief {
   country: string
   kind: string
   trade_date: string
-  headline: string
+  /// Already projected for the request locale by the storage layer (with
+  /// fallback to `en`). Null when neither the requested locale nor `en`
+  /// has the field populated.
+  headline: string | null
   content_md: string | null
   sentiment: string | null
   sentiment_score: string | null
   source: string
-  language: string
   created_at: string
   updated_at: string
 }
@@ -317,10 +321,11 @@ export interface ScreenerRun {
   universe: string
   universe_size: number | null
   criteria: string | null
+  /// Already projected for the request locale by the storage layer (with
+  /// fallback to `en`).
   description_md: string | null
   summary_md: string | null
   sentiment: string | null
-  language: string
   source: string
   created_at: string
   updated_at: string
@@ -332,6 +337,8 @@ export interface ScreenerHit {
   stock_id: number
   rank: number | null
   score: string | null
+  /// Already projected for the request locale by the storage layer (with
+  /// fallback to `en`).
   rationale_md: string | null
   metrics: string | null
   created_at: string
@@ -342,14 +349,15 @@ export interface PortfolioReview {
   kind: string
   period_start: string
   period_end: string
-  headline: string
+  /// Already projected for the request locale by the storage layer (with
+  /// fallback to `en`).
+  headline: string | null
   summary_md: string | null
   content_md: string | null
   decisions_md: string | null
   sentiment: string | null
   sentiment_score: string | null
   metrics: string | null
-  language: string
   source: string
   created_at: string
   updated_at: string
@@ -361,7 +369,9 @@ export interface Recommendation {
   sector_code: string | null
   action: string
   confidence: string | null
-  rationale_md: string
+  /// Already projected for the request locale by the storage layer (with
+  /// fallback to `en`).
+  rationale_md: string | null
   target_price: string | null
   target_currency: string | null
   target_horizon: string
@@ -370,7 +380,6 @@ export interface Recommendation {
   outcome_md: string | null
   pnl_pct: string | null
   closed_at: string | null
-  language: string
   source: string
   created_at: string
   updated_at: string
@@ -381,12 +390,13 @@ export interface SelfExam {
   kind: string
   period_start: string
   period_end: string
-  headline: string
+  /// Already projected for the request locale by the storage layer (with
+  /// fallback to `en`).
+  headline: string | null
   content_md: string | null
   metrics: string | null
   recommendation_ids: string | null
   notes: string | null
-  language: string
   source: string
   created_at: string
   updated_at: string
@@ -430,7 +440,9 @@ export interface Catalyst {
   sector_code: string | null
   country: string | null
   catalyst_kind: string
-  title: string
+  /// Already projected for the request locale by the storage layer (with
+  /// fallback to `en`).
+  title: string | null
   summary_md: string | null
   catalyst_date: string
   date_confidence: string

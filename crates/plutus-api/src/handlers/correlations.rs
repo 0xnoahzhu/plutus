@@ -9,13 +9,8 @@ use crate::dto::correlation::{
 };
 use crate::error::{ApiError, ApiResult};
 use crate::handlers::access::require_user;
-use crate::i18n::{apply_overrides, LocaleQuery};
+use crate::i18n::LocaleQuery;
 use crate::state::AppState;
-
-fn localize_run(out: &mut CorrelationRunOut, locale: &str) {
-    let trans = out.translations.clone();
-    apply_overrides(out, trans.as_deref(), locale);
-}
 
 // ── Universes ─────────────────────────────────────────────────────────────
 
@@ -65,13 +60,9 @@ pub async fn list_runs(
     Query(l): Query<LocaleQuery>,
 ) -> ApiResult<Json<Vec<CorrelationRunOut>>> {
     let user_id = require_user(&actor.0)?;
-    let mut rows = plutus_storage::queries::correlations::list_runs(&state.db, user_id).await?;
-    rows.sort_by(|a, b| b.run_date.cmp(&a.run_date));
-    let mut out: Vec<CorrelationRunOut> = rows.into_iter().map(Into::into).collect();
-    for o in out.iter_mut() {
-        localize_run(o, &l.locale);
-    }
-    Ok(Json(out))
+    let rows =
+        plutus_storage::queries::correlations::list_runs(&state.db, user_id, &l.locale).await?;
+    Ok(Json(rows.into_iter().map(Into::into).collect()))
 }
 
 pub async fn get_run(
@@ -81,10 +72,9 @@ pub async fn get_run(
     Query(l): Query<LocaleQuery>,
 ) -> ApiResult<Json<CorrelationRunOut>> {
     let user_id = require_user(&actor.0)?;
-    let row = plutus_storage::queries::correlations::get_run(&state.db, user_id, id).await?;
-    let mut out: CorrelationRunOut = row.into();
-    localize_run(&mut out, &l.locale);
-    Ok(Json(out))
+    let row =
+        plutus_storage::queries::correlations::get_run(&state.db, user_id, &l.locale, id).await?;
+    Ok(Json(row.into()))
 }
 
 pub async fn create_run(
@@ -93,14 +83,16 @@ pub async fn create_run(
     Json(input): Json<CorrelationRunIn>,
 ) -> ApiResult<Json<CorrelationRunOut>> {
     let user_id = require_user(&actor.0)?;
+    if !input.content.is_object() {
+        return Err(ApiError::BadRequest(
+            "content must be a JSON object keyed by locale".into(),
+        ));
+    }
     let metrics = match input.metrics {
-        Some(v) => Some(serde_json::to_string(&v)
-            .map_err(|e| ApiError::BadRequest(format!("metrics: {e}")))?),
-        None => None,
-    };
-    let translations = match input.translations {
-        Some(v) => Some(serde_json::to_string(&v)
-            .map_err(|e| ApiError::BadRequest(format!("translations: {e}")))?),
+        Some(v) => Some(
+            serde_json::to_string(&v)
+                .map_err(|e| ApiError::BadRequest(format!("metrics: {e}")))?,
+        ),
         None => None,
     };
     let row = plutus_storage::queries::correlations::create_run(
@@ -112,10 +104,9 @@ pub async fn create_run(
             universe_id: input.universe_id,
             lookback_days: input.lookback_days,
             method: &input.method,
-            summary_md: input.summary_md.as_deref(),
             metrics: metrics.as_deref(),
             source: &input.source,
-            translations: translations.as_deref(),
+            content: input.content,
         },
     )
     .await?;
@@ -131,7 +122,7 @@ pub async fn list_pairs(
 ) -> ApiResult<Json<Vec<CorrelationPairOut>>> {
     let user_id = require_user(&actor.0)?;
     // Verify run ownership first; otherwise return NotFound.
-    plutus_storage::queries::correlations::get_run(&state.db, user_id, run_id).await?;
+    plutus_storage::queries::correlations::get_run(&state.db, user_id, "en", run_id).await?;
     let rows =
         plutus_storage::queries::correlations::list_pairs(&state.db, user_id, run_id).await?;
     Ok(Json(rows.into_iter().map(Into::into).collect()))
@@ -158,7 +149,7 @@ pub async fn insert_pair(
 ) -> ApiResult<Json<CorrelationPairOut>> {
     let user_id = require_user(&actor.0)?;
     // Verify run ownership before inserting a pair under it.
-    plutus_storage::queries::correlations::get_run(&state.db, user_id, run_id).await?;
+    plutus_storage::queries::correlations::get_run(&state.db, user_id, "en", run_id).await?;
     let row = plutus_storage::queries::correlations::insert_pair(
         &state.db,
         plutus_storage::queries::correlations::NewPair {

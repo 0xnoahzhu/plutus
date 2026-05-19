@@ -211,7 +211,7 @@ function CatalystRow() {
           lineHeight: 1.4,
         })}
       >
-        {catalyst.title}
+        {catalyst.title ?? '(untitled)'}
       </div>
       {catalyst.summary_md && (
         <pre

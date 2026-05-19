@@ -225,7 +225,7 @@ function EventRow() {
             lineHeight: 1.4,
           })}
         >
-          {event.title}
+          {event.title ?? '(untitled)'}
         </div>
         {isReleased && (
           <div
