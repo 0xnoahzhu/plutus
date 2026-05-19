@@ -3,6 +3,7 @@ import {
   ArrowLeftRight,
   BarChart3,
   Bookmark,
+  ChartCandlestick,
   ClipboardCheck,
   FileText,
   Filter,
@@ -179,7 +180,7 @@ const SIDEBAR_WIDTH = '240px'
 
 export function Layout() {
   return ({ title, subtitle, children, country, locale }: LayoutProps) => (
-    <Document title={title ? `${title} · plutus` : 'plutus'} lang={locale}>
+    <Document title={title ? `${title} · Plutus` : 'Plutus'} lang={locale}>
       <div
         mix={css({
           display: 'grid',
@@ -279,7 +280,9 @@ function Sidebar() {
         overflowY: 'auto',
       })}
     >
-      <Brand />
+      <div mix={css({ padding: `0 ${space[5]}` })}>
+        <BrandMark />
+      </div>
       <nav mix={css({ marginTop: space[6], flex: 1 })}>
         <ul mix={css({ listStyle: 'none', padding: 0, margin: 0 })}>
           {NAV.map((entry) =>
@@ -339,47 +342,55 @@ function LogoutLink() {
   )
 }
 
-function Brand() {
-  return () => (
-    <div
-      mix={css({
-        padding: `0 ${space[5]}`,
-        display: 'flex',
-        alignItems: 'center',
-        gap: space[2],
-      })}
-    >
-      {/* Logo mark: filled brand-color square with a stylized P. Keeps the
-          dependency footprint at zero (no extra asset to host). */}
+interface BrandMarkProps {
+  /// Pixel size of the gradient icon tile. Wordmark scales with it.
+  /// Defaults to 28 (the sidebar Brand size).
+  size?: number
+}
+
+/// The plutus wordmark: a candlestick-chart glyph inside a teal-gradient
+/// tile, paired with the "Plutus" text. Exported so the login page reuses
+/// the exact same mark.
+export function BrandMark() {
+  return ({ size = 28 }: BrandMarkProps) => {
+    let textSize = size <= 28 ? font.lg : font.xl
+    let iconSize = Math.round(size * 0.6)
+    return (
       <div
         mix={css({
-          width: '28px',
-          height: '28px',
-          borderRadius: radius.md,
-          background: `linear-gradient(135deg, ${color.brand}, ${color.brandHover})`,
-          display: 'inline-flex',
+          display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
-          color: '#fff',
-          fontWeight: 700,
-          fontSize: font.md,
-          letterSpacing: '-0.02em',
+          gap: space[2],
         })}
       >
-        P
+        <div
+          mix={css({
+            width: `${size}px`,
+            height: `${size}px`,
+            borderRadius: radius.md,
+            background: `linear-gradient(135deg, ${color.brand}, ${color.brandHover})`,
+            color: '#fff',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          })}
+        >
+          <Icon svg={ChartCandlestick} size={iconSize} />
+        </div>
+        <span
+          mix={css({
+            fontSize: textSize,
+            fontWeight: 700,
+            color: color.text,
+            letterSpacing: '-0.02em',
+          })}
+        >
+          Plutus
+        </span>
       </div>
-      <span
-        mix={css({
-          fontSize: font.lg,
-          fontWeight: 700,
-          color: color.text,
-          letterSpacing: '-0.02em',
-        })}
-      >
-        plutus
-      </span>
-    </div>
-  )
+    )
+  }
 }
 
 function NavDivider() {

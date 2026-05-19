@@ -4,7 +4,7 @@ import { css } from 'remix/ui'
 import { api } from '../api.ts'
 import type { routes } from '../routes.ts'
 import { Document } from '../ui/document.tsx'
-import { color, font, radius, resolveLocale, space } from '../ui/layout.tsx'
+import { BrandMark, color, font, radius, resolveLocale, space } from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
 const showForm: BuildAction<'GET', typeof routes.login.index> = {
@@ -57,7 +57,7 @@ interface LoginProps {
 /// + a single card on a full-bleed background.
 function LoginPage() {
   return ({ locale, next, error }: LoginProps) => (
-    <Document title="Sign in · plutus" lang={locale}>
+    <Document title="Sign in · Plutus" lang={locale}>
       <div
         mix={css({
           minHeight: '100vh',
@@ -77,7 +77,7 @@ function LoginPage() {
             alignItems: 'center',
           })}
         >
-          <BrandMark />
+          <BrandMark size={40} />
 
           <div
             mix={css({
@@ -162,46 +162,6 @@ function LoginPage() {
         </div>
       </div>
     </Document>
-  )
-}
-
-function BrandMark() {
-  return () => (
-    <div
-      mix={css({
-        display: 'flex',
-        alignItems: 'center',
-        gap: space[2],
-      })}
-    >
-      <div
-        mix={css({
-          width: '36px',
-          height: '36px',
-          borderRadius: radius.md,
-          background: `linear-gradient(135deg, ${color.brand}, ${color.brandHover})`,
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: '#fff',
-          fontWeight: 700,
-          fontSize: font.lg,
-          letterSpacing: '-0.02em',
-        })}
-      >
-        P
-      </div>
-      <span
-        mix={css({
-          fontSize: font.xl,
-          fontWeight: 700,
-          color: color.text,
-          letterSpacing: '-0.02em',
-        })}
-      >
-        plutus
-      </span>
-    </div>
   )
 }
 

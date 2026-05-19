@@ -13,7 +13,7 @@ export interface DocumentProps {
   lang?: string
 }
 
-const DEFAULT_TITLE = 'plutus'
+const DEFAULT_TITLE = 'Plutus'
 
 /// Tiny global stylesheet. Lives inline so we don't have to wire up a static
 /// CSS file or PostCSS pipeline yet — fine for the single-user app size.
