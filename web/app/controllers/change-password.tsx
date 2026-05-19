@@ -104,8 +104,18 @@ function ChangePasswordPage() {
           justifyContent: 'center',
           padding: space[6],
           background: color.bg,
+          position: 'relative',
         })}
       >
+        <div
+          mix={css({
+            position: 'absolute',
+            top: space[5],
+            right: space[5],
+          })}
+        >
+          <LocaleToggle locale={locale} next={next} />
+        </div>
         <div
           mix={css({
             width: '100%',
@@ -214,6 +224,57 @@ function ChangePasswordPage() {
         </div>
       </div>
     </Document>
+    )
+  }
+}
+
+/// Compact en / zh-CN toggle — same shape as the one on /login. Inline
+/// here (rather than imported) so each unauthenticated shell stays
+/// self-contained; cookie persistence comes from `render()` which
+/// always emits a Set-Cookie for the resolved locale.
+function LocaleToggle() {
+  return ({ locale, next }: { locale: string; next?: string }) => {
+    let qs = (l: string) => {
+      let p = new URLSearchParams()
+      p.set('locale', l)
+      if (next) p.set('next', next)
+      return `?${p.toString()}`
+    }
+    return (
+      <div
+        mix={css({
+          display: 'inline-flex',
+          gap: space[1],
+          padding: '3px',
+          background: color.surface,
+          border: `1px solid ${color.border}`,
+          borderRadius: radius.pill,
+        })}
+      >
+        {(['en', 'zh-CN'] as const).map((l) => {
+          let active = l === locale
+          return (
+            <a
+              href={qs(l)}
+              mix={css({
+                display: 'inline-flex',
+                alignItems: 'center',
+                padding: `${space[1]} ${space[3]}`,
+                fontSize: font.sm,
+                fontWeight: 600,
+                borderRadius: radius.pill,
+                textDecoration: 'none',
+                color: active ? color.text : color.textMuted,
+                background: active ? color.bg : 'transparent',
+                transition: 'background 120ms ease, color 120ms ease',
+                '&:hover': active ? undefined : { color: color.text },
+              })}
+            >
+              {l === 'en' ? 'EN' : '中文'}
+            </a>
+          )
+        })}
+      </div>
     )
   }
 }
