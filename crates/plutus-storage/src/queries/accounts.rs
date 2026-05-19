@@ -49,3 +49,26 @@ pub async fn create(db: &Db, input: NewAccount<'_>) -> Result<Account> {
         .await?;
     Ok(row)
 }
+
+/// Delete a user-owned account. Refuses (`Conflict`) when any transaction
+/// still references it — transactions are the per-trade ledger and must
+/// not be silently orphaned.
+pub async fn delete(db: &Db, user_id: i64, id: i64) -> Result<()> {
+    let row = get(db, user_id, id).await?;
+    let client = db.raw_client().await?;
+    let tx_count: i64 = client
+        .query_one(
+            "SELECT COUNT(*) FROM transactions WHERE account_id = $1",
+            &[&id],
+        )
+        .await
+        .map_err(DbError::from)?
+        .get(0);
+    if tx_count > 0 {
+        return Err(DbError::Conflict(format!(
+            "{tx_count} transaction(s) still reference this account"
+        )));
+    }
+    db.with(async |d| row.delete().exec(d).await).await?;
+    Ok(())
+}

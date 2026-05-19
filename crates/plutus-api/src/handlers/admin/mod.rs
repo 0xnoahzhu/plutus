@@ -1,6 +1,7 @@
 //! Admin-only routes. The `/admin/*` prefix is gated by [`require_admin`];
 //! reaching these handlers without an admin session returns 403.
 
+pub mod brokers;
 pub mod users;
 
 use plutus_core::audit::Actor;

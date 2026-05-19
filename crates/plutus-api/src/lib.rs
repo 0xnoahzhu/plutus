@@ -16,7 +16,7 @@ pub use error::ApiError;
 pub use state::AppState;
 
 use axum::http::{header, HeaderValue, Method};
-use axum::routing::{delete, get, post};
+use axum::routing::{delete, get, patch, post};
 use axum::Router;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
@@ -45,6 +45,14 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/admin/users/:id/reset-password",
             post(handlers::admin::users::reset_password),
+        )
+        .route(
+            "/admin/brokers",
+            get(handlers::admin::brokers::list).post(handlers::admin::brokers::create),
+        )
+        .route(
+            "/admin/brokers/:id",
+            patch(handlers::admin::brokers::update).delete(handlers::admin::brokers::delete),
         )
         // Tokens (web-only)
         .route("/tokens", get(handlers::tokens::list).post(handlers::tokens::create))
@@ -171,7 +179,10 @@ pub fn build_router(state: AppState) -> Router {
             "/accounts",
             get(handlers::accounts::list).post(handlers::accounts::create),
         )
-        .route("/accounts/:id", get(handlers::accounts::get))
+        .route(
+            "/accounts/:id",
+            get(handlers::accounts::get).delete(handlers::accounts::delete),
+        )
         // Transactions
         .route(
             "/transactions",

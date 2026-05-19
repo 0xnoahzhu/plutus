@@ -46,3 +46,13 @@ pub async fn create(
     .await?;
     Ok(Json(row.into()))
 }
+
+pub async fn delete(
+    State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
+    Path(id): Path<i64>,
+) -> ApiResult<axum::http::StatusCode> {
+    let user_id = require_user(&actor.0)?;
+    plutus_storage::queries::accounts::delete(&state.db, user_id, id).await?;
+    Ok(axum::http::StatusCode::NO_CONTENT)
+}
