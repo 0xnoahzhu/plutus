@@ -55,43 +55,23 @@ pub fn build_router(state: AppState) -> Router {
             "/stocks/:id/ohlcv",
             get(handlers::ohlcv::list_for_stock).post(handlers::ohlcv::insert_one),
         )
-        // Watchlists
+        // Watchlist — a single flat list of stocks (no group concept).
         .route(
-            "/watchlists",
-            get(handlers::watchlists::list).post(handlers::watchlists::create),
-        )
-        // NOTE: must be registered BEFORE the `/watchlists/:id` route below
-        // so the literal `stocks` segment wins over the `:id` matcher.
-        .route(
-            "/watchlists/stocks",
-            get(handlers::watchlists::list_stocks),
-        )
-        .route(
-            "/watchlists/:id",
-            get(handlers::watchlists::get)
-                .patch(handlers::watchlists::update)
-                .delete(handlers::watchlists::delete),
-        )
-        .route(
-            "/watchlists/:id/items",
+            "/watchlist/items",
             get(handlers::watchlists::list_items).post(handlers::watchlists::add_item),
         )
         .route(
-            "/watchlists/:id/items/:stock_id",
+            "/watchlist/items/:stock_id",
             delete(handlers::watchlists::remove_item),
         )
         // Watchlist reports (daily / weekly)
         .route(
-            "/watchlist-reports",
+            "/watchlist/reports",
             get(handlers::watchlist_reports::list).post(handlers::watchlist_reports::upsert),
         )
         .route(
-            "/watchlist-reports/:id",
+            "/watchlist/reports/:id",
             get(handlers::watchlist_reports::get).delete(handlers::watchlist_reports::delete),
-        )
-        .route(
-            "/watchlists/:id/reports",
-            get(handlers::watchlist_reports::list_for_watchlist),
         )
         // ── Phase 2 agent jobs ────────────────────────────────────────
         // Screeners

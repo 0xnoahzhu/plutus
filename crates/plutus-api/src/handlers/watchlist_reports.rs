@@ -14,7 +14,6 @@ fn localize(out: &mut WatchlistReportOut, locale: &str) {
 
 #[derive(Debug, Deserialize)]
 pub struct ListFilter {
-    pub watchlist_id: Option<i64>,
     pub kind: Option<String>,
     pub from: Option<String>,
     pub to: Option<String>,
@@ -28,36 +27,6 @@ pub async fn list(
     let mut rows = plutus_storage::queries::watchlist_reports::list(
         &state.db,
         plutus_storage::queries::watchlist_reports::ListFilter {
-            watchlist_id: f.watchlist_id,
-            kind: f.kind.as_deref(),
-            from: f.from.as_deref(),
-            to: f.to.as_deref(),
-        },
-    )
-    .await?;
-    rows.sort_by(|a, b| {
-        b.period_start
-            .cmp(&a.period_start)
-            .then(a.kind.cmp(&b.kind))
-            .then(a.watchlist_id.cmp(&b.watchlist_id))
-    });
-    let mut out: Vec<WatchlistReportOut> = rows.into_iter().map(Into::into).collect();
-    for o in out.iter_mut() {
-        localize(o, &l.locale);
-    }
-    Ok(Json(out))
-}
-
-pub async fn list_for_watchlist(
-    State(state): State<AppState>,
-    Path(watchlist_id): Path<i64>,
-    Query(f): Query<ListFilter>,
-    Query(l): Query<LocaleQuery>,
-) -> ApiResult<Json<Vec<WatchlistReportOut>>> {
-    let mut rows = plutus_storage::queries::watchlist_reports::list(
-        &state.db,
-        plutus_storage::queries::watchlist_reports::ListFilter {
-            watchlist_id: Some(watchlist_id),
             kind: f.kind.as_deref(),
             from: f.from.as_deref(),
             to: f.to.as_deref(),
@@ -104,7 +73,6 @@ pub async fn upsert(
     let row = plutus_storage::queries::watchlist_reports::upsert(
         &state.db,
         plutus_storage::queries::watchlist_reports::NewReport {
-            watchlist_id: input.watchlist_id,
             kind: &input.kind,
             period_start: &input.period_start,
             period_end: &input.period_end,

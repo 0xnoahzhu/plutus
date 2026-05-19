@@ -7,7 +7,6 @@ use plutus_storage::models::WatchlistReport;
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct WatchlistReportOut {
     pub id: i64,
-    pub watchlist_id: i64,
     pub kind: String,
     pub period_start: String,
     pub period_end: String,
@@ -32,7 +31,6 @@ impl From<WatchlistReport> for WatchlistReportOut {
     fn from(r: WatchlistReport) -> Self {
         Self {
             id: r.id,
-            watchlist_id: r.watchlist_id,
             kind: r.kind,
             period_start: r.period_start,
             period_end: r.period_end,
@@ -54,7 +52,6 @@ impl From<WatchlistReport> for WatchlistReportOut {
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct WatchlistReportIn {
-    pub watchlist_id: i64,
     /// "daily" or "weekly".
     pub kind: String,
     /// ISO YYYY-MM-DD. For daily, equals `period_end`.

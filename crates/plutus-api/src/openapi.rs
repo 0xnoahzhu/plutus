@@ -267,42 +267,34 @@ fn paths() -> Value {
         "get": op("stocks", "List catalysts attached to the stock.")
     }));
 
-    // ── watchlists ────────────────────────────────────────────────────────
-    paths.insert("/watchlists".into(), json!({
-        "get": op("watchlists", "List watchlists."),
-        "post": op("watchlists", "Create a watchlist.")
+    // ── watchlist ─────────────────────────────────────────────────────────
+    paths.insert("/watchlist/items".into(), json!({
+        "get": {
+            "tags": ["watchlists"],
+            "summary": "List stocks on the watchlist.",
+            "parameters": [country_param()],
+            "responses": { "200": { "description": "OK" } }
+        },
+        "post": op("watchlists", "Add a stock to the watchlist (idempotent on stock_id).")
     }));
-    paths.insert("/watchlists/stocks".into(), json!({
-        "get": op("watchlists", "Cross-watchlist stock view (de-duplicated, with `watchlist_ids`).")
+    paths.insert("/watchlist/items/{stock_id}".into(), json!({
+        "parameters": [json!({
+            "name": "stock_id", "in": "path", "required": true,
+            "schema": { "type": "integer", "format": "int64" }
+        })],
+        "delete": op("watchlists", "Remove a stock from the watchlist.")
     }));
-    paths.insert("/watchlists/{id}".into(), json!({
-        "parameters": [id_param()],
-        "get": op("watchlists", "Fetch one watchlist."),
-        "patch": op("watchlists", "Update watchlist metadata."),
-        "delete": op("watchlists", "Delete a watchlist.")
+    paths.insert("/watchlist/reports".into(), json!({
+        "get": {
+            "tags": ["watchlists"],
+            "summary": "List daily / weekly watchlist reports.",
+            "parameters": [locale_param()],
+            "responses": { "200": { "description": "OK" } }
+        },
+        "post": op("watchlists", "Upsert a watchlist report (natural key: kind + period_start).")
     }));
-    paths.insert("/watchlists/{id}/items".into(), json!({
-        "parameters": [id_param()],
-        "get": op("watchlists", "List items."),
-        "post": op("watchlists", "Add a stock to a watchlist.")
-    }));
-    paths.insert("/watchlists/{id}/items/{stock_id}".into(), json!({
-        "parameters": [
-            id_param(),
-            json!({ "name": "stock_id", "in": "path", "required": true, "schema": { "type": "integer", "format": "int64" } })
-        ],
-        "delete": op("watchlists", "Remove a stock from a watchlist.")
-    }));
-    paths.insert("/watchlists/{id}/reports".into(), json!({
+    paths.insert("/watchlist/reports/{id}".into(), json!({
         "parameters": [id_param(), locale_param()],
-        "get": op("watchlists", "List daily / weekly reports for a watchlist.")
-    }));
-    paths.insert("/watchlist-reports".into(), json!({
-        "get": op("watchlists", "List watchlist reports across all groups."),
-        "post": op("watchlists", "Upsert a watchlist report (natural key: watchlist_id + kind + period_start).")
-    }));
-    paths.insert("/watchlist-reports/{id}".into(), json!({
-        "parameters": [id_param()],
         "get": op("watchlists", "Fetch one watchlist report."),
         "delete": op("watchlists", "Delete a watchlist report.")
     }));
