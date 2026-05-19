@@ -1,0 +1,34 @@
+//! Higher-level query helpers. Each module groups operations on one resource.
+
+pub mod accounts;
+pub mod analyst;
+pub mod audit;
+pub mod brokers;
+pub mod catalysts;
+pub mod connect;
+pub mod correlations;
+pub mod earnings;
+pub mod filings;
+pub mod fundamentals;
+pub mod fx;
+pub mod holdings;
+pub mod idempotency;
+pub mod insider;
+pub mod macro_events;
+pub mod macros;
+pub mod market_briefs;
+pub mod markets;
+pub mod news;
+pub mod ohlcv;
+pub mod portfolio_reviews;
+pub mod recommendations;
+pub mod screeners;
+pub mod sectors;
+pub mod self_exams;
+pub mod settings;
+pub mod stock_translations;
+pub mod stocks;
+pub mod tokens;
+pub mod transactions;
+pub mod watchlist_reports;
+pub mod watchlists;

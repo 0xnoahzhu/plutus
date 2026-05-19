@@ -1,0 +1,81 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/plutus-core",
+    "crates/plutus-storage",
+    "crates/plutus-api",
+    "crates/plutus-server",
+]
+
+[workspace.package]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+publish = false
+rust-version = "1.80"
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Web stack
+axum = { version = "0.7", features = ["macros"] }
+axum-extra = { version = "0.9", features = ["cookie", "cookie-signed", "typed-header"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["trace", "cors", "request-id"] }
+http = "1"
+
+# ORM
+toasty = { version = "0.6", features = ["postgresql", "rust_decimal", "jiff", "serde"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Money & time
+rust_decimal = { version = "1", features = ["serde-with-str", "macros"] }
+rust_decimal_macros = "1"
+jiff = { version = "0.2", features = ["serde"] }
+
+# Auth & crypto
+argon2 = "0.5"
+rand = "0.8"
+sha2 = "0.10"
+hmac = "0.12"
+hex = "0.4"
+base64 = "0.22"
+
+# CLI
+clap = { version = "4", features = ["derive", "env"] }
+dotenvy = "0.15"
+
+# Errors / logging
+thiserror = "1"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# OpenAPI
+utoipa = { version = "5", features = ["axum_extras", "decimal"] }
+utoipa-scalar = { version = "0.2", features = ["axum"] }
+
+# Misc
+uuid = { version = "1", features = ["v4", "serde"] }
+async-trait = "0.1"
+futures = "0.3"
+
+# Internal crates
+plutus-core = { path = "crates/plutus-core" }
+plutus-storage = { path = "crates/plutus-storage" }
+plutus-api = { path = "crates/plutus-api" }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+must_use_candidate = "allow"
+needless_pass_by_value = "allow"

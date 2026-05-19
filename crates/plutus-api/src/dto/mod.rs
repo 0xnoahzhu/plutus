@@ -1,0 +1,30 @@
+//! Request and response shapes.
+
+pub mod account;
+pub mod analyst;
+pub mod broker;
+pub mod catalyst;
+pub mod connect;
+pub mod correlation;
+pub mod earnings;
+pub mod filing;
+pub mod fundamentals;
+pub mod fx;
+pub mod holding;
+pub mod insider;
+pub mod macro_event;
+pub mod macros;
+pub mod market;
+pub mod market_brief;
+pub mod news;
+pub mod ohlcv;
+pub mod portfolio_review;
+pub mod recommendation;
+pub mod screener;
+pub mod sector;
+pub mod self_exam;
+pub mod stock;
+pub mod token;
+pub mod transaction;
+pub mod watchlist;
+pub mod watchlist_report;

@@ -1,0 +1,198 @@
+use rust_decimal::Decimal;
+
+use crate::db::{Db, DbError, Result};
+use crate::models::{CorrelationPair, CorrelationRun, UniverseDefinition};
+
+// ── Universe definitions ──────────────────────────────────────────────────
+
+pub async fn list_universes(db: &Db) -> Result<Vec<UniverseDefinition>> {
+    db.with(async |d| UniverseDefinition::all().exec(d).await)
+        .await
+        .map_err(Into::into)
+}
+
+pub async fn get_universe(db: &Db, id: i64) -> Result<UniverseDefinition> {
+    db.with(async |d| UniverseDefinition::filter_by_id(id).first().exec(d).await)
+        .await?
+        .ok_or(DbError::NotFound)
+}
+
+pub async fn get_universe_by_name(db: &Db, name: &str) -> Result<Option<UniverseDefinition>> {
+    let name = name.to_string();
+    db.with(async |d| {
+        UniverseDefinition::filter_by_name(name).first().exec(d).await
+    })
+    .await
+    .map_err(Into::into)
+}
+
+pub async fn upsert_universe(
+    db: &Db,
+    name: &str,
+    description_md: Option<&str>,
+    stock_ids_json: &str,
+) -> Result<UniverseDefinition> {
+    let name_owned = name.to_string();
+    let existing = db
+        .with(async |d| {
+            UniverseDefinition::filter_by_name(name_owned).first().exec(d).await
+        })
+        .await?;
+    let description_md = description_md.map(str::to_string);
+    let stock_ids = stock_ids_json.to_string();
+    let now = jiff::Timestamp::now();
+
+    if let Some(mut row) = existing {
+        let id = row.id;
+        db.with(async |d| {
+            row.update()
+                .description_md(description_md)
+                .stock_ids(stock_ids)
+                .updated_at(now)
+                .exec(d)
+                .await
+        })
+        .await?;
+        get_universe(db, id).await
+    } else {
+        let name = name.to_string();
+        let row = db
+            .with(async |d| {
+                toasty::create!(UniverseDefinition {
+                    name: name,
+                    description_md: description_md,
+                    stock_ids: stock_ids,
+                    created_at: now,
+                    updated_at: now,
+                })
+                .exec(d)
+                .await
+            })
+            .await?;
+        Ok(row)
+    }
+}
+
+// ── Runs ──────────────────────────────────────────────────────────────────
+
+pub async fn list_runs(db: &Db) -> Result<Vec<CorrelationRun>> {
+    db.with(async |d| CorrelationRun::all().exec(d).await)
+        .await
+        .map_err(Into::into)
+}
+
+pub async fn get_run(db: &Db, id: i64) -> Result<CorrelationRun> {
+    db.with(async |d| CorrelationRun::filter_by_id(id).first().exec(d).await)
+        .await?
+        .ok_or(DbError::NotFound)
+}
+
+pub struct NewRun<'a> {
+    pub kind: &'a str,
+    pub run_date: &'a str,
+    pub universe_id: i64,
+    pub lookback_days: i32,
+    pub method: &'a str,
+    pub summary_md: Option<&'a str>,
+    pub metrics: Option<&'a str>,
+    pub source: &'a str,
+    pub translations: Option<&'a str>,
+}
+
+pub async fn create_run(db: &Db, input: NewRun<'_>) -> Result<CorrelationRun> {
+    let kind = input.kind.to_string();
+    let run_date = input.run_date.to_string();
+    let universe_id = input.universe_id;
+    let lookback_days = input.lookback_days;
+    let method = input.method.to_string();
+    let summary_md = input.summary_md.map(str::to_string);
+    let metrics = input.metrics.map(str::to_string);
+    let source = input.source.to_string();
+    let translations = input.translations.map(str::to_string);
+    let now = jiff::Timestamp::now();
+    let row = db
+        .with(async |d| {
+            toasty::create!(CorrelationRun {
+                kind: kind,
+                run_date: run_date,
+                universe_id: universe_id,
+                lookback_days: lookback_days,
+                method: method,
+                summary_md: summary_md,
+                metrics: metrics,
+                source: source,
+                translations: translations,
+                created_at: now,
+                updated_at: now,
+            })
+            .exec(d)
+            .await
+        })
+        .await?;
+    Ok(row)
+}
+
+// ── Pairs ─────────────────────────────────────────────────────────────────
+
+pub async fn list_pairs(db: &Db, run_id: i64) -> Result<Vec<CorrelationPair>> {
+    db.with(async |d| {
+        CorrelationPair::all()
+            .filter(CorrelationPair::fields().run_id().eq(run_id))
+            .exec(d)
+            .await
+    })
+    .await
+    .map_err(Into::into)
+}
+
+pub async fn list_pairs_for_stock(db: &Db, stock_id: i64) -> Result<Vec<CorrelationPair>> {
+    // pair is canonical (a < b); fetch both halves
+    let from_a: Vec<CorrelationPair> = db
+        .with(async |d| {
+            CorrelationPair::all()
+                .filter(CorrelationPair::fields().stock_a_id().eq(stock_id))
+                .exec(d)
+                .await
+        })
+        .await?;
+    let from_b: Vec<CorrelationPair> = db
+        .with(async |d| {
+            CorrelationPair::all()
+                .filter(CorrelationPair::fields().stock_b_id().eq(stock_id))
+                .exec(d)
+                .await
+        })
+        .await?;
+    let mut all = from_a;
+    all.extend(from_b);
+    Ok(all)
+}
+
+pub struct NewPair {
+    pub run_id: i64,
+    pub stock_a_id: i64,
+    pub stock_b_id: i64,
+    pub correlation: Decimal,
+}
+
+pub async fn insert_pair(db: &Db, input: NewPair) -> Result<CorrelationPair> {
+    // Enforce canonical ordering at the app layer.
+    let (a, b) = if input.stock_a_id <= input.stock_b_id {
+        (input.stock_a_id, input.stock_b_id)
+    } else {
+        (input.stock_b_id, input.stock_a_id)
+    };
+    let row = db
+        .with(async |d| {
+            toasty::create!(CorrelationPair {
+                run_id: input.run_id,
+                stock_a_id: a,
+                stock_b_id: b,
+                correlation: input.correlation,
+            })
+            .exec(d)
+            .await
+        })
+        .await?;
+    Ok(row)
+}

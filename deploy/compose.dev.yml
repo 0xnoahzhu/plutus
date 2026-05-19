@@ -1,0 +1,31 @@
+# Local-dev stack: postgres only. Run the Rust API and Remix web on the host
+# so cargo / pnpm can hot-reload normally.
+#
+# Usage:
+#   docker compose -f deploy/compose.dev.yml up -d
+#   podman compose -f deploy/compose.dev.yml up -d
+
+services:
+  postgres:
+    build:
+      context: ./postgres
+      dockerfile: Dockerfile
+    image: plutus-postgres:18
+    container_name: plutus-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-plutus}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-plutus}
+      POSTGRES_DB: ${POSTGRES_DB:-plutus}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - plutus-pgdata-dev:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-plutus} -d ${POSTGRES_DB:-plutus}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  plutus-pgdata-dev:

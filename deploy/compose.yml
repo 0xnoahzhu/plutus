@@ -1,0 +1,60 @@
+# Full-stack deployment: postgres + API + web. Works under docker compose and
+# podman compose (Compose Spec compliant).
+#
+# Usage:
+#   docker compose -f deploy/compose.yml up -d
+#   podman compose -f deploy/compose.yml up -d
+
+services:
+  postgres:
+    build:
+      context: ./postgres
+      dockerfile: Dockerfile
+    image: plutus-postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-plutus}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-plutus}
+      POSTGRES_DB: ${POSTGRES_DB:-plutus}
+    volumes:
+      - plutus-pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-plutus} -d ${POSTGRES_DB:-plutus}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/api/Dockerfile
+    image: plutus-api:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-plutus}:${POSTGRES_PASSWORD:-plutus}@postgres:5432/${POSTGRES_DB:-plutus}
+      PLUTUS_BIND_ADDR: 0.0.0.0:8080
+      PLUTUS_API_REQUIRE_AUTH: ${PLUTUS_API_REQUIRE_AUTH:-false}
+      PLUTUS_MASTER_PASSWORD_HASH: ${PLUTUS_MASTER_PASSWORD_HASH:-}
+      PLUTUS_COOKIE_SECRET: ${PLUTUS_COOKIE_SECRET:-}
+      RUST_LOG: ${RUST_LOG:-info,plutus=debug}
+    ports:
+      - "127.0.0.1:8080:8080"
+
+  web:
+    build:
+      context: ../web
+      dockerfile: Dockerfile
+    image: plutus-web:latest
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      PLUTUS_API_URL: http://api:8080
+    ports:
+      - "127.0.0.1:3000:3000"
+
+volumes:
+  plutus-pgdata:
