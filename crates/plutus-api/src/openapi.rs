@@ -18,19 +18,19 @@ use crate::dto::{
     account::{AccountIn, AccountOut},
     analyst::{AnalystEstimateIn, AnalystEstimateOut, AnalystRatingIn, AnalystRatingOut},
     broker::BrokerOut,
-    catalyst::{CatalystIn, CatalystOut},
+    catalyst::{CatalystBatchIn, CatalystBatchOut, CatalystIn, CatalystOut},
     connect::{ConnectFlowIn, ConnectFlowOut, ConnectHoldingsIn, ConnectHoldingsOut},
     correlation::{
         CorrelationPairIn, CorrelationPairOut, CorrelationRunIn, CorrelationRunOut, UniverseIn,
         UniverseOut,
     },
-    earnings::{EarningsIn, EarningsOut},
+    earnings::{EarningsBatchIn, EarningsBatchOut, EarningsIn, EarningsOut},
     filing::{FilingIn, FilingOut},
     fundamentals::{FundamentalsIn, FundamentalsOut},
     fx::{FxIn, FxOut},
     holding::HoldingOut,
     insider::{InsiderTxnIn, InsiderTxnOut},
-    macro_event::{MacroEventIn, MacroEventOut},
+    macro_event::{MacroEventBatchIn, MacroEventBatchOut, MacroEventIn, MacroEventOut},
     macros::{MacroIndicatorIn, MacroIndicatorOut, MacroObservationIn, MacroObservationOut},
     market::MarketOut,
     market_brief::{MarketBriefIn, MarketBriefOut},
@@ -38,7 +38,7 @@ use crate::dto::{
         NewsCountryLinkIn, NewsCountryLinkOut, NewsIn, NewsMacroLinkIn, NewsMacroLinkOut, NewsOut,
         NewsSectorLinkIn, NewsSectorLinkOut, NewsStockLinkIn, NewsStockLinkOut,
     },
-    ohlcv::{OhlcvIn, OhlcvOut},
+    ohlcv::{OhlcvBatchIn, OhlcvBatchOut, OhlcvIn, OhlcvOut},
     pending_order::{PendingOrderIn, PendingOrderOut, PendingOrderPatch},
     portfolio_review::{PortfolioReviewIn, PortfolioReviewOut},
     recommendation::{RecommendationClosePatch, RecommendationIn, RecommendationOut},
@@ -70,19 +70,19 @@ use crate::handlers::admin::brokers::{AdminCreateBrokerIn, AdminUpdateBrokerIn};
     AnalystEstimateIn, AnalystEstimateOut,
     AnalystRatingIn, AnalystRatingOut,
     BrokerOut,
-    CatalystIn, CatalystOut,
+    CatalystIn, CatalystOut, CatalystBatchIn, CatalystBatchOut,
     ConnectFlowIn, ConnectFlowOut,
     ConnectHoldingsIn, ConnectHoldingsOut,
     CorrelationPairIn, CorrelationPairOut,
     CorrelationRunIn, CorrelationRunOut,
     UniverseIn, UniverseOut,
-    EarningsIn, EarningsOut,
+    EarningsIn, EarningsOut, EarningsBatchIn, EarningsBatchOut,
     FilingIn, FilingOut,
     FundamentalsIn, FundamentalsOut,
     FxIn, FxOut,
     HoldingOut,
     InsiderTxnIn, InsiderTxnOut,
-    MacroEventIn, MacroEventOut,
+    MacroEventIn, MacroEventOut, MacroEventBatchIn, MacroEventBatchOut,
     MacroIndicatorIn, MacroIndicatorOut,
     MacroObservationIn, MacroObservationOut,
     MarketOut,
@@ -92,7 +92,7 @@ use crate::handlers::admin::brokers::{AdminCreateBrokerIn, AdminUpdateBrokerIn};
     NewsSectorLinkIn, NewsSectorLinkOut,
     NewsMacroLinkIn, NewsMacroLinkOut,
     NewsCountryLinkIn, NewsCountryLinkOut,
-    OhlcvIn, OhlcvOut,
+    OhlcvIn, OhlcvOut, OhlcvBatchIn, OhlcvBatchOut,
     PendingOrderIn, PendingOrderOut, PendingOrderPatch,
     PortfolioReviewIn, PortfolioReviewOut,
     RecommendationIn, RecommendationOut, RecommendationClosePatch,
@@ -125,7 +125,7 @@ pub fn spec() -> Value {
         "info": {
             "title": "Plutus API",
             "version": "0.1.0",
-            "description": "Personal investment data store. The hermes AI agent writes data via this API; the web UI is the human-side viewer.\n\nAll routes are mounted under `/api/v1`. Auth is optional by default (`PLUTUS_API_REQUIRE_AUTH=false`) — flip the env to require either a session cookie (`plutus_session`) or a bearer token on every call.\n\nMulti-user: regular accounts live in the `users` table with Argon2-hashed passwords. The admin account is env-only (`PLUTUS_ADMIN_USERNAME` / `PLUTUS_ADMIN_PASSWORD`) and manages users via `/admin/*`."
+            "description": "Personal investment data store. The hermes AI agent writes data via this API; the web UI is the human-side viewer.\n\n## Mounting and auth\n\nAll routes live under `/api/v1`. Auth is optional by default (`PLUTUS_API_REQUIRE_AUTH=false`) — flip the env var to require either a session cookie (`plutus_session`) or a bearer token on every call. Agents should always send a bearer token.\n\n## Identity model\n\n- **Regular users** — rows in the `users` table, Argon2-hashed passwords. Each user has an `allowed_countries` allowlist (subset of `[US, HK, CN]`); list endpoints that scope by country honor it.\n- **Admin** — env-only (`PLUTUS_ADMIN_USERNAME` / `PLUTUS_ADMIN_PASSWORD`). Not a row in `users`. Manages users via `/admin/*`; cannot access per-user data routes (those return 403).\n- **Session cookie** — `plutus_session` is set by `POST /auth/login` and lasts 30 days. The cookie value is a 32-byte random id; the server-side row in `web_sessions` carries the identity.\n- **Bearer token** — long-lived API token minted via `POST /tokens`. Plaintext is shown once at creation AND stored alongside the hash so the listing UI can show masked tokens with a copy button. Set `Authorization: Bearer <token>` on every call.\n\n## Translatable text — the `content JSONB` pattern\n\nEvery entity with human-readable text uses a single `content` column shaped as:\n\n```json\n{ \"<locale>\": { \"title\": \"...\", \"summary_md\": \"...\" } }\n```\n\n**Writes** — POST/PATCH bodies always include the full multi-locale blob. The server stores it verbatim. There is no separate \"set just English\" endpoint; build the whole object on the client.\n\n**Reads** — list/get endpoints accept `?locale=en` (or `zh-CN`) and return the localized fields flattened to top-level: `title`, `summary_md`, `headline`, `description_md`, `bull_case_md`, `bear_case_md`, `notes`, `rationale_md`, etc. Locale falls back to `en` for missing keys. The flattened shape is purely a read-time projection — the source of truth is still the full `content` blob in the DB.\n\n## Per-user isolation\n\nEntities that store agent outputs or user decisions (`catalysts`, `screener_runs`, `portfolio_reviews`, `recommendations`, `self_exams`, `correlation_runs`, `universe_definitions`, `trade_plans`, `pending_orders`, `transactions`, `accounts`, `watchlist_items`, `watchlist_reports`) carry a `user_id` column. Reads filter by the authenticated caller's `user_id`. Cross-user reads are not exposed.\n\nReference data (`stocks`, `markets`, `brokers`, `sectors`, `news_items`, `macro_*`, `earnings_events`, `market_briefs`, `ohlcv_daily`, `filings`, `fundamentals_quarterly`, `analyst_*`, `insider_transactions`, `connect_*`) is shared across all users.\n\n## Idempotent writes (\"upsert\" / dedup)\n\nSeveral entities have a natural unique key and accept idempotent writes:\n\n| Entity | Conflict key | Endpoint |\n|---|---|---|\n| `catalysts` | `(user_id, catalyst_kind, catalyst_date, stock_id, sector_code, country, source)` | `POST /catalysts`, `POST /catalysts/batch` |\n| `earnings_events` | `(stock_id, fiscal_year, fiscal_period)` | `POST /earnings`, `POST /earnings/batch` |\n| `macro_events` | `(indicator_code, event_date)` | `POST /macro/events`, `POST /macro/events/batch` |\n| `ohlcv_daily` | `(stock_id, trade_date)` | `POST /ohlcv/batch` |\n| `screener_runs` | `(user_id, name, kind, run_date)` | `POST /screener-runs` |\n| `portfolio_reviews` | `(user_id, kind, period_start)` | `POST /portfolio-reviews` |\n| `self_exams` | `(user_id, kind, period_start)` | `POST /self-exams` |\n| `watchlist_reports` | `(user_id, kind, period_start)` | `POST /watchlist/reports` |\n| `market_briefs` | `(user_id, country, kind, trade_date)` | `POST /market-briefs` |\n\nRe-POSTing the same natural key refreshes the mutable fields and bumps `updated_at`. The `source` column on `catalysts` discriminates provenance: a row added by `source=\"agent\"` and one by `source=\"manual\"` for the same nominal event coexist as distinct rows.\n\n## Batch writes\n\n`POST /<entity>/batch` accepts `{ \"items\": [...] }`, validates the whole batch up front, and runs all upserts in one transaction. Caps at 1000 items; empty list returns 400. A single bad row rolls everything back.\n\n## Stock search\n\n`GET /stocks` is also a search endpoint:\n\n- `?symbol=AAPL` — exact ticker match, case-insensitive. Returns 0 or 1 row.\n- `?q=Apple` — substring search across `symbol` and `content.<locale>.name`, case-insensitive, ranked by `symbol` priority. Returns up to `limit` rows (default 50, max 200).\n- `?country=US` — country filter (post-DB; matches `stocks.market_code` through the country → MIC mapping).\n\nAll three can be combined.\n\n## Audit log\n\nEvery write through this API is recorded in `audit_log` with actor, route, status, and a diff. Read via `GET /audit` (admin sees everything; users see their own writes)."
         },
         "servers": [{ "url": "/api/v1" }],
         "tags": tags(),
@@ -565,9 +565,15 @@ fn paths() -> Value {
     paths.insert("/stocks".into(), json!({
         "get": list_op_p(
             "stocks",
-            "List stocks (filter by country via stock.market_code).",
+            "List stocks. Filters compose: `country` (US/HK/CN) by market, `symbol` exact match (case-insensitive), `q` substring search across ticker AND localized name. `limit` defaults to 50, max 200.",
             "StockOut",
-            vec![country_param(), locale_param()]
+            vec![
+                country_param(),
+                locale_param(),
+                query_str_param("symbol"),
+                query_str_param("q"),
+                query_i64_param("limit"),
+            ]
         ),
         "post": post_op("stocks", "Create a stock.", "StockIn", "StockOut")
     }));
@@ -581,6 +587,14 @@ fn paths() -> Value {
         "parameters": [id_param()],
         "get": list_op("stocks", "List OHLCV rows.", "OhlcvOut"),
         "post": post_op("stocks", "Insert one OHLCV row.", "OhlcvIn", "OhlcvOut")
+    }));
+    paths.insert("/ohlcv/batch".into(), json!({
+        "post": post_op(
+            "stocks",
+            "Cross-stock bulk upsert of OHLCV bars. Each item must carry stock_id. Upserts on (stock_id, trade_date); all-or-nothing transaction.",
+            "OhlcvBatchIn",
+            "OhlcvBatchOut"
+        )
     }));
     paths.insert("/stocks/{id}/news".into(), json!({
         "parameters": [id_param()],
@@ -870,6 +884,14 @@ fn paths() -> Value {
             "EarningsOut"
         )
     }));
+    paths.insert("/earnings/batch".into(), json!({
+        "post": post_op(
+            "calendar",
+            "Bulk upsert earnings events. All-or-nothing transaction; max 1000 items. Each item upserts on (stock_id, fiscal_year, fiscal_period).",
+            "EarningsBatchIn",
+            "EarningsBatchOut"
+        )
+    }));
     paths.insert("/earnings/{id}".into(), json!({
         "parameters": [id_param()],
         "get": get_op("calendar", "Fetch one earnings event.", "EarningsOut"),
@@ -882,7 +904,20 @@ fn paths() -> Value {
             "CatalystOut",
             vec![country_param(), locale_param()]
         ),
-        "post": post_op("calendar", "Create a catalyst.", "CatalystIn", "CatalystOut")
+        "post": post_op(
+            "calendar",
+            "Create or refresh a catalyst. Upserts on (user_id, kind, date, stock_id, sector_code, country, source).",
+            "CatalystIn",
+            "CatalystOut"
+        )
+    }));
+    paths.insert("/catalysts/batch".into(), json!({
+        "post": post_op(
+            "calendar",
+            "Bulk create or refresh catalysts. All-or-nothing transaction; max 1000 items.",
+            "CatalystBatchIn",
+            "CatalystBatchOut"
+        )
     }));
     paths.insert("/catalysts/{id}".into(), json!({
         "parameters": [id_param(), locale_param()],
@@ -928,6 +963,14 @@ fn paths() -> Value {
             "Upsert a macro event (natural key: indicator_code + event_date).",
             "MacroEventIn",
             "MacroEventOut"
+        )
+    }));
+    paths.insert("/macro/events/batch".into(), json!({
+        "post": post_op(
+            "macros",
+            "Bulk upsert macro events. All-or-nothing transaction; max 1000 items. Each item upserts on (indicator_code, event_date).",
+            "MacroEventBatchIn",
+            "MacroEventBatchOut"
         )
     }));
     paths.insert("/macro/events/{id}".into(), json!({
@@ -1012,7 +1055,11 @@ fn paths() -> Value {
     }));
     paths.insert("/screener-runs/{id}".into(), json!({
         "parameters": [id_param(), locale_param()],
-        "get": get_op("agent-outputs", "Fetch one screener run.", "ScreenerRunOut")
+        "get": get_op("agent-outputs", "Fetch one screener run.", "ScreenerRunOut"),
+        "delete": delete_op(
+            "agent-outputs",
+            "Delete a screener run and cascade-delete its hits in one transaction. Use to clean up superseded runs (different criteria, same name/kind/run_date)."
+        )
     }));
     paths.insert("/screener-runs/{id}/hits".into(), json!({
         "parameters": [id_param(), locale_param()],
@@ -1113,7 +1160,11 @@ fn paths() -> Value {
     }));
     paths.insert("/universes/{id}".into(), json!({
         "parameters": [id_param()],
-        "get": get_op("agent-outputs", "Fetch one universe.", "UniverseOut")
+        "get": get_op("agent-outputs", "Fetch one universe.", "UniverseOut"),
+        "delete": delete_op(
+            "agent-outputs",
+            "Delete a universe definition. Returns 409 if any correlation_run still references it — delete the dependent runs first."
+        )
     }));
     paths.insert("/correlation-runs".into(), json!({
         "get": list_op_p(
@@ -1131,7 +1182,11 @@ fn paths() -> Value {
     }));
     paths.insert("/correlation-runs/{id}".into(), json!({
         "parameters": [id_param(), locale_param()],
-        "get": get_op("agent-outputs", "Fetch one correlation run.", "CorrelationRunOut")
+        "get": get_op("agent-outputs", "Fetch one correlation run.", "CorrelationRunOut"),
+        "delete": delete_op(
+            "agent-outputs",
+            "Delete a correlation run and cascade-delete its pair rows in one transaction. Use to clean up superseded runs or to free a universe before deleting it."
+        )
     }));
     paths.insert("/correlation-runs/{id}/pairs".into(), json!({
         "parameters": [id_param()],

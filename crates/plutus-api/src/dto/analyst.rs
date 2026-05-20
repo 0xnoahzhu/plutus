@@ -4,19 +4,35 @@ use utoipa::ToSchema;
 
 use plutus_storage::models::{AnalystEstimate, AnalystRating};
 
+/// Per-stock consensus estimate from sell-side analysts for a particular
+/// metric and fiscal period. Multiple rows per stock per period — one per
+/// metric. Time series: re-POSTing with a newer `as_of_date` accumulates.
+/// Shared across users.
 #[derive(Debug, Serialize, ToSchema)]
 pub struct AnalystEstimateOut {
+    /// Primary key.
     pub id: i64,
+    /// FK to `stocks.id`.
     pub stock_id: i64,
+    /// Metric estimated — `eps` | `revenue` | `ebitda` | `fcf` | etc.
     pub metric: String,
+    /// 4-digit fiscal year.
     pub fiscal_year: i32,
+    /// `Q1` / `Q2` / `Q3` / `Q4` / `FY`.
     pub fiscal_period: String,
+    /// Mean of analyst estimates.
     #[schema(value_type = Option<String>)] pub consensus_mean: Option<Decimal>,
+    /// Median of analyst estimates.
     #[schema(value_type = Option<String>)] pub consensus_median: Option<Decimal>,
+    /// Lowest estimate.
     #[schema(value_type = Option<String>)] pub estimate_low: Option<Decimal>,
+    /// Highest estimate.
     #[schema(value_type = Option<String>)] pub estimate_high: Option<Decimal>,
+    /// Number of analysts contributing.
     pub num_analysts: Option<i32>,
+    /// ISO date `YYYY-MM-DD` the snapshot was taken.
     pub as_of_date: String,
+    /// Provenance.
     pub source: String,
 }
 
@@ -32,34 +48,64 @@ impl From<AnalystEstimate> for AnalystEstimateOut {
     }
 }
 
+/// `POST /analyst/estimates` body. Inserts a new row each call — the
+/// table accumulates a time series of consensus snapshots.
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct AnalystEstimateIn {
+    /// FK to `stocks.id`.
     pub stock_id: i64,
+    /// `eps` | `revenue` | `ebitda` | `fcf`.
     pub metric: String,
+    /// Fiscal year.
     pub fiscal_year: i32,
+    /// `Q1`/`Q2`/`Q3`/`Q4`/`FY`.
     pub fiscal_period: String,
+    /// Consensus mean.
     #[schema(value_type = Option<String>)] pub consensus_mean: Option<Decimal>,
+    /// Consensus median.
     #[schema(value_type = Option<String>)] pub consensus_median: Option<Decimal>,
+    /// Min.
     #[schema(value_type = Option<String>)] pub estimate_low: Option<Decimal>,
+    /// Max.
     #[schema(value_type = Option<String>)] pub estimate_high: Option<Decimal>,
+    /// Coverage count.
     pub num_analysts: Option<i32>,
+    /// ISO date `YYYY-MM-DD`.
     pub as_of_date: String,
+    /// Default `agent`.
     #[serde(default = "default_source")] pub source: String,
 }
 
+/// One analyst rating action — upgrade, downgrade, initiation, target
+/// change, etc. Time series row per (firm, stock, rated_at).
+/// Shared across users.
 #[derive(Debug, Serialize, ToSchema)]
 pub struct AnalystRatingOut {
+    /// Primary key.
     pub id: i64,
+    /// FK to `stocks.id`.
     pub stock_id: i64,
+    /// Research firm (e.g. `goldman_sachs`).
     pub firm: String,
+    /// Analyst name if known.
     pub analyst_name: Option<String>,
+    /// Current rating — `buy` | `hold` | `sell` | `overweight` |
+    /// `underweight` | `outperform` | `underperform`. Free-form.
     pub rating: String,
+    /// What changed — `initiation` | `upgrade` | `downgrade` |
+    /// `reiterate` | `target_change` | `coverage_dropped`.
     pub rating_action: String,
+    /// Previous rating (for context on upgrades / downgrades).
     pub previous_rating: Option<String>,
+    /// New price target (in `target_currency`).
     #[schema(value_type = Option<String>)] pub target_price: Option<Decimal>,
+    /// ISO-4217 currency.
     pub target_currency: Option<String>,
+    /// Previous target.
     #[schema(value_type = Option<String>)] pub previous_target: Option<Decimal>,
+    /// ISO date `YYYY-MM-DD` of the rating action.
     pub rated_at: String,
+    /// Provenance.
     pub source: String,
 }
 
@@ -76,18 +122,31 @@ impl From<AnalystRating> for AnalystRatingOut {
     }
 }
 
+/// `POST /analyst/ratings` body. Inserts a new row each call.
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct AnalystRatingIn {
+    /// FK to `stocks.id`.
     pub stock_id: i64,
+    /// Research firm.
     pub firm: String,
+    /// Analyst name.
     pub analyst_name: Option<String>,
+    /// New rating string.
     pub rating: String,
+    /// `initiation` | `upgrade` | `downgrade` | `reiterate` |
+    /// `target_change` | `coverage_dropped`.
     pub rating_action: String,
+    /// Prior rating.
     pub previous_rating: Option<String>,
+    /// New price target.
     #[schema(value_type = Option<String>)] pub target_price: Option<Decimal>,
+    /// ISO-4217 currency.
     pub target_currency: Option<String>,
+    /// Prior target.
     #[schema(value_type = Option<String>)] pub previous_target: Option<Decimal>,
+    /// ISO date `YYYY-MM-DD`.
     pub rated_at: String,
+    /// Default `agent`.
     #[serde(default = "default_source")] pub source: String,
 }
 

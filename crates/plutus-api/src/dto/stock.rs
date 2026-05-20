@@ -3,24 +3,48 @@ use utoipa::ToSchema;
 
 use plutus_storage::queries::stocks::LocalizedStock;
 
-/// One stock with translatable text already projected for the caller's
-/// locale by the storage layer. `name` and `description_md` come from the
-/// row's `content` JSONB blob; if the requested locale is missing a
-/// particular field the storage layer falls back to `en`.
+/// A tradable instrument — equity, ETF, fund. The reference table; every
+/// per-stock entity (`catalysts`, `transactions`, `watchlist_items`,
+/// `recommendations`, `screener_hits`, `correlation_pairs`, etc.) joins on
+/// `stocks.id`.
+///
+/// **Lookup patterns** (`GET /stocks?...`):
+/// - `?symbol=AAPL` — exact ticker, case-insensitive. Returns 0 or 1 row.
+/// - `?q=Apple` — fuzzy substring over symbol + localized name. Up to
+///   `limit` rows (default 50, max 200).
+/// - `?country=US` — country filter via the market_code → MIC mapping.
+/// - No filters — first `limit` rows, ordered by id.
+///
+/// Translatable fields (`name`, `description_md`) come from
+/// `content.<locale>`.
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct StockOut {
+    /// Primary key — referenced by `stock_id` on most other tables.
     pub id: i64,
+    /// MIC-flavored market code, lower-snake (`us`, `us_etf`, `hk`, `cn_a`,
+    /// `cn_etf`). Maps to a country via the `markets` table.
     pub market_code: String,
+    /// Ticker. Case as listed on the exchange (e.g. `AAPL`, `0700`).
     pub symbol: String,
+    /// ISIN if known. Useful for cross-listing matches.
     pub isin: Option<String>,
+    /// Bloomberg/OpenFIGI identifier if known.
     pub figi: Option<String>,
+    /// ISO-4217 trading currency (`USD`, `HKD`, `CNY`).
     pub currency: String,
+    /// Minimum lot size for HK / CN markets. `null` for US (single share).
     pub lot_size: Option<i32>,
+    /// `common_stock` | `etf` | `mutual_fund` | `adr` | `gdr` | `index`.
     pub asset_class: String,
+    /// Optional FK-ish sector code (matches `sectors.code` when present).
     pub sector_code: Option<String>,
+    /// Localized company name (from `content.<locale>.name`).
     pub name: Option<String>,
+    /// Localized markdown company description.
     pub description_md: Option<String>,
+    /// RFC 3339 UTC timestamp.
     pub created_at: String,
+    /// RFC 3339 UTC timestamp.
     pub updated_at: String,
 }
 
@@ -44,29 +68,39 @@ impl From<LocalizedStock> for StockOut {
     }
 }
 
-/// Create input. `content` is the full multi-locale blob —
-/// `{ "<locale>": { "name": "...", "description_md": "..." } }`. The
-/// storage layer writes it verbatim; partial-locale updates are the
-/// caller's responsibility to merge before sending.
+/// `POST /stocks` body. Inserts a new row; no upsert — to update a stock
+/// use `PATCH /stocks/{id}` for `content` or fix the row directly in psql
+/// for the immutable columns.
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct StockIn {
+    /// MIC-flavored market code (`us`, `hk`, etc).
     pub market_code: String,
+    /// Ticker as listed.
     pub symbol: String,
+    /// ISIN.
     pub isin: Option<String>,
+    /// OpenFIGI id.
     pub figi: Option<String>,
+    /// ISO-4217 trading currency.
     pub currency: String,
+    /// HK/CN lot size.
     pub lot_size: Option<i32>,
+    /// `common_stock` | `etf` | `mutual_fund` | `adr` | `gdr` | `index`.
     pub asset_class: String,
+    /// Optional FK-ish sector code.
     pub sector_code: Option<String>,
+    /// Multi-locale content blob:
+    /// `{ "<locale>": { "name": "...", "description_md": "..." } }`. The
+    /// server stores it verbatim; merge before sending if you want partial
+    /// updates.
     pub content: serde_json::Value,
 }
 
-/// PATCH input. Only `content` is mutable through this route — the rest of
-/// the columns (market_code, symbol, isin, …) are immutable post-create.
+/// `PATCH /stocks/{id}` body. Only `content` is mutable through this
+/// route — symbol/ISIN/etc are treated as immutable.
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct StockPatch {
-    /// Full multi-locale content blob replacing whatever is currently
-    /// stored. Partial-locale updates are the caller's responsibility to
-    /// merge before sending.
+    /// New full multi-locale blob, replacing whatever is currently stored
+    /// (no merge). The endpoint returns 400 if `content` is missing.
     pub content: Option<serde_json::Value>,
 }

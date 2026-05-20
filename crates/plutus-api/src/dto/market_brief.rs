@@ -4,23 +4,34 @@ use utoipa::ToSchema;
 
 use plutus_storage::queries::market_briefs::LocalizedMarketBrief;
 
-/// One market brief, with translatable text already projected for the
-/// caller's locale by the storage layer. `headline` / `content_md` come from
-/// the row's `content` JSONB blob; if the requested locale is missing a
-/// particular field the storage layer falls back to `en`.
+/// A pre- or post-market note for a country, written daily by the agent.
+/// Upserts on `(user_id, country, kind, trade_date)`. `headline` and
+/// `content_md` are projected from `content.<locale>` (with `en` fallback).
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct MarketBriefOut {
+    /// Primary key.
     pub id: i64,
+    /// ISO country code (`US` / `HK` / `CN`). Part of natural key.
     pub country: String,
+    /// `pre_market` (before the open) or `post_market` (after the close).
+    /// Part of natural key.
     pub kind: String,
+    /// ISO date `YYYY-MM-DD` the brief is about. Part of natural key.
     pub trade_date: String,
+    /// Localized headline.
     pub headline: Option<String>,
+    /// Localized markdown body — typically 3-7 sentences.
     pub content_md: Option<String>,
+    /// `bullish` / `bearish` / `neutral`. Pill in the UI.
     pub sentiment: Option<String>,
+    /// Numeric sentiment, usually `[-1, 1]`.
     #[schema(value_type = Option<String>)]
     pub sentiment_score: Option<Decimal>,
+    /// Provenance.
     pub source: String,
+    /// RFC 3339 UTC timestamp.
     pub created_at: String,
+    /// RFC 3339 UTC timestamp.
     pub updated_at: String,
 }
 
@@ -42,20 +53,26 @@ impl From<LocalizedMarketBrief> for MarketBriefOut {
     }
 }
 
-/// Upsert input. `content` is the full multi-locale blob —
-/// `{ "<locale>": { "headline": "...", "content_md": "..." } }`.
+/// `POST /market-briefs` body. Upserts against
+/// `(user_id, country, kind, trade_date)`.
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct MarketBriefIn {
+    /// ISO country code.
     pub country: String,
-    /// "pre_market" or "post_market".
+    /// `pre_market` | `post_market`.
     pub kind: String,
-    /// ISO YYYY-MM-DD.
+    /// ISO date `YYYY-MM-DD`.
     pub trade_date: String,
+    /// Sentiment label.
     pub sentiment: Option<String>,
+    /// Numeric sentiment.
     #[schema(value_type = Option<String>)]
     pub sentiment_score: Option<Decimal>,
+    /// Default `agent`.
     #[serde(default = "default_source")]
     pub source: String,
+    /// Multi-locale content blob:
+    /// `{ "<locale>": { "headline": "...", "content_md": "..." } }`.
     pub content: serde_json::Value,
 }
 
