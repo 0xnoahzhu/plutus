@@ -175,9 +175,21 @@ const CONFIRM_SUBMIT_JS = `
       pendingSubmitter = null;
     }
 
-    /// Submit a form via fetch and navigate to the final URL.
-    /// Replaces the current history entry so the POST never appears in
-    /// the back-button stack — F5 on the destination is always a GET.
+    // Submit a form via fetch, then navigate to the final URL.
+    //
+    // The fetch follows the 303 from the POST handler; resp.url is the
+    // destination GET. Calling location.replace(resp.url) leaves the
+    // browser's history with only that GET — no POST entry, no
+    // "Confirm Form Resubmission" warning on F5.
+    //
+    // One subtlety: the fetch-follow ALREADY did a GET on resp.url to
+    // retrieve the response. location.replace fires ANOTHER GET, so
+    // any one-shot server-side state (e.g. the flash store holding a
+    // freshly minted API token) is hit twice. The flash store handles
+    // this by allowing 2 reads per entry before dropping it — see
+    // utils/flash-store.ts. So both GETs return the same data and
+    // the banner survives the navigation; a third GET (F5) returns
+    // null and the banner stays hidden.
     function submitViaFetch(form, submitter) {
       var data = new FormData(form);
       // Match native semantics: include the clicked submitter's name/value
@@ -192,15 +204,11 @@ const CONFIRM_SUBMIT_JS = `
         credentials: 'same-origin',
         redirect: 'follow',
       }).then(function(resp) {
-        // After a PRG follow, resp.url is the final GET destination.
-        // Use replace() so back-button skips this entry — there's no
-        // "previous page" worth returning to from a form result.
         if (resp.redirected || resp.url !== action) {
           window.location.replace(resp.url);
         } else {
-          // Server returned the same URL without redirecting (rare —
-          // would mean a 200 OK from a POST handler). Force a reload
-          // to pick up whatever state changed.
+          // Server returned the same URL without redirecting — rare,
+          // but reload so we pick up whatever state changed.
           window.location.reload();
         }
       }).catch(function(err) {
@@ -243,6 +251,47 @@ const CONFIRM_SUBMIT_JS = `
         openModal(prompt);
       } else {
         submitViaFetch(form, btn);
+      }
+    });
+
+    // Copy-to-clipboard click handler. Any element carrying a
+    // [data-copy="<text>"] attribute is treated as a copy trigger;
+    // clicking copies the attribute's value and briefly swaps the
+    // button's label to a "Copied!" string. Used by the freshly-minted
+    // API token banner so the user can grab the secret with one click.
+    //
+    // Prefers the Clipboard API (HTTPS-only in modern Chrome) and
+    // falls back to the textarea + execCommand('copy') trick when the
+    // page is on plain HTTP.
+    document.addEventListener('click', function(e) {
+      var btn = e.target && e.target.closest && e.target.closest('[data-copy]');
+      if (!btn) return;
+      e.preventDefault();
+      var text = btn.getAttribute('data-copy');
+      var doneLabel = btn.getAttribute('data-copy-done') || 'Copied!';
+      var originalText = btn.textContent;
+
+      function flash() {
+        btn.textContent = doneLabel;
+        setTimeout(function() { btn.textContent = originalText; }, 1500);
+      }
+      function legacyCopy() {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); flash(); }
+        catch (err) { console.error('copy failed:', err); }
+        finally { document.body.removeChild(ta); }
+      }
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(flash, legacyCopy);
+      } else {
+        legacyCopy();
       }
     });
   })();

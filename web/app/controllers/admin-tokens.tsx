@@ -343,21 +343,46 @@ function FreshTokenBanner() {
         <div mix={css({ fontSize: font.sm, marginBottom: space[3], opacity: 0.85 })}>
           {label} — {p.flashCreatedHint}
         </div>
-        <code
-          mix={css({
-            display: 'block',
-            padding: `${space[2]} ${space[3]}`,
-            background: color.surface,
-            color: color.text,
-            borderRadius: radius.md,
-            fontFamily: font.mono,
-            fontSize: font.sm,
-            wordBreak: 'break-all',
-            userSelect: 'all',
-          })}
-        >
-          {token}
-        </code>
+        <div mix={css({ display: 'flex', alignItems: 'stretch', gap: space[2] })}>
+          <code
+            mix={css({
+              flex: '1 1 auto',
+              padding: `${space[2]} ${space[3]}`,
+              background: color.surface,
+              color: color.text,
+              borderRadius: radius.md,
+              fontFamily: font.mono,
+              fontSize: font.sm,
+              wordBreak: 'break-all',
+              userSelect: 'all',
+            })}
+          >
+            {token}
+          </code>
+          {/* `data-copy` is the global click trigger registered in
+              document.tsx; the handler copies the value to the clipboard
+              and briefly swaps the button label to `data-copy-done`. */}
+          <button
+            type="button"
+            data-copy={token}
+            data-copy-done={p.copied}
+            mix={css({
+              flex: '0 0 auto',
+              padding: `${space[2]} ${space[3]}`,
+              background: color.surface,
+              color: color.text,
+              border: `1px solid ${color.border}`,
+              borderRadius: radius.md,
+              fontSize: font.sm,
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              '&:hover': { background: color.hover },
+            })}
+          >
+            {p.copy}
+          </button>
+        </div>
       </div>
     )
   }

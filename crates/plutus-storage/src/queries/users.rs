@@ -24,6 +24,10 @@ pub async fn find_by_username(db: &Db, username: &str) -> Result<Option<User>> {
         .map_err(Into::into)
 }
 
+/// Admin-initiated user creation. Always sets
+/// `password_reset_required = true` so the freshly created user is
+/// forced through `/auth/change-password` on first login — the admin
+/// only ever knows a temporary password, never the long-term one.
 pub async fn create(
     db: &Db,
     username: &str,
@@ -39,7 +43,7 @@ pub async fn create(
             toasty::create!(User {
                 username: username,
                 password_hash: password_hash,
-                password_reset_required: false,
+                password_reset_required: true,
                 allowed_countries: allowed,
                 created_at: now,
                 updated_at: now,
