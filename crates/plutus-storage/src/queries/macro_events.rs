@@ -206,6 +206,80 @@ pub async fn upsert(db: &Db, input: NewMacroEvent<'_>) -> Result<LocalizedMacroE
     get(db, "en", id).await
 }
 
+/// All-or-nothing batch upsert. Each row collides on
+/// (indicator_code, event_date) and refreshes; the whole batch runs in
+/// one transaction so a single bad row rolls everything back.
+pub async fn batch_upsert(
+    db: &Db,
+    items: Vec<NewMacroEvent<'_>>,
+) -> Result<Vec<LocalizedMacroEvent>> {
+    if items.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut client = db.raw_client().await?;
+    let tx = client.transaction().await.map_err(DbError::from)?;
+    let now = jiff::Timestamp::now();
+    let sql = r#"
+        INSERT INTO macro_events
+            (indicator_code, event_date, event_kind, decision, decision_bps,
+             new_value, consensus_estimate, surprise, previous_value, vote,
+             dot_plot, url, source, content, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15)
+        ON CONFLICT (indicator_code, event_date) DO UPDATE SET
+            event_kind         = EXCLUDED.event_kind,
+            decision           = EXCLUDED.decision,
+            decision_bps       = EXCLUDED.decision_bps,
+            new_value          = EXCLUDED.new_value,
+            consensus_estimate = EXCLUDED.consensus_estimate,
+            surprise           = EXCLUDED.surprise,
+            previous_value     = EXCLUDED.previous_value,
+            vote               = EXCLUDED.vote,
+            dot_plot           = EXCLUDED.dot_plot,
+            url                = EXCLUDED.url,
+            source             = EXCLUDED.source,
+            content            = EXCLUDED.content,
+            updated_at         = EXCLUDED.updated_at
+        RETURNING id
+    "#;
+    let mut ids: Vec<i64> = Vec::with_capacity(items.len());
+    for item in &items {
+        let surprise = item.surprise.or_else(|| match (item.new_value, item.consensus_estimate) {
+            (Some(a), Some(c)) => Some(a - c),
+            _ => None,
+        });
+        let row = tx
+            .query_one(
+                sql,
+                &[
+                    &item.indicator_code,
+                    &item.event_date,
+                    &item.event_kind,
+                    &item.decision,
+                    &item.decision_bps,
+                    &item.new_value,
+                    &item.consensus_estimate,
+                    &surprise,
+                    &item.previous_value,
+                    &item.vote,
+                    &item.dot_plot,
+                    &item.url,
+                    &item.source,
+                    &item.content,
+                    &now,
+                ],
+            )
+            .await
+            .map_err(DbError::from)?;
+        ids.push(row.get(0));
+    }
+    tx.commit().await.map_err(DbError::from)?;
+    let mut out = Vec::with_capacity(ids.len());
+    for id in ids {
+        out.push(get(db, "en", id).await?);
+    }
+    Ok(out)
+}
+
 pub async fn delete(db: &Db, id: i64) -> Result<()> {
     let client = db.raw_client().await?;
     let affected = client

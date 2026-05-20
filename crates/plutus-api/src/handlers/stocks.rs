@@ -8,9 +8,23 @@ use crate::error::{ApiError, ApiResult};
 use crate::i18n::LocaleQuery;
 use crate::state::AppState;
 
+/// Per-page result cap so a 1-char `?q=a` can't dump every ticker.
+const DEFAULT_LIMIT: i64 = 50;
+const MAX_LIMIT: i64 = 200;
+
 #[derive(Debug, Deserialize)]
 pub struct StocksListFilter {
+    /// ISO country code (US/HK/CN). Mapped to a set of MIC codes and
+    /// matched against `stocks.market_code`.
     pub country: Option<String>,
+    /// Exact ticker, case-insensitive. Returns 0 or 1 row.
+    pub symbol: Option<String>,
+    /// Substring across the ticker AND the localized `name` from content
+    /// JSONB. Case-insensitive ILIKE. Designed for the "agent received a
+    /// ticker-ish string, find the matching stock" workflow.
+    pub q: Option<String>,
+    /// Result cap. Defaults to DEFAULT_LIMIT, clamped to MAX_LIMIT.
+    pub limit: Option<i64>,
 }
 
 pub async fn list(
@@ -18,13 +32,38 @@ pub async fn list(
     Query(filter): Query<StocksListFilter>,
     Query(l): Query<LocaleQuery>,
 ) -> ApiResult<Json<Vec<StockOut>>> {
-    let rows = plutus_storage::queries::stocks::list(&state.db, &l.locale).await?;
+    // Validate + clamp limit. We always pass a limit to the DB so a
+    // caller can't bypass the cap by omitting the param.
+    let limit = match filter.limit {
+        Some(n) if n <= 0 => {
+            return Err(ApiError::BadRequest("limit must be > 0".into()));
+        }
+        Some(n) if n > MAX_LIMIT => {
+            return Err(ApiError::BadRequest(format!(
+                "limit must be ≤ {MAX_LIMIT}"
+            )));
+        }
+        Some(n) => n,
+        None => DEFAULT_LIMIT,
+    };
+    let rows = plutus_storage::queries::stocks::list(
+        &state.db,
+        &l.locale,
+        plutus_storage::queries::stocks::ListFilter {
+            symbol: filter.symbol.as_deref(),
+            q: filter.q.as_deref(),
+            limit: Some(limit),
+        },
+    )
+    .await?;
+
+    // Country filter happens AFTER the DB-level filters because the
+    // country → MIC mapping is in code, not the DB. With a country
+    // filter active we may post-filter to fewer than `limit` rows;
+    // that's acceptable for the current ~10k-stock scale.
     let Some(country) = filter.country.as_deref() else {
         return Ok(Json(rows.into_iter().map(Into::into).collect()));
     };
-
-    // Resolve country → set of MIC codes, then filter stocks by market_code.
-    // Unknown country (empty market set) returns no rows.
     let market_codes: HashSet<String> =
         plutus_storage::queries::markets::list_codes_by_country(&state.db, country)
             .await?

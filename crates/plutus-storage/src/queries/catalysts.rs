@@ -193,16 +193,103 @@ pub struct NewCatalyst<'a> {
     pub content: serde_json::Value,
 }
 
-pub async fn create(db: &Db, input: NewCatalyst<'_>) -> Result<LocalizedCatalyst> {
-    let client = db.raw_client().await?;
+/// All-or-nothing batch upsert. Each row goes through the same
+/// natural-key conflict as `create`, so an agent re-running a calendar
+/// update against the same source refreshes existing rows instead of
+/// duplicating. Wrapped in one PG transaction.
+pub async fn batch_create(
+    db: &Db,
+    items: Vec<NewCatalyst<'_>>,
+) -> Result<Vec<LocalizedCatalyst>> {
+    if items.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut client = db.raw_client().await?;
+    let tx = client.transaction().await.map_err(DbError::from)?;
     let now = jiff::Timestamp::now();
-    let content = &input.content;
     let sql = r#"
         INSERT INTO catalysts
             (user_id, stock_id, sector_code, country, catalyst_kind, catalyst_date,
              date_confidence, impact_level, status, url, source, content,
              created_at, updated_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13)
+        -- Column-list form (not `ON CONSTRAINT <name>`): the
+        -- `catalysts_natural_key` index is declared as a plain UNIQUE INDEX,
+        -- not a UNIQUE CONSTRAINT, so postgres only recognizes it via the
+        -- column list. Both forms honor NULLS NOT DISTINCT once the right
+        -- index is picked.
+        ON CONFLICT (user_id, catalyst_kind, catalyst_date, stock_id, sector_code, country, source) DO UPDATE SET
+            date_confidence = EXCLUDED.date_confidence,
+            impact_level    = EXCLUDED.impact_level,
+            status          = EXCLUDED.status,
+            url             = EXCLUDED.url,
+            content         = EXCLUDED.content,
+            updated_at      = EXCLUDED.updated_at
+        RETURNING id, user_id
+    "#;
+    let mut ids: Vec<(i64, i64)> = Vec::with_capacity(items.len());
+    for item in &items {
+        let row = tx
+            .query_one(
+                sql,
+                &[
+                    &item.user_id,
+                    &item.stock_id,
+                    &item.sector_code,
+                    &item.country,
+                    &item.catalyst_kind,
+                    &item.catalyst_date,
+                    &item.date_confidence,
+                    &item.impact_level,
+                    &item.status,
+                    &item.url,
+                    &item.source,
+                    &item.content,
+                    &now,
+                ],
+            )
+            .await
+            .map_err(DbError::from)?;
+        ids.push((row.get(0), row.get(1)));
+    }
+    tx.commit().await.map_err(DbError::from)?;
+
+    // Re-fetch each row through the locale-aware `get` so the response
+    // shape matches `create` exactly. "en" is the safe default; callers
+    // that want a localized projection should call list() afterwards.
+    let mut out = Vec::with_capacity(ids.len());
+    for (id, user_id) in ids {
+        out.push(get(db, user_id, "en", id).await?);
+    }
+    Ok(out)
+}
+
+pub async fn create(db: &Db, input: NewCatalyst<'_>) -> Result<LocalizedCatalyst> {
+    let client = db.raw_client().await?;
+    let now = jiff::Timestamp::now();
+    let content = &input.content;
+    // Upsert against the `catalysts_natural_key` unique index. Same
+    // (user, kind, date, stock, sector, country, source) → update the
+    // mutable fields (impact, status, url, content) and bump
+    // updated_at. Different source for the same nominal event → fresh
+    // row (provenance-discriminated). The natural key uses NULLS NOT
+    // DISTINCT so two country-level catalysts (stock_id IS NULL) still
+    // collide on the rest of the key.
+    let sql = r#"
+        INSERT INTO catalysts
+            (user_id, stock_id, sector_code, country, catalyst_kind, catalyst_date,
+             date_confidence, impact_level, status, url, source, content,
+             created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13)
+        -- See batch_create above: the column-list form is required because
+        -- `catalysts_natural_key` is a UNIQUE INDEX, not a CONSTRAINT.
+        ON CONFLICT (user_id, catalyst_kind, catalyst_date, stock_id, sector_code, country, source) DO UPDATE SET
+            date_confidence = EXCLUDED.date_confidence,
+            impact_level    = EXCLUDED.impact_level,
+            status          = EXCLUDED.status,
+            url             = EXCLUDED.url,
+            content         = EXCLUDED.content,
+            updated_at      = EXCLUDED.updated_at
         RETURNING id
     "#;
     let row = client

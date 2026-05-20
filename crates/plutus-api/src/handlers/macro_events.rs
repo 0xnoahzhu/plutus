@@ -3,8 +3,11 @@ use axum::Json;
 use serde::Deserialize;
 use std::collections::HashMap;
 
-use crate::dto::macro_event::{MacroEventIn, MacroEventOut};
+use crate::dto::macro_event::{
+    MacroEventBatchIn, MacroEventBatchOut, MacroEventIn, MacroEventOut,
+};
 use crate::error::{ApiError, ApiResult};
+use crate::handlers::batch::validate_batch_size;
 use crate::i18n::LocaleQuery;
 use crate::state::AppState;
 
@@ -90,6 +93,47 @@ pub async fn upsert(
     )
     .await?;
     Ok(Json(row.into()))
+}
+
+/// Batch upsert. Each item conflicts on (indicator_code, event_date);
+/// the whole batch is wrapped in one transaction.
+pub async fn batch_upsert(
+    State(state): State<AppState>,
+    Json(input): Json<MacroEventBatchIn>,
+) -> ApiResult<Json<MacroEventBatchOut>> {
+    validate_batch_size(input.items.len())?;
+    for (i, item) in input.items.iter().enumerate() {
+        if !item.content.is_object() {
+            return Err(ApiError::BadRequest(format!(
+                "items[{i}].content must be a JSON object keyed by locale"
+            )));
+        }
+    }
+    let news: Vec<plutus_storage::queries::macro_events::NewMacroEvent<'_>> = input
+        .items
+        .iter()
+        .map(|item| plutus_storage::queries::macro_events::NewMacroEvent {
+            indicator_code: &item.indicator_code,
+            event_date: &item.event_date,
+            event_kind: &item.event_kind,
+            decision: item.decision.as_deref(),
+            decision_bps: item.decision_bps,
+            new_value: item.new_value,
+            consensus_estimate: item.consensus_estimate,
+            surprise: item.surprise,
+            previous_value: item.previous_value,
+            vote: item.vote.as_deref(),
+            dot_plot: item.dot_plot.as_deref(),
+            url: item.url.as_deref(),
+            source: &item.source,
+            content: item.content.clone(),
+        })
+        .collect();
+    let rows = plutus_storage::queries::macro_events::batch_upsert(&state.db, news).await?;
+    Ok(Json(MacroEventBatchOut {
+        count: rows.len(),
+        items: rows.into_iter().map(Into::into).collect(),
+    }))
 }
 
 pub async fn delete(

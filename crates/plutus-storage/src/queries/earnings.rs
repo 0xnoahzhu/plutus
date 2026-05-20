@@ -89,6 +89,104 @@ pub struct NewEarnings<'a> {
     pub source: &'a str,
 }
 
+/// All-or-nothing batch upsert via raw SQL so the conflict on the
+/// `earnings_events_natural_key` (stock_id, fiscal_year, fiscal_period)
+/// refreshes existing rows. One PG transaction; a bad row rolls
+/// everything back.
+pub async fn batch_upsert(
+    db: &Db,
+    items: Vec<NewEarnings<'_>>,
+) -> Result<Vec<EarningsEvent>> {
+    if items.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut client = db.raw_client().await?;
+    let tx = client.transaction().await.map_err(DbError::from)?;
+    let now = jiff::Timestamp::now();
+    let sql = r#"
+        INSERT INTO earnings_events
+            (stock_id, fiscal_year, fiscal_period, announce_at, announce_date,
+             announce_timing, status, eps_estimate, eps_actual,
+             revenue_estimate, revenue_actual, currency, guidance_md,
+             notes, url, source, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+                $14, $15, $16, $17, $17)
+        -- Column-list form: `earnings_events_natural_key` is a plain UNIQUE
+        -- INDEX, not a UNIQUE CONSTRAINT — ON CONFLICT ON CONSTRAINT only
+        -- accepts the latter, so the column form is required.
+        ON CONFLICT (stock_id, fiscal_year, fiscal_period) DO UPDATE SET
+            announce_at      = EXCLUDED.announce_at,
+            announce_date    = EXCLUDED.announce_date,
+            announce_timing  = EXCLUDED.announce_timing,
+            status           = EXCLUDED.status,
+            eps_estimate     = EXCLUDED.eps_estimate,
+            eps_actual       = EXCLUDED.eps_actual,
+            revenue_estimate = EXCLUDED.revenue_estimate,
+            revenue_actual   = EXCLUDED.revenue_actual,
+            currency         = EXCLUDED.currency,
+            guidance_md      = EXCLUDED.guidance_md,
+            notes            = EXCLUDED.notes,
+            url              = EXCLUDED.url,
+            source           = EXCLUDED.source,
+            updated_at       = EXCLUDED.updated_at
+        RETURNING id, stock_id, fiscal_year, fiscal_period, announce_at,
+                  announce_date, announce_timing, status, eps_estimate,
+                  eps_actual, revenue_estimate, revenue_actual, currency,
+                  guidance_md, notes, url, source, created_at, updated_at
+    "#;
+    let mut out = Vec::with_capacity(items.len());
+    for item in &items {
+        let row = tx
+            .query_one(
+                sql,
+                &[
+                    &item.stock_id,
+                    &item.fiscal_year,
+                    &item.fiscal_period,
+                    &item.announce_at,
+                    &item.announce_date,
+                    &item.announce_timing,
+                    &item.status,
+                    &item.eps_estimate,
+                    &item.eps_actual,
+                    &item.revenue_estimate,
+                    &item.revenue_actual,
+                    &item.currency,
+                    &item.guidance_md,
+                    &item.notes,
+                    &item.url,
+                    &item.source,
+                    &now,
+                ],
+            )
+            .await
+            .map_err(DbError::from)?;
+        out.push(EarningsEvent {
+            id: row.get("id"),
+            stock_id: row.get("stock_id"),
+            fiscal_year: row.get("fiscal_year"),
+            fiscal_period: row.get("fiscal_period"),
+            announce_at: row.get("announce_at"),
+            announce_date: row.get("announce_date"),
+            announce_timing: row.get("announce_timing"),
+            status: row.get("status"),
+            eps_estimate: row.get("eps_estimate"),
+            eps_actual: row.get("eps_actual"),
+            revenue_estimate: row.get("revenue_estimate"),
+            revenue_actual: row.get("revenue_actual"),
+            currency: row.get("currency"),
+            guidance_md: row.get("guidance_md"),
+            notes: row.get("notes"),
+            url: row.get("url"),
+            source: row.get("source"),
+            created_at: row.get("created_at"),
+            updated_at: row.get("updated_at"),
+        });
+    }
+    tx.commit().await.map_err(DbError::from)?;
+    Ok(out)
+}
+
 /// Upsert by (stock_id, fiscal_year, fiscal_period). Lets the agent post
 /// the same event multiple times as new info lands (scheduled → confirmed →
 /// released) without duplicating rows.

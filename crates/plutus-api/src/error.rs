@@ -18,6 +18,8 @@ pub enum ApiError {
     NotFound,
     #[error("conflict: {0}")]
     Conflict(String),
+    #[error("payload too large: {0}")]
+    PayloadTooLarge(String),
     #[error("internal: {0}")]
     Internal(String),
 }
@@ -53,6 +55,7 @@ impl IntoResponse for ApiError {
             Self::Forbidden => (StatusCode::FORBIDDEN, "forbidden"),
             Self::NotFound => (StatusCode::NOT_FOUND, "not_found"),
             Self::Conflict(_) => (StatusCode::CONFLICT, "conflict"),
+            Self::PayloadTooLarge(_) => (StatusCode::PAYLOAD_TOO_LARGE, "payload_too_large"),
             Self::Internal(msg) => {
                 tracing::error!("internal error: {msg}");
                 (StatusCode::INTERNAL_SERVER_ERROR, "internal_error")

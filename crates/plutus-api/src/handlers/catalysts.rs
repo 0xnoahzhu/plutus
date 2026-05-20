@@ -4,9 +4,10 @@ use serde::Deserialize;
 
 use plutus_core::audit::Actor;
 
-use crate::dto::catalyst::{CatalystIn, CatalystOut};
+use crate::dto::catalyst::{CatalystBatchIn, CatalystBatchOut, CatalystIn, CatalystOut};
 use crate::error::{ApiError, ApiResult};
 use crate::handlers::access::require_user;
+use crate::handlers::batch::{validate_batch_size, MAX_BATCH};
 use crate::i18n::LocaleQuery;
 use crate::state::AppState;
 
@@ -118,3 +119,56 @@ pub async fn delete(
     plutus_storage::queries::catalysts::delete(&state.db, user_id, id).await?;
     Ok(axum::http::StatusCode::NO_CONTENT)
 }
+
+/// All-or-nothing batch create. Validates every item up front (JSONB
+/// content shape, batch size), then forwards to the storage layer which
+/// runs the whole insert in one transaction. If any row fails (DB
+/// constraint, malformed content) nothing persists. Each row upserts
+/// against `catalysts_natural_key`, so a re-run with the same source
+/// refreshes existing rows instead of duplicating.
+pub async fn batch_create(
+    State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
+    Json(input): Json<CatalystBatchIn>,
+) -> ApiResult<Json<CatalystBatchOut>> {
+    let user_id = require_user(&actor.0)?;
+    validate_batch_size(input.items.len())?;
+    // Validate every content blob before opening the transaction so a
+    // single bad item fails the whole request cheaply.
+    for (i, item) in input.items.iter().enumerate() {
+        if !item.content.is_object() {
+            return Err(ApiError::BadRequest(format!(
+                "items[{i}].content must be a JSON object keyed by locale"
+            )));
+        }
+    }
+    let news: Vec<plutus_storage::queries::catalysts::NewCatalyst<'_>> = input
+        .items
+        .iter()
+        .map(|i| plutus_storage::queries::catalysts::NewCatalyst {
+            user_id,
+            stock_id: i.stock_id,
+            sector_code: i.sector_code.as_deref(),
+            country: i.country.as_deref(),
+            catalyst_kind: &i.catalyst_kind,
+            catalyst_date: &i.catalyst_date,
+            date_confidence: &i.date_confidence,
+            impact_level: &i.impact_level,
+            status: &i.status,
+            url: i.url.as_deref(),
+            source: &i.source,
+            content: i.content.clone(),
+        })
+        .collect();
+    let rows = plutus_storage::queries::catalysts::batch_create(&state.db, news).await?;
+    Ok(Json(CatalystBatchOut {
+        count: rows.len(),
+        items: rows.into_iter().map(Into::into).collect(),
+    }))
+}
+
+// Silence unused-import warning for MAX_BATCH while keeping it
+// exported from the helper module (other handlers will reference it
+// when their batch endpoints land).
+#[allow(dead_code)]
+const _USE_MAX_BATCH: usize = MAX_BATCH;

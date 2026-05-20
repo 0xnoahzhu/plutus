@@ -47,6 +47,10 @@ impl std::ops::Deref for RawClient {
     fn deref(&self) -> &tokio_postgres::Client { &self.client }
 }
 
+impl std::ops::DerefMut for RawClient {
+    fn deref_mut(&mut self) -> &mut tokio_postgres::Client { &mut self.client }
+}
+
 impl Db {
     /// Open a postgres connection and register all models.
     pub async fn connect(url: &str) -> Result<Self> {
@@ -417,6 +421,11 @@ CREATE INDEX IF NOT EXISTS earnings_events_date_idx ON earnings_events (announce
 CREATE INDEX IF NOT EXISTS earnings_events_status_idx ON earnings_events (status);
 CREATE UNIQUE INDEX IF NOT EXISTS earnings_events_natural_key
     ON earnings_events (stock_id, fiscal_year, fiscal_period);
+
+-- OHLCV: dedup so bulk loaders can re-run without duplicating bars.
+-- Table itself is toasty-managed; this index lives in post_migrate SQL.
+CREATE UNIQUE INDEX IF NOT EXISTS ohlcv_daily_natural_key
+    ON ohlcv_daily (stock_id, trade_date);
 
 -- macro_events: discrete policy / data-release events (FOMC, CPI, LPR, …).
 -- Shared table (no user_id). Translatable content (title, summary_md) lives
@@ -950,6 +959,15 @@ CREATE INDEX IF NOT EXISTS catalysts_sector_idx ON catalysts (sector_code);
 CREATE INDEX IF NOT EXISTS catalysts_date_idx ON catalysts (catalyst_date);
 CREATE INDEX IF NOT EXISTS catalysts_status_idx ON catalysts (status);
 CREATE INDEX IF NOT EXISTS catalysts_kind_idx ON catalysts (catalyst_kind);
+-- Dedup key: re-running a calendar-update agent (same source, same
+-- event) must upsert instead of creating duplicates. NULLS NOT DISTINCT
+-- (PG 15+) makes two NULL stock_ids count as a collision, so a country
+-- catalyst with stock_id IS NULL still has uniqueness enforced on the
+-- rest of the key. `source` is in the key so two different upstream
+-- feeds reporting the "same" event don't silently collapse.
+CREATE UNIQUE INDEX IF NOT EXISTS catalysts_natural_key
+    ON catalysts (user_id, catalyst_kind, catalyst_date, stock_id, sector_code, country, source)
+    NULLS NOT DISTINCT;
 
 -- ── Trade plans ────────────────────────────────────────────────────────────
 -- Per-user, per-stock plans recording intended buy / sell price points.

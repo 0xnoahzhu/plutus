@@ -4,6 +4,7 @@ pub mod admin;
 pub mod analyst;
 pub mod audit;
 pub mod auth;
+pub mod batch;
 pub mod brokers;
 pub mod catalysts;
 pub mod connect;

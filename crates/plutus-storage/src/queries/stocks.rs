@@ -65,13 +65,79 @@ fn row_to_localized(row: &tokio_postgres::Row) -> LocalizedStock {
     }
 }
 
-pub async fn list(db: &Db, locale: &str) -> Result<Vec<LocalizedStock>> {
+/// Filter for `list`. Every field is optional; `None` = no filter.
+///
+/// `symbol` is case-insensitive equality on the ticker. Returns 0 or 1 row.
+/// `q` is a case-insensitive substring on the ticker AND the localized
+/// `name` from the `content` JSONB (with fallback to `en`). Designed for
+/// "user types `appl`, gets AAPL via symbol OR Apple Inc via name".
+/// Both compose with each other and with caller-side `country` filtering
+/// (which lives in the API handler — the DB layer doesn't know about
+/// country → MIC mapping).
+///
+/// `limit` caps the result count. Callers should pass a sane value; the
+/// handler enforces an upper bound so a runaway `q=a` doesn't dump every
+/// ticker. `None` means "no DB-level cap" — handler still applies one.
+pub struct ListFilter<'a> {
+    pub symbol: Option<&'a str>,
+    pub q: Option<&'a str>,
+    pub limit: Option<i64>,
+}
+
+pub async fn list(
+    db: &Db,
+    locale: &str,
+    filter: ListFilter<'_>,
+) -> Result<Vec<LocalizedStock>> {
     let client = db.raw_client().await?;
+
+    // Build WHERE clause incrementally; param positions stay stable by
+    // collecting borrowed-string holders for the optional values.
+    let mut wheres: Vec<String> = Vec::new();
+    // $1 is always the locale (used by the PROJECTION fallback). Filter
+    // params start at $2.
+    let mut next_pos = 2usize;
+    let symbol_owned;
+    let q_pattern_owned;
+    let limit_owned;
+    let mut params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = vec![&locale];
+
+    if let Some(sym) = filter.symbol {
+        symbol_owned = sym.to_string();
+        params.push(&symbol_owned);
+        wheres.push(format!("UPPER(symbol) = UPPER(${next_pos})"));
+        next_pos += 1;
+    }
+    if let Some(q) = filter.q {
+        // ILIKE pattern: `%foo%`. Search symbol OR localized name (with
+        // `en` fallback) so `?q=apple` hits AAPL via the name match.
+        q_pattern_owned = format!("%{}%", q);
+        params.push(&q_pattern_owned);
+        wheres.push(format!(
+            "(symbol ILIKE ${pos} OR COALESCE(content -> $1 ->> 'name', content -> 'en' ->> 'name') ILIKE ${pos})",
+            pos = next_pos,
+        ));
+        next_pos += 1;
+    }
+    let where_clause = if wheres.is_empty() {
+        String::new()
+    } else {
+        format!(" WHERE {}", wheres.join(" AND "))
+    };
+
+    let limit_clause = if let Some(n) = filter.limit {
+        limit_owned = n;
+        params.push(&limit_owned);
+        format!(" LIMIT ${next_pos}")
+    } else {
+        String::new()
+    };
+
     let sql = format!(
-        "SELECT {projection} FROM stocks ORDER BY market_code ASC, symbol ASC",
+        "SELECT {projection} FROM stocks{where_clause} ORDER BY market_code ASC, symbol ASC{limit_clause}",
         projection = PROJECTION,
     );
-    let rows = client.query(&sql, &[&locale]).await.map_err(DbError::from)?;
+    let rows = client.query(&sql, &params[..]).await.map_err(DbError::from)?;
     Ok(rows.iter().map(row_to_localized).collect())
 }
 

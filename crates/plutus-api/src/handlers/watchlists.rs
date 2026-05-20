@@ -36,7 +36,16 @@ pub async fn list_items(
         // Stock translatable text is not needed here — we only consult
         // (id, market_code) for the country filter. Pass "en" so the
         // projection picks the default locale without an extra hop.
-        let stocks = plutus_storage::queries::stocks::list(&state.db, "en").await?;
+        let stocks = plutus_storage::queries::stocks::list(
+            &state.db,
+            "en",
+            plutus_storage::queries::stocks::ListFilter {
+                symbol: None,
+                q: None,
+                limit: None,
+            },
+        )
+        .await?;
         let stock_market: std::collections::HashMap<i64, String> = stocks
             .into_iter()
             .map(|s| (s.id, s.market_code))

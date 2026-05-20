@@ -3,8 +3,9 @@ use axum::Json;
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 
-use crate::dto::earnings::{EarningsIn, EarningsOut};
+use crate::dto::earnings::{EarningsBatchIn, EarningsBatchOut, EarningsIn, EarningsOut};
 use crate::error::{ApiError, ApiResult};
+use crate::handlers::batch::validate_batch_size;
 use crate::state::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -41,7 +42,16 @@ pub async fn list(
         // Stock translatable text is not needed here — we only consult
         // (id, market_code) for the country filter. Pass "en" so the
         // projection picks the default locale without an extra hop.
-        let stocks = plutus_storage::queries::stocks::list(&state.db, "en").await?;
+        let stocks = plutus_storage::queries::stocks::list(
+            &state.db,
+            "en",
+            plutus_storage::queries::stocks::ListFilter {
+                symbol: None,
+                q: None,
+                limit: None,
+            },
+        )
+        .await?;
         let stock_market: HashMap<i64, String> = stocks
             .into_iter()
             .map(|s| (s.id, s.market_code))
@@ -112,6 +122,57 @@ pub async fn upsert(
     )
     .await?;
     Ok(Json(row.into()))
+}
+
+/// Batch upsert. Each item conflicts on the natural key
+/// (stock_id, fiscal_year, fiscal_period); the whole batch is one tx.
+pub async fn batch_upsert(
+    State(state): State<AppState>,
+    Json(input): Json<EarningsBatchIn>,
+) -> ApiResult<Json<EarningsBatchOut>> {
+    validate_batch_size(input.items.len())?;
+    // Pre-parse announce_at strings so a malformed timestamp at item N
+    // doesn't poison the rest of the request.
+    let parsed_announce_at: Vec<Option<jiff::Timestamp>> = input
+        .items
+        .iter()
+        .enumerate()
+        .map(|(i, item)| match item.announce_at.as_deref() {
+            Some(s) => s
+                .parse::<jiff::Timestamp>()
+                .map(Some)
+                .map_err(|e| ApiError::BadRequest(format!("items[{i}].announce_at: {e}"))),
+            None => Ok(None),
+        })
+        .collect::<ApiResult<_>>()?;
+    let news: Vec<plutus_storage::queries::earnings::NewEarnings<'_>> = input
+        .items
+        .iter()
+        .zip(parsed_announce_at.iter())
+        .map(|(item, announce_at)| plutus_storage::queries::earnings::NewEarnings {
+            stock_id: item.stock_id,
+            fiscal_year: item.fiscal_year,
+            fiscal_period: &item.fiscal_period,
+            announce_at: *announce_at,
+            announce_date: &item.announce_date,
+            announce_timing: &item.announce_timing,
+            status: &item.status,
+            eps_estimate: item.eps_estimate,
+            eps_actual: item.eps_actual,
+            revenue_estimate: item.revenue_estimate,
+            revenue_actual: item.revenue_actual,
+            currency: item.currency.as_deref(),
+            guidance_md: item.guidance_md.as_deref(),
+            notes: item.notes.as_deref(),
+            url: item.url.as_deref(),
+            source: &item.source,
+        })
+        .collect();
+    let rows = plutus_storage::queries::earnings::batch_upsert(&state.db, news).await?;
+    Ok(Json(EarningsBatchOut {
+        count: rows.len(),
+        items: rows.into_iter().map(Into::into).collect(),
+    }))
 }
 
 pub async fn delete(
