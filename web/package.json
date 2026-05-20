@@ -19,5 +19,9 @@
   "devDependencies": {
     "@types/node": "latest",
     "typescript": "latest"
+  },
+  "pnpm": {
+    "//": "Allowlist for postinstall scripts pnpm 10 refuses to run by default. esbuild is a tsx transitive that compiles a native binary.",
+    "onlyBuiltDependencies": ["esbuild"]
   }
 }

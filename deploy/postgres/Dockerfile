@@ -4,7 +4,7 @@
 # pgvector from source. AGE is added by cloning + `make install` against the
 # PG18 branch.
 
-FROM pgvector/pgvector:pg18
+FROM docker.io/pgvector/pgvector:pg18
 
 ARG AGE_REF=PG18/v1.7.0-rc0
 
