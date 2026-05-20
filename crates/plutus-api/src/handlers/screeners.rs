@@ -89,6 +89,20 @@ pub async fn upsert_run(
     Ok(Json(row.into()))
 }
 
+/// Delete a screener_run and all its hits in one transaction. Use this
+/// when an agent re-runs a screener with a different set of criteria
+/// (different name/kind/run_date) and wants to drop the obsolete row,
+/// or to clean up after a misfired POST.
+pub async fn delete_run(
+    State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
+    Path(id): Path<i64>,
+) -> ApiResult<axum::http::StatusCode> {
+    let user_id = require_user(&actor.0)?;
+    plutus_storage::queries::screeners::delete_run(&state.db, user_id, id).await?;
+    Ok(axum::http::StatusCode::NO_CONTENT)
+}
+
 pub async fn list_hits(
     State(state): State<AppState>,
     actor: axum::extract::Extension<Actor>,

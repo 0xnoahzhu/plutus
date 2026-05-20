@@ -52,6 +52,19 @@ pub async fn upsert_universe(
     Ok(Json(row.into()))
 }
 
+/// Delete a universe definition. Returns 409 if any correlation_run still
+/// references it — the caller must delete those runs first. Per-user
+/// scoped: deleting someone else's universe returns 404, not 409.
+pub async fn delete_universe(
+    State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
+    Path(id): Path<i64>,
+) -> ApiResult<axum::http::StatusCode> {
+    let user_id = require_user(&actor.0)?;
+    plutus_storage::queries::correlations::delete_universe(&state.db, user_id, id).await?;
+    Ok(axum::http::StatusCode::NO_CONTENT)
+}
+
 // ── Runs ──────────────────────────────────────────────────────────────────
 
 pub async fn list_runs(
@@ -111,6 +124,19 @@ pub async fn create_run(
     )
     .await?;
     Ok(Json(row.into()))
+}
+
+/// Delete a correlation_run and all its pairs in one transaction. Use to
+/// clean up after an obsolete run (re-ran with different parameters) or
+/// to free a universe before deleting it.
+pub async fn delete_run(
+    State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
+    Path(id): Path<i64>,
+) -> ApiResult<axum::http::StatusCode> {
+    let user_id = require_user(&actor.0)?;
+    plutus_storage::queries::correlations::delete_run(&state.db, user_id, id).await?;
+    Ok(axum::http::StatusCode::NO_CONTENT)
 }
 
 // ── Pairs ─────────────────────────────────────────────────────────────────

@@ -301,3 +301,31 @@ pub async fn insert_hit(db: &Db, input: NewHit<'_>) -> Result<LocalizedScreenerH
         .map_err(DbError::from)?;
     row.as_ref().map(row_to_hit).ok_or(DbError::NotFound)
 }
+
+/// Delete a screener_run plus its associated hits in a single transaction.
+/// `screener_hits.run_id` has no FK constraint (toasty 0.6 limitation), so
+/// the cascade is enforced here. Both deletes scope by `user_id` to keep
+/// per-user isolation honest even if a caller passes a `run_id` they don't
+/// own — they'll just get NotFound and nothing else changes.
+pub async fn delete_run(db: &Db, user_id: i64, id: i64) -> Result<()> {
+    let mut client = db.raw_client().await?;
+    let tx = client.transaction().await.map_err(DbError::from)?;
+    tx.execute(
+        "DELETE FROM screener_hits WHERE run_id = $1 AND user_id = $2",
+        &[&id, &user_id],
+    )
+    .await
+    .map_err(DbError::from)?;
+    let affected = tx
+        .execute(
+            "DELETE FROM screener_runs WHERE id = $1 AND user_id = $2",
+            &[&id, &user_id],
+        )
+        .await
+        .map_err(DbError::from)?;
+    if affected == 0 {
+        return Err(DbError::NotFound);
+    }
+    tx.commit().await.map_err(DbError::from)?;
+    Ok(())
+}

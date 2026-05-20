@@ -263,6 +263,67 @@ pub struct NewPair {
     pub correlation: Decimal,
 }
 
+/// Delete a correlation_run plus its associated pairs in a single
+/// transaction. `correlation_pairs.run_id` has no FK in the schema (toasty
+/// 0.6 limitation), so the cascade is enforced here. Both deletes scope by
+/// `user_id` to keep per-user isolation honest even if a caller passes a
+/// `run_id` they don't own — they'll just get NotFound.
+pub async fn delete_run(db: &Db, user_id: i64, id: i64) -> Result<()> {
+    let mut client = db.raw_client().await?;
+    let tx = client.transaction().await.map_err(DbError::from)?;
+    tx.execute(
+        "DELETE FROM correlation_pairs WHERE run_id = $1 AND user_id = $2",
+        &[&id, &user_id],
+    )
+    .await
+    .map_err(DbError::from)?;
+    let affected = tx
+        .execute(
+            "DELETE FROM correlation_runs WHERE id = $1 AND user_id = $2",
+            &[&id, &user_id],
+        )
+        .await
+        .map_err(DbError::from)?;
+    if affected == 0 {
+        return Err(DbError::NotFound);
+    }
+    tx.commit().await.map_err(DbError::from)?;
+    Ok(())
+}
+
+/// Delete a universe definition. Returns `Conflict` if any correlation_run
+/// still references it — agents must delete the runs first. We don't
+/// cascade-delete runs from here because run data is expensive to recompute
+/// and the caller probably didn't mean to nuke it.
+pub async fn delete_universe(db: &Db, user_id: i64, id: i64) -> Result<()> {
+    let client = db.raw_client().await?;
+    let in_use = client
+        .query_one(
+            "SELECT COUNT(*)::bigint FROM correlation_runs \
+             WHERE universe_id = $1 AND user_id = $2",
+            &[&id, &user_id],
+        )
+        .await
+        .map_err(DbError::from)?;
+    let count: i64 = in_use.get(0);
+    if count > 0 {
+        return Err(DbError::Conflict(format!(
+            "universe {id} is referenced by {count} correlation run(s); delete those first"
+        )));
+    }
+    let affected = client
+        .execute(
+            "DELETE FROM universe_definitions WHERE id = $1 AND user_id = $2",
+            &[&id, &user_id],
+        )
+        .await
+        .map_err(DbError::from)?;
+    if affected == 0 {
+        return Err(DbError::NotFound);
+    }
+    Ok(())
+}
+
 pub async fn insert_pair(db: &Db, input: NewPair) -> Result<CorrelationPair> {
     let (a, b) = if input.stock_a_id <= input.stock_b_id {
         (input.stock_a_id, input.stock_b_id)

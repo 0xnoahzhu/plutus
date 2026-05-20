@@ -81,6 +81,10 @@ pub fn build_router(state: AppState) -> Router {
             "/stocks/:id/ohlcv",
             get(handlers::ohlcv::list_for_stock).post(handlers::ohlcv::insert_one),
         )
+        .route(
+            "/ohlcv/batch",
+            post(handlers::ohlcv::batch_upsert),
+        )
         // Watchlist — a single flat list of stocks (no group concept).
         .route(
             "/watchlist/items",
@@ -105,7 +109,10 @@ pub fn build_router(state: AppState) -> Router {
             "/screener-runs",
             get(handlers::screeners::list_runs).post(handlers::screeners::upsert_run),
         )
-        .route("/screener-runs/:id", get(handlers::screeners::get_run))
+        .route(
+            "/screener-runs/:id",
+            get(handlers::screeners::get_run).delete(handlers::screeners::delete_run),
+        )
         .route(
             "/screener-runs/:id/hits",
             get(handlers::screeners::list_hits).post(handlers::screeners::insert_hit),
@@ -154,14 +161,19 @@ pub fn build_router(state: AppState) -> Router {
             "/universes",
             get(handlers::correlations::list_universes).post(handlers::correlations::upsert_universe),
         )
-        .route("/universes/:id", get(handlers::correlations::get_universe))
+        .route(
+            "/universes/:id",
+            get(handlers::correlations::get_universe)
+                .delete(handlers::correlations::delete_universe),
+        )
         .route(
             "/correlation-runs",
             get(handlers::correlations::list_runs).post(handlers::correlations::create_run),
         )
         .route(
             "/correlation-runs/:id",
-            get(handlers::correlations::get_run),
+            get(handlers::correlations::get_run)
+                .delete(handlers::correlations::delete_run),
         )
         .route(
             "/correlation-runs/:id/pairs",
@@ -206,6 +218,10 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/catalysts",
             get(handlers::catalysts::list).post(handlers::catalysts::create),
+        )
+        .route(
+            "/catalysts/batch",
+            post(handlers::catalysts::batch_create),
         )
         .route(
             "/catalysts/:id",
@@ -262,6 +278,10 @@ pub fn build_router(state: AppState) -> Router {
             get(handlers::earnings::list).post(handlers::earnings::upsert),
         )
         .route(
+            "/earnings/batch",
+            post(handlers::earnings::batch_upsert),
+        )
+        .route(
             "/earnings/:id",
             get(handlers::earnings::get).delete(handlers::earnings::delete),
         )
@@ -286,6 +306,10 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/macro/events",
             get(handlers::macro_events::list).post(handlers::macro_events::upsert),
+        )
+        .route(
+            "/macro/events/batch",
+            post(handlers::macro_events::batch_upsert),
         )
         .route(
             "/macro/events/:id",
