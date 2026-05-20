@@ -100,21 +100,31 @@ docker compose -f deploy/compose.dev.yml down -v   # wipes pgdata
 
 ## Backups
 
-`scripts/backup.sh` produces a **self-contained full-cluster dump**:
+`scripts/backup.sh` uses **`pg_dump --format=custom`** — pg_dump's
+native binary container. Each run produces two files under
+`~/podman-volume/plutus-backups/`:
 
-1. `pg_dumpall --globals-only` for roles + tablespaces (so a fresh
-   target server can recreate the `plutus` role with its original
-   password hash)
-2. `pg_dump --create --clean --if-exists` for the `plutus` database
-   itself (so the dump includes `CREATE DATABASE plutus` and is
-   restorable without any pre-setup)
+| file | format | role |
+|---|---|---|
+| `plutus-YYYY-MM-DD-HHMM.dump` | binary, compressed | data backup (one per run) |
+| `plutus-globals.sql` | plain SQL | roles + role passwords (refreshed each run, single current copy) |
 
-Concatenated into one `.sql.gz`, dropped under
-`~/podman-volume/plutus-backups/`, rotated to newest 14 (override with
-`RETAIN=N`).
+The `.dump` is `pg_restore`-compatible: supports parallel restore
+(`pg_restore -j N`), selective restore (`pg_restore -t users`),
+schema-only or data-only modes, and is the de-facto "binary backup"
+for logical pg_dump.
 
-Designed for **migration**: a single file you can ship to any
-postgres host and replay to rebuild the cluster from scratch.
+Why globals are separate plain text: `pg_dumpall --globals-only`
+only emits text; roles barely change so we keep ONE current copy
+instead of 14 redundant ones. The role's password hash is also in
+your `.env` and recreated by `bootstrap.sh`, so the globals file is a
+safety net for the rare case of cold migration without `.env`.
+
+Retention: newest 14 `.dump` files (override `RETAIN=N`).
+`plutus-globals.sql` is rewritten in place every run.
+
+Designed for **migration**: ship a `.dump` to any postgres host,
+`pg_restore` it.
 
 ### Manual
 
@@ -153,53 +163,72 @@ rsync -avz noah@10.1.2.51:~/podman-volume/plutus-backups/ \
 
 ### Restore — same host
 
-The dump drops and recreates `plutus` itself (`--clean --if-exists
---create`), so you don't pre-create anything. Connect as `postgres`
-so the role + DB statements have privilege to run:
+Role and database are already there. One command replaces the data:
 
 ```bash
-gunzip -c ~/backups/plutus/plutus-2026-05-21-0330.sql.gz \
-  | ssh noah@10.1.2.51 'podman exec -i plutus-postgres psql -U postgres -d postgres'
+cat plutus-2026-05-21-0330.dump | \
+  ssh noah@10.1.2.51 'podman exec -i plutus-postgres pg_restore \
+      -U plutus -d plutus --clean --if-exists'
 
-# Re-run migrate so anything outside pg_dump's scope (toasty schema diff)
-# lines back up. Idempotent.
+# Re-run migrate so anything outside pg_dump's scope (toasty schema
+# diff) lines back up. Idempotent.
 ssh noah@10.1.2.51 'systemctl --user restart plutus-api.service'
 ```
 
+`--clean --if-exists` drops every restored object before recreating
+it, so the restore is idempotent against an already-populated DB.
+
 ### Restore — fresh server (migration)
 
-The point of the full backup. On a brand-new podman host with
-`plutus-postgres` running but no `plutus` role or database:
-
 ```bash
-gunzip -c plutus-2026-05-21-0330.sql.gz \
-  | ssh noah@new-host 'podman exec -i plutus-postgres psql -U postgres -d postgres'
+# 1. Stand up the new host (postgres container, role, empty DB, all
+#    three services). bootstrap.sh creates the `plutus` role via the
+#    postgres container init using POSTGRES_USER/POSTGRES_PASSWORD
+#    from .env.
+DEPLOY_HOST=user@new-host ./scripts/bootstrap.sh
+
+# 2. Stream the .dump into the new postgres.
+cat plutus-2026-05-21-0330.dump | \
+  ssh user@new-host 'podman exec -i plutus-postgres pg_restore \
+      -U plutus -d plutus --clean --if-exists'
+
+# 3. Restart API so toasty re-syncs its schema diff.
+ssh user@new-host 'systemctl --user restart plutus-api.service'
 ```
 
-A `CREATE ROLE postgres` line will warn "already exists" (the
-bootstrap superuser is there) — psql doesn't have `ON_ERROR_STOP` set
-so it moves on. The `plutus` role is created with its original
-password hash, then `CREATE DATABASE plutus` runs, then the schema +
-data follows.
-
-After restore: deploy the app pointing at the new host
-(`DEPLOY_HOST=user@new-host ./scripts/bootstrap.sh` if the host
-doesn't have plutus yet, or `./scripts/deploy.sh` if it does).
-
-**Verified**: round-trip tested by restoring a backup into a fresh
-container — 44 tables, 3 extensions (age, vector, plpgsql), `plutus`
-role all came back. See `scripts/backup.sh` header comment for the
-exact restore command.
-
-### Selective restore (no full DB rebuild)
-
-The dump is plain SQL — `zgrep` any chunk you want:
+If you lost `.env` too (so the role can't be recreated by bootstrap
+with the original password), restore globals first:
 
 ```bash
-# Just the row data for one table
-zgrep -A 9999 "^COPY public.transactions" backup.sql.gz \
-  | sed '/^\\\\\.$/q'
+cat plutus-globals.sql | \
+  ssh user@new-host 'podman exec -i plutus-postgres \
+      psql -U postgres -d postgres'
+# Then continue with step 2 above.
+```
 
-# Hand-craft a partial restore
-zgrep -A2 "INSERT INTO users" ~/backups/plutus/plutus-2026-05-21-0330.sql.gz
+**Verified**: round-trip tested by restoring a `.dump` into a fresh
+`plutus-postgres:18` container — 44 tables, 181 indexes, both age +
+vector extensions all came back. See `scripts/backup.sh` header
+comment for exact restore commands.
+
+### Selective / inspection restore
+
+The `.dump` is a binary archive; use `pg_restore` to drill in.
+
+```bash
+# List the archive contents (what's inside, no actual restore)
+podman exec -i plutus-postgres pg_restore --list < plutus-...dump
+
+# Restore one table only (drops + recreates that table)
+podman exec -i plutus-postgres pg_restore \
+    -U plutus -d plutus -t transactions --clean --if-exists \
+  < plutus-...dump
+
+# Restore just schema, no data
+podman exec -i plutus-postgres pg_restore \
+    -U plutus -d plutus --schema-only \
+  < plutus-...dump
+
+# Convert the binary dump back to plain SQL (e.g. to grep through)
+podman exec -i plutus-postgres pg_restore -f - < plutus-...dump | less
 ```

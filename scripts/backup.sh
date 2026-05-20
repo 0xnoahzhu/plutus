@@ -1,48 +1,50 @@
 #!/usr/bin/env bash
-# Full logical backup of the plutus postgres cluster.
+# Logical backup of the plutus postgres cluster — pg_dump custom format.
 #
-# Designed for migration: a single .sql.gz that can rebuild the cluster
-# from scratch on a fresh server. Two `pg_dump*` invocations concatenated:
+# Each backup = one `.dump` file. Custom format is pg_dump's native
+# binary container: built-in compression (zstd-level by default),
+# pg_restore-compatible, supports parallel restore (`pg_restore -j N`),
+# and selective restore (`pg_restore -t table_name`). The de-facto
+# "binary backup" for logical pg_dump.
 #
-#   1. `pg_dumpall --globals-only`   roles + tablespaces + role passwords.
-#      Lets the target server recreate the `plutus` role itself before
-#      restoring data. The bootstrap `postgres` role will already exist
-#      on any cluster — CREATE ROLE for it will warn "already exists"
-#      and psql moves on (we don't pass --ON_ERROR_STOP).
+# Output files in ~/podman-volume/plutus-backups/:
 #
-#   2. `pg_dump --create --clean --if-exists` for the `plutus` database.
-#      --create     emits `CREATE DATABASE plutus ...` so the dump is
-#                   self-contained (you don't have to pre-create the DB).
-#      --clean      emits `DROP TABLE / DROP DATABASE` lines so restore
-#                   is idempotent against a populated target.
-#      --if-exists  guards the DROPs so a truly empty target doesn't
-#                   error before getting to the CREATEs.
+#   plutus-2026-05-21-0330.dump      data backup, one per run
+#   plutus-2026-05-21-0331.dump      ...
+#   plutus-globals.sql               role definitions, refreshed each run.
+#                                    Plain text (pg_dumpall's only mode);
+#                                    tiny (~1KB) so we keep ONE current copy,
+#                                    not one per day.
 #
-# Plain SQL output, gzip-compressed. Plain because at personal scale the
-# backup is tiny and we get `psql`-restorable files (no pg_restore
-# needed), and `zgrep` works on them.
+# Retention: keeps the most recent $RETAIN .dump files (default 14),
+# deletes older. The .sql globals file is rewritten on each run.
 #
-# Output: ~/podman-volume/plutus-backups/plutus-YYYY-MM-DD-HHMM.sql.gz
-# Retention: keeps the most recent $RETAIN backups (default 14), deletes
-# older. The directory is on the same volume as pgdata — a disk failure
-# loses both. See "Off-site copies" in deploy/README.md for syncing
-# backups elsewhere (rsync to another host or to your laptop).
+# Why not bundle globals + dump into a tar per backup: roles barely
+# change. Keeping one current globals.sql avoids 14 redundant copies
+# of the same thing. If you need point-in-time globals, the file is
+# also in the daily off-site rsync — restore from there.
 #
 # Usage (on the server):
 #   ~/app/plutus/scripts/backup.sh
-#   RETAIN=30 ~/app/plutus/scripts/backup.sh    # keep last 30
+#   RETAIN=30 ~/app/plutus/scripts/backup.sh
 #
 # Usage (from your dev machine):
 #   ssh noah@10.1.2.51 'bash ~/app/plutus/scripts/backup.sh'
 #
-# Scheduling: install deploy/systemd/plutus-backup.{service,timer}, then
-#   systemctl --user enable --now plutus-backup.timer
-# Runs daily at the time set in the .timer file.
+# Restore — same host, replace data (role + DB already exist):
+#   cat plutus-YYYY-MM-DD-HHMM.dump | podman exec -i plutus-postgres \
+#       pg_restore -U plutus -d plutus --clean --if-exists
 #
-# Restore — full cluster rebuild on a fresh server:
-#   gunzip -c plutus-YYYY-MM-DD-HHMM.sql.gz \
-#     | podman exec -i plutus-postgres psql -U postgres -d postgres
-# (Connect as `postgres` so the role + DB creation statements can run.)
+# Restore — fresh host (full migration):
+#   1. ./scripts/bootstrap.sh on the new host
+#      (creates plutus-postgres container, .env, role, empty plutus DB)
+#   2. Stream the .dump in:
+#      cat plutus-YYYY-MM-DD-HHMM.dump | ssh user@new-host \
+#          'podman exec -i plutus-postgres pg_restore \
+#              -U plutus -d plutus --clean --if-exists'
+#   3. Optional: if .env / role password is also lost, restore globals first:
+#      cat plutus-globals.sql | ssh user@new-host \
+#          'podman exec -i plutus-postgres psql -U postgres -d postgres'
 
 set -euo pipefail
 
@@ -55,60 +57,70 @@ RETAIN="${RETAIN:-14}"
 mkdir -p "$BACKUP_DIR"
 
 # UTC timestamp so backups sort lexicographically regardless of TZ.
+# Format: YYYY-MM-DD-HHMM (sorts as text, no ambiguity).
 TS=$(date -u +%Y-%m-%d-%H%M)
-OUT="$BACKUP_DIR/plutus-${TS}.sql.gz"
+DATA_OUT="$BACKUP_DIR/plutus-${TS}.dump"
+GLOBALS_OUT="$BACKUP_DIR/plutus-globals.sql"
 
-echo "==> full backup of $CONTAINER → $OUT"
+# ── 1. Refresh globals (overwrites the single current copy) ──────────────
+echo "==> dump globals (roles, etc.) → ${GLOBALS_OUT##*/}"
+# Atomic write: dump to .tmp, then rename. If pg_dumpall errors, the old
+# globals.sql stays intact.
+podman exec "$CONTAINER" pg_dumpall \
+    --username="$DB_USER" \
+    --globals-only \
+  > "$GLOBALS_OUT.tmp"
+mv "$GLOBALS_OUT.tmp" "$GLOBALS_OUT"
 
-# Globals first (roles), then the database (schema + data). Both streams
-# are valid SQL; concatenating them produces a single self-contained
-# restore script.
-{
-  echo "-- ──────────────────────────────────────────────────────────────"
-  echo "-- 1/2: globals (roles, tablespaces) — pg_dumpall --globals-only"
-  echo "-- ──────────────────────────────────────────────────────────────"
-  podman exec "$CONTAINER" pg_dumpall \
-      --username="$DB_USER" \
-      --globals-only
-  echo
-  echo "-- ──────────────────────────────────────────────────────────────"
-  echo "-- 2/2: database '$DB_NAME' — pg_dump --create --clean --if-exists"
-  echo "-- ──────────────────────────────────────────────────────────────"
-  # No --no-owner / --no-privileges: this is a FULL backup intended to
-  # roundtrip on the same role names. Strip them at restore time if you
-  # really need to move to different role names.
-  podman exec "$CONTAINER" pg_dump \
-      --username="$DB_USER" \
-      --dbname="$DB_NAME" \
-      --format=plain \
-      --create \
-      --clean \
-      --if-exists
-} | gzip --best > "$OUT"
+# ── 2. The actual data backup, pg_dump custom format ─────────────────────
+echo "==> dump $DB_NAME (custom format) → ${DATA_OUT##*/}"
 
-# Empty / tiny output means something went wrong (pg_dump errored but
-# gzip happily compressed the empty stream). Refuse to count it as a
-# successful backup.
-size=$(stat -c%s "$OUT" 2>/dev/null || stat -f%z "$OUT")
-if (( size < 1024 )); then
-  echo "ERROR: backup is $size bytes — something went wrong, refusing to keep it" >&2
-  rm -f "$OUT"
+# --format=custom: pg_dump's native binary container.
+# --compress=9:    maximum compression. The container picks the best
+#                  algorithm available (zstd if compiled in, else gzip).
+# --clean --if-exists --create: lets pg_restore --clean drop and rebuild
+#                  every object inside the target DB, idempotent.
+podman exec "$CONTAINER" pg_dump \
+    --username="$DB_USER" \
+    --dbname="$DB_NAME" \
+    --format=custom \
+    --compress=9 \
+    --clean \
+    --if-exists \
+    --create \
+  > "$DATA_OUT.tmp"
+mv "$DATA_OUT.tmp" "$DATA_OUT"
+
+# Sanity check — empty backup = pg_dump silently failed.
+size=$(stat -c%s "$DATA_OUT" 2>/dev/null || stat -f%z "$DATA_OUT")
+if (( size < 256 )); then
+  echo "ERROR: backup is $size bytes — pg_dump likely failed, removing" >&2
+  rm -f "$DATA_OUT"
   exit 1
 fi
 
-# Pretty-print size
+# Verify the dump is well-formed by listing its TOC. pg_restore --list
+# walks the archive header and prints a manifest; if the file is
+# corrupt, it errors here instead of silently shipping a bad backup.
+if ! podman exec -i "$CONTAINER" pg_restore --list < "$DATA_OUT" > /dev/null; then
+  echo "ERROR: pg_restore --list failed on the backup — refusing to keep it" >&2
+  rm -f "$DATA_OUT"
+  exit 1
+fi
+
+# Pretty-print size.
 human=$(awk -v b="$size" 'BEGIN{
   split("B KB MB GB",u);
   s=1;
   while (b >= 1024 && s < 4) { b /= 1024; s++ }
   printf "%.1f %s\n", b, u[s]
 }')
-echo "    wrote ${OUT##*/} ($human)"
+echo "    wrote ${DATA_OUT##*/} ($human)"
 
-# Rotate: newest first, delete index $RETAIN onwards.
-mapfile -t backups < <(ls -t "$BACKUP_DIR"/plutus-*.sql.gz 2>/dev/null)
+# ── 3. Rotate old .dump files ────────────────────────────────────────────
+mapfile -t backups < <(ls -t "$BACKUP_DIR"/plutus-*.dump 2>/dev/null)
 total=${#backups[@]}
-echo "    total backups: $total (retaining newest $RETAIN)"
+echo "    total .dump backups: $total (retaining newest $RETAIN)"
 
 if (( total > RETAIN )); then
   for ((i = RETAIN; i < total; i++)); do
