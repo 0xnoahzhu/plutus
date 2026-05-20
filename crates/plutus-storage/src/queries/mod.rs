@@ -19,6 +19,7 @@ pub mod market_briefs;
 pub mod markets;
 pub mod news;
 pub mod ohlcv;
+pub mod pending_orders;
 pub mod portfolio_reviews;
 pub mod recommendations;
 pub mod screeners;

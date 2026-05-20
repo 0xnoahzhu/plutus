@@ -187,6 +187,17 @@ pub fn build_router(state: AppState) -> Router {
             patch(handlers::trade_plans::update_level)
                 .delete(handlers::trade_plans::delete_level),
         )
+        // Pending limit orders (live at the broker)
+        .route(
+            "/pending-orders",
+            get(handlers::pending_orders::list).post(handlers::pending_orders::create),
+        )
+        .route(
+            "/pending-orders/:id",
+            get(handlers::pending_orders::get)
+                .patch(handlers::pending_orders::update)
+                .delete(handlers::pending_orders::delete),
+        )
         // Catalysts
         .route(
             "/catalysts",
