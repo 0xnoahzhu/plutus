@@ -122,7 +122,11 @@ ContainerName=plutus-api
 Network=plutus.network
 EnvironmentFile=%h/podman-config/plutus/.env
 Environment=DATABASE_URL=postgres://plutus:plutus@plutus-postgres:5432/plutus
-PublishPort=127.0.0.1:8080:8080
+# Publish on all interfaces so the API + /api/v1/docs are reachable from
+# outside the host. Sensitive routes are already gated by per-handler
+# require_user / require_admin; reference data (/markets, /brokers,
+# /healthz, /openapi.json, /docs) is intentionally public.
+PublishPort=8080:8080
 
 [Service]
 Restart=always
