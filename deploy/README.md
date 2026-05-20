@@ -100,10 +100,21 @@ docker compose -f deploy/compose.dev.yml down -v   # wipes pgdata
 
 ## Backups
 
-`scripts/backup.sh` calls `pg_dump` against the running `plutus-postgres`
-container, gzips the output, drops it under
-`~/podman-volume/plutus-backups/`, and rotates to the newest 14 (override
-with `RETAIN=N`).
+`scripts/backup.sh` produces a **self-contained full-cluster dump**:
+
+1. `pg_dumpall --globals-only` for roles + tablespaces (so a fresh
+   target server can recreate the `plutus` role with its original
+   password hash)
+2. `pg_dump --create --clean --if-exists` for the `plutus` database
+   itself (so the dump includes `CREATE DATABASE plutus` and is
+   restorable without any pre-setup)
+
+Concatenated into one `.sql.gz`, dropped under
+`~/podman-volume/plutus-backups/`, rotated to newest 14 (override with
+`RETAIN=N`).
+
+Designed for **migration**: a single file you can ship to any
+postgres host and replay to rebuild the cluster from scratch.
 
 ### Manual
 
@@ -140,26 +151,55 @@ rsync -avz noah@10.1.2.51:~/podman-volume/plutus-backups/ \
             ~/backups/plutus/
 ```
 
-### Restore
+### Restore — same host
 
-The dump is plain SQL, gzipped. Pipe it back through `psql`:
+The dump drops and recreates `plutus` itself (`--clean --if-exists
+--create`), so you don't pre-create anything. Connect as `postgres`
+so the role + DB statements have privilege to run:
 
 ```bash
-# Full restore: drop the existing DB first to avoid duplicate-key errors
-ssh noah@10.1.2.51 'podman exec plutus-postgres psql -U plutus -d postgres -c "DROP DATABASE plutus; CREATE DATABASE plutus;"'
-
-# Then stream the backup in
 gunzip -c ~/backups/plutus/plutus-2026-05-21-0330.sql.gz \
-  | ssh noah@10.1.2.51 'podman exec -i plutus-postgres psql -U plutus -d plutus'
+  | ssh noah@10.1.2.51 'podman exec -i plutus-postgres psql -U postgres -d postgres'
 
 # Re-run migrate so anything outside pg_dump's scope (toasty schema diff)
 # lines back up. Idempotent.
 ssh noah@10.1.2.51 'systemctl --user restart plutus-api.service'
 ```
 
-If you only need a few rows, just `grep` the gzipped dump — no restore
-needed:
+### Restore — fresh server (migration)
+
+The point of the full backup. On a brand-new podman host with
+`plutus-postgres` running but no `plutus` role or database:
 
 ```bash
+gunzip -c plutus-2026-05-21-0330.sql.gz \
+  | ssh noah@new-host 'podman exec -i plutus-postgres psql -U postgres -d postgres'
+```
+
+A `CREATE ROLE postgres` line will warn "already exists" (the
+bootstrap superuser is there) — psql doesn't have `ON_ERROR_STOP` set
+so it moves on. The `plutus` role is created with its original
+password hash, then `CREATE DATABASE plutus` runs, then the schema +
+data follows.
+
+After restore: deploy the app pointing at the new host
+(`DEPLOY_HOST=user@new-host ./scripts/bootstrap.sh` if the host
+doesn't have plutus yet, or `./scripts/deploy.sh` if it does).
+
+**Verified**: round-trip tested by restoring a backup into a fresh
+container — 44 tables, 3 extensions (age, vector, plpgsql), `plutus`
+role all came back. See `scripts/backup.sh` header comment for the
+exact restore command.
+
+### Selective restore (no full DB rebuild)
+
+The dump is plain SQL — `zgrep` any chunk you want:
+
+```bash
+# Just the row data for one table
+zgrep -A 9999 "^COPY public.transactions" backup.sql.gz \
+  | sed '/^\\\\\.$/q'
+
+# Hand-craft a partial restore
 zgrep -A2 "INSERT INTO users" ~/backups/plutus/plutus-2026-05-21-0330.sql.gz
 ```
