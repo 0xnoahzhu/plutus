@@ -39,6 +39,7 @@ use crate::dto::{
         NewsSectorLinkIn, NewsSectorLinkOut, NewsStockLinkIn, NewsStockLinkOut,
     },
     ohlcv::{OhlcvIn, OhlcvOut},
+    pending_order::{PendingOrderIn, PendingOrderOut, PendingOrderPatch},
     portfolio_review::{PortfolioReviewIn, PortfolioReviewOut},
     recommendation::{RecommendationClosePatch, RecommendationIn, RecommendationOut},
     screener::{ScreenerHitIn, ScreenerHitOut, ScreenerRunIn, ScreenerRunOut},
@@ -46,11 +47,18 @@ use crate::dto::{
     self_exam::{SelfExamIn, SelfExamOut},
     stock::{StockIn, StockOut, StockPatch},
     token::{TokenCreatedOut, TokenIn, TokenOut},
+    trade_plan::{
+        TradePlanIn, TradePlanLevelIn, TradePlanLevelOut, TradePlanLevelPatch, TradePlanOut,
+        TradePlanPatch,
+    },
     transaction::{TransactionIn, TransactionOut},
-    user::{AdminCreateUserIn, AdminResetPasswordIn, ChangePasswordIn, UserOut},
+    user::{
+        AdminCreateUserIn, AdminResetPasswordIn, AdminUpdateCountriesIn, ChangePasswordIn, UserOut,
+    },
     watchlist::{WatchlistItemIn, WatchlistItemOut},
     watchlist_report::{WatchlistReportIn, WatchlistReportOut},
 };
+use crate::handlers::admin::brokers::{AdminCreateBrokerIn, AdminUpdateBrokerIn};
 
 /// Marker type for `utoipa` derive. The struct itself is never instantiated;
 /// only its `OpenApi` impl is used, which exposes the registered component
@@ -58,6 +66,7 @@ use crate::dto::{
 #[derive(OpenApi)]
 #[openapi(components(schemas(
     AccountIn, AccountOut,
+    AdminCreateBrokerIn, AdminUpdateBrokerIn,
     AnalystEstimateIn, AnalystEstimateOut,
     AnalystRatingIn, AnalystRatingOut,
     BrokerOut,
@@ -84,6 +93,7 @@ use crate::dto::{
     NewsMacroLinkIn, NewsMacroLinkOut,
     NewsCountryLinkIn, NewsCountryLinkOut,
     OhlcvIn, OhlcvOut,
+    PendingOrderIn, PendingOrderOut, PendingOrderPatch,
     PortfolioReviewIn, PortfolioReviewOut,
     RecommendationIn, RecommendationOut, RecommendationClosePatch,
     ScreenerHitIn, ScreenerHitOut,
@@ -92,8 +102,10 @@ use crate::dto::{
     SelfExamIn, SelfExamOut,
     StockIn, StockOut, StockPatch,
     TokenIn, TokenOut, TokenCreatedOut,
+    TradePlanIn, TradePlanOut, TradePlanPatch,
+    TradePlanLevelIn, TradePlanLevelOut, TradePlanLevelPatch,
     TransactionIn, TransactionOut,
-    UserOut, AdminCreateUserIn, AdminResetPasswordIn, ChangePasswordIn,
+    UserOut, AdminCreateUserIn, AdminResetPasswordIn, AdminUpdateCountriesIn, ChangePasswordIn,
     WatchlistItemIn, WatchlistItemOut,
     WatchlistReportIn, WatchlistReportOut,
 )))]
@@ -166,6 +178,8 @@ fn tags() -> Value {
         { "name": "watchlists", "description": "The user's watchlist — a flat list of stocks plus daily / weekly reports." },
         { "name": "transactions", "description": "Trade ledger; holdings are derived from this." },
         { "name": "holdings", "description": "Derived open positions per cost basis." },
+        { "name": "trade-plans", "description": "Per-user, per-stock plans with buy / stop-loss / take-profit / trim price points." },
+        { "name": "pending-orders", "description": "Per-user limit orders the user has placed with their broker (or intends to place)." },
         { "name": "news", "description": "Articles + per-entity link tables + translations." },
         { "name": "calendar", "description": "Briefs, earnings, macro events, catalysts." },
         { "name": "macros", "description": "Macro indicators + observations + events." },
@@ -382,18 +396,23 @@ fn paths() -> Value {
         "get": {
             "tags": ["auth"],
             "summary": "Identity of the current caller.",
+            "description": "Returns `allowed_countries` so the caller can scope queries to the user's permitted markets. Empty list = admin / anonymous / system (no scope; treat as 'see everything').",
             "responses": {
                 "200": {
                     "description": "Actor info.",
                     "content": { "application/json": { "schema": {
                         "type": "object",
-                        "required": ["kind", "label", "is_admin"],
+                        "required": ["kind", "label", "is_admin", "allowed_countries"],
                         "properties": {
                             "kind": { "type": "string", "enum": ["web", "api_token", "admin", "anonymous", "system"] },
                             "label": { "type": "string" },
                             "user_id": { "type": "integer", "format": "int64", "nullable": true },
                             "token_id": { "type": "integer", "format": "int64", "nullable": true },
-                            "is_admin": { "type": "boolean" }
+                            "is_admin": { "type": "boolean" },
+                            "allowed_countries": {
+                                "type": "array",
+                                "items": { "type": "string", "enum": ["US", "HK", "CN"] }
+                            }
                         }
                     }}}
                 }
@@ -449,6 +468,57 @@ fn paths() -> Value {
             "requestBody": body("AdminResetPasswordIn"),
             "responses": ok_item("UserOut")
         }
+    }));
+    paths.insert("/admin/users/{id}/countries".into(), json!({
+        "parameters": [id_param()],
+        "post": {
+            "tags": ["admin"],
+            "summary": "Replace a user's market-country allowlist.",
+            "description": "Sets which market tabs the user can see in the web UI. Each entry must be in `{US, HK, CN}`; empty lists are rejected (a user with zero markets has no tab to land on). Takes effect on the user's next request — `/auth/me` reflects it immediately.",
+            "requestBody": body("AdminUpdateCountriesIn"),
+            "responses": ok_item("UserOut")
+        }
+    }));
+    paths.insert("/admin/brokers".into(), json!({
+        "get": {
+            "tags": ["admin"],
+            "summary": "List broker entries. Admin only.",
+            "responses": ok_list("BrokerOut")
+        },
+        "post": {
+            "tags": ["admin"],
+            "summary": "Register a new broker. Admin only.",
+            "requestBody": body("AdminCreateBrokerIn"),
+            "responses": ok_item("BrokerOut")
+        }
+    }));
+    paths.insert("/admin/brokers/{id}".into(), json!({
+        "parameters": [id_param()],
+        "patch": {
+            "tags": ["admin"],
+            "summary": "Rename a broker. Admin only.",
+            "requestBody": body("AdminUpdateBrokerIn"),
+            "responses": ok_item("BrokerOut")
+        },
+        "delete": delete_op("admin", "Delete a broker (refused while any account references it).")
+    }));
+    paths.insert("/admin/tokens".into(), json!({
+        "get": {
+            "tags": ["admin"],
+            "summary": "List admin-grade API tokens. Admin only.",
+            "responses": ok_list("TokenOut")
+        },
+        "post": {
+            "tags": ["admin"],
+            "summary": "Mint an admin-grade token; full secret shown once. Admin only.",
+            "description": "Distinct from `/tokens` (per-user). These tokens authenticate as admin and can call every `/admin/*` route.",
+            "requestBody": body("TokenIn"),
+            "responses": ok_item("TokenCreatedOut")
+        }
+    }));
+    paths.insert("/admin/tokens/{id}".into(), json!({
+        "parameters": [id_param()],
+        "delete": delete_op("admin", "Hard-delete an admin token (bearer requests start returning 401).")
     }));
 
     // ── tokens (web only) ─────────────────────────────────────────────────
@@ -643,6 +713,85 @@ fn paths() -> Value {
             })],
             "responses": ok_list("HoldingOut")
         }
+    }));
+
+    // ── trade plans ───────────────────────────────────────────────────────
+    // Two-tier: `/trade-plans` is the per-user, per-stock header; each plan
+    // carries N price levels at `/trade-plans/{id}/levels`. Levels are then
+    // accessible / mutable via `/trade-plans/levels/{id}` directly.
+    paths.insert("/trade-plans".into(), json!({
+        "get": list_op_p(
+            "trade-plans",
+            "List the caller's trade plans, with optional filters.",
+            "TradePlanOut",
+            vec![query_i64_param("stock_id"), query_str_param("status")]
+        ),
+        "post": post_op("trade-plans", "Create a new trade plan.", "TradePlanIn", "TradePlanOut")
+    }));
+    paths.insert("/trade-plans/{id}".into(), json!({
+        "parameters": [id_param()],
+        "get": get_op("trade-plans", "Fetch one trade plan.", "TradePlanOut"),
+        "patch": patch_op(
+            "trade-plans",
+            "Update rationale / status (active|closed).",
+            "TradePlanPatch",
+            "TradePlanOut"
+        ),
+        "delete": delete_op("trade-plans", "Delete a trade plan; its levels cascade.")
+    }));
+    paths.insert("/trade-plans/{id}/levels".into(), json!({
+        "parameters": [id_param()],
+        "get": list_op("trade-plans", "List the levels under one plan.", "TradePlanLevelOut"),
+        "post": post_op(
+            "trade-plans",
+            "Add a new level (kind: buy|stop_loss|take_profit|trim) to the plan.",
+            "TradePlanLevelIn",
+            "TradePlanLevelOut"
+        )
+    }));
+    paths.insert("/trade-plans/levels/{id}".into(), json!({
+        "parameters": [id_param()],
+        "patch": patch_op(
+            "trade-plans",
+            "Update a level (price, size, status). Flipping status=triggered stamps triggered_at.",
+            "TradePlanLevelPatch",
+            "TradePlanLevelOut"
+        ),
+        "delete": delete_op("trade-plans", "Delete a single level.")
+    }));
+
+    // ── pending orders ────────────────────────────────────────────────────
+    // Per-user broker order book — what the user has live (or intends to
+    // place) with their broker. Agents can read this to suggest tightening
+    // or cancelling existing orders alongside quotes and holdings.
+    paths.insert("/pending-orders".into(), json!({
+        "get": list_op_p(
+            "pending-orders",
+            "List the caller's pending limit orders, with optional filters.",
+            "PendingOrderOut",
+            vec![
+                query_i64_param("account_id"),
+                query_i64_param("stock_id"),
+                query_str_param("status")
+            ]
+        ),
+        "post": post_op(
+            "pending-orders",
+            "Record a pending order (side: buy|sell; type: limit|stop|stop_limit).",
+            "PendingOrderIn",
+            "PendingOrderOut"
+        )
+    }));
+    paths.insert("/pending-orders/{id}".into(), json!({
+        "parameters": [id_param()],
+        "get": get_op("pending-orders", "Fetch one pending order.", "PendingOrderOut"),
+        "patch": patch_op(
+            "pending-orders",
+            "Update the order. Flipping status=filled stamps filled_at; status=cancelled stamps cancelled_at.",
+            "PendingOrderPatch",
+            "PendingOrderOut"
+        ),
+        "delete": delete_op("pending-orders", "Hard-delete the order record.")
     }));
 
     // ── news ──────────────────────────────────────────────────────────────
@@ -1052,9 +1201,10 @@ mod tests {
         assert_eq!(spec.pointer("/info/title").and_then(|v| v.as_str()), Some("Plutus API"));
         // Tighter sanity floors so the build fails loudly if the spec ever
         // shrinks unexpectedly (e.g. a refactor drops a chunk of routes).
-        // Current snapshot: ~81 paths, ~80 schemas.
-        assert!(paths.len() >= 60, "too few paths: {}", paths.len());
-        assert!(schemas.len() >= 60, "too few schemas: {}", schemas.len());
+        // Current snapshot after trade-plans + pending-orders + admin
+        // brokers/tokens/countries sync: ~93 paths, ~95 schemas.
+        assert!(paths.len() >= 80, "too few paths: {}", paths.len());
+        assert!(schemas.len() >= 80, "too few schemas: {}", schemas.len());
 
         // Walk every $ref in the doc and assert each schema target exists.
         fn walk(v: &Value, schemas: &Map<String, Value>) {
