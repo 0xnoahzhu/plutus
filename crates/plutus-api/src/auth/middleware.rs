@@ -25,13 +25,19 @@ use crate::state::AppState;
 /// Path suffixes (matched against the unstripped request URI) that remain
 /// reachable when the actor must change their password before anything else.
 /// All other routes return 403 in that state.
+/// Paths reachable while `password_reset_required = true`. These are
+/// matched against `req.uri().path()` AFTER axum has stripped the
+/// `/api/v1` prefix (because this middleware is layered on the inner
+/// router that's `nest("/api/v1", ...)`-mounted in `lib.rs`). Keep these
+/// entries WITHOUT the prefix — using the full path silently never
+/// matches and bricks every user the admin has reset.
 const RESET_UNLOCKED_PATHS: &[&str] = &[
-    "/api/v1/auth/me",
-    "/api/v1/auth/logout",
-    "/api/v1/auth/change-password",
-    "/api/v1/healthz",
-    "/api/v1/openapi.json",
-    "/api/v1/docs",
+    "/auth/me",
+    "/auth/logout",
+    "/auth/change-password",
+    "/healthz",
+    "/openapi.json",
+    "/docs",
 ];
 
 pub async fn extract_actor_inner(state: AppState, mut req: Request, next: Next) -> Response {
