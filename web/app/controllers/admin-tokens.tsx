@@ -18,15 +18,9 @@ import {
   space,
   type Theme,
 } from '../ui/layout.tsx'
-import { setFlash, takeFlash } from '../utils/flash-store.ts'
 import { render } from '../utils/render.tsx'
 
 import { AdminTabs } from './admin.tsx'
-
-interface FreshTokenFlash {
-  token: string
-  label: string
-}
 
 interface TokenRow {
   id: number
@@ -51,17 +45,12 @@ interface Props {
   tokens: TokenRow[]
   error: string | null
   flash: string | null
-  /// Freshly minted plaintext token, shown only on the render directly
-  /// following the POST that created it. Putting it through a redirect
-  /// URL or cookie would leak it into browser history and access logs;
-  /// rendering once and forcing the admin to navigate away is safer.
-  freshToken: string | null
-  freshLabel: string | null
 }
 
-/// GET /admin/tokens — list every admin-grade token. If `?fresh=<uuid>`
-/// is set by a just-completed create, take the entry from the flash
-/// store and render the copy-this-now banner once.
+/// GET /admin/tokens — list every admin-grade token. The plaintext lives
+/// on each row alongside its hash (see `models/api_token.rs`), so the
+/// list itself is the canonical place to grab a token; no separate
+/// "show once" banner needed.
 export const adminTokens: BuildAction<'GET', typeof routes.adminTokens> = {
   async handler({ request }) {
     let url = new URL(request.url)
@@ -70,7 +59,6 @@ export const adminTokens: BuildAction<'GET', typeof routes.adminTokens> = {
     let cookie = request.headers.get('cookie')
     let error = url.searchParams.get('error')
     let flash = url.searchParams.get('flash')
-    let fresh = takeFlash<FreshTokenFlash>(url.searchParams.get('fresh'))
 
     let tokens: TokenRow[] = []
     try {
@@ -87,8 +75,6 @@ export const adminTokens: BuildAction<'GET', typeof routes.adminTokens> = {
         tokens={tokens}
         error={error}
         flash={flash}
-        freshToken={fresh?.token ?? null}
-        freshLabel={fresh?.label ?? null}
       />,
       request,
       { locale, theme },
@@ -96,11 +82,10 @@ export const adminTokens: BuildAction<'GET', typeof routes.adminTokens> = {
   },
 }
 
-/// POST /admin/tokens/new — mint a fresh admin-grade token, stash it in
-/// the in-process flash store, then 303 to the list page with
-/// `?fresh=<uuid>`. The UUID is opaque, the secret never travels via the
-/// URL/cookie/log, and refreshing the resulting GET is just a GET (no
-/// browser "resubmit form" prompt).
+/// POST /admin/tokens/new — mint a fresh admin-grade token. Plain 303
+/// back to the list with a `?flash=created` success banner; the new
+/// token shows up on its list row (masked + Copy button), so no
+/// separate "show once" banner is needed.
 export const adminTokenCreate: BuildAction<'POST', typeof routes.adminTokenCreate> = {
   async handler({ request }) {
     let form = await request.formData()
@@ -121,10 +106,8 @@ export const adminTokenCreate: BuildAction<'POST', typeof routes.adminTokenCreat
         303,
       )
     }
-    let body = (await upstream.json()) as { token: string; label: string }
-    let id = setFlash<FreshTokenFlash>({ token: body.token, label: body.label })
     return Response.redirect(
-      new URL(`/admin/tokens?fresh=${encodeURIComponent(id)}`, request.url),
+      new URL('/admin/tokens?flash=created', request.url),
       303,
     )
   },
@@ -146,7 +129,7 @@ export const adminTokenDelete: BuildAction<'POST', typeof routes.adminTokenDelet
 }
 
 function AdminTokensPage() {
-  return ({ locale, theme, tokens, error, flash, freshToken, freshLabel }: Props) => {
+  return ({ locale, theme, tokens, error, flash }: Props) => {
     let m = messages(locale)
     let p = m.adminTokens
     return (
@@ -215,14 +198,7 @@ function AdminTokensPage() {
 
             <AdminTabs locale={locale} active="tokens" />
 
-            {freshToken && (
-              <FreshTokenBanner
-                locale={locale}
-                token={freshToken}
-                label={freshLabel ?? ''}
-              />
-            )}
-            {(error || flash) && !freshToken && (
+            {(error || flash) && (
               <div mix={css({ marginBottom: space[4] })}>
                 <Banner error={error} flash={flash} locale={locale} />
               </div>
@@ -361,79 +337,6 @@ function TokenRowView() {
   }
 }
 
-function FreshTokenBanner() {
-  return ({
-    locale,
-    token,
-    label,
-  }: {
-    locale: string
-    token: string
-    label: string
-  }) => {
-    let p = messages(locale).adminTokens
-    return (
-      <div
-        mix={css({
-          marginBottom: space[5],
-          padding: `${space[4]} ${space[5]}`,
-          background: color.successSoft,
-          color: color.successText,
-          border: `1px solid ${color.success}`,
-          borderRadius: radius.lg,
-        })}
-      >
-        <div mix={css({ fontWeight: 700, fontSize: font.md, marginBottom: space[2] })}>
-          {p.flashCreatedTitle}
-        </div>
-        <div mix={css({ fontSize: font.sm, marginBottom: space[3], opacity: 0.85 })}>
-          {label} — {p.flashCreatedHint}
-        </div>
-        <div mix={css({ display: 'flex', alignItems: 'stretch', gap: space[2] })}>
-          <code
-            mix={css({
-              flex: '1 1 auto',
-              padding: `${space[2]} ${space[3]}`,
-              background: color.surface,
-              color: color.text,
-              borderRadius: radius.md,
-              fontFamily: font.mono,
-              fontSize: font.sm,
-              wordBreak: 'break-all',
-              userSelect: 'all',
-            })}
-          >
-            {token}
-          </code>
-          {/* `data-copy` is the global click trigger registered in
-              document.tsx; the handler copies the value to the clipboard
-              and briefly swaps the button label to `data-copy-done`. */}
-          <button
-            type="button"
-            data-copy={token}
-            data-copy-done={p.copied}
-            mix={css({
-              flex: '0 0 auto',
-              padding: `${space[2]} ${space[3]}`,
-              background: color.surface,
-              color: color.text,
-              border: `1px solid ${color.border}`,
-              borderRadius: radius.md,
-              fontSize: font.sm,
-              fontWeight: 600,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-              '&:hover': { background: color.hover },
-            })}
-          >
-            {p.copy}
-          </button>
-        </div>
-      </div>
-    )
-  }
-}
-
 function Banner() {
   return ({
     error,
@@ -450,9 +353,11 @@ function Banner() {
         ? { tone: 'error' as const, message: p.errMissingLabel }
         : error
           ? { tone: 'error' as const, message: p.errServer }
-          : flash === 'deleted'
-            ? { tone: 'success' as const, message: p.flashDeleted }
-            : { tone: 'success' as const, message: '' }
+          : flash === 'created'
+            ? { tone: 'success' as const, message: p.flashCreated }
+            : flash === 'deleted'
+              ? { tone: 'success' as const, message: p.flashDeleted }
+              : { tone: 'success' as const, message: '' }
     if (!message) return null
     let bg = tone === 'error' ? color.dangerSoft : color.successSoft
     let fg = tone === 'error' ? color.dangerText : color.successText

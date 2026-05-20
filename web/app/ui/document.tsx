@@ -182,14 +182,11 @@ const CONFIRM_SUBMIT_JS = `
     // browser's history with only that GET — no POST entry, no
     // "Confirm Form Resubmission" warning on F5.
     //
-    // One subtlety: the fetch-follow ALREADY did a GET on resp.url to
-    // retrieve the response. location.replace fires ANOTHER GET, so
-    // any one-shot server-side state (e.g. the flash store holding a
-    // freshly minted API token) is hit twice. The flash store handles
-    // this by allowing 2 reads per entry before dropping it — see
-    // utils/flash-store.ts. So both GETs return the same data and
-    // the banner survives the navigation; a third GET (F5) returns
-    // null and the banner stays hidden.
+    // The fetch-follow does GET resp.url to retrieve the response body
+    // (which we then discard), and location.replace fires a second GET
+    // to actually navigate. That double-GET means anything one-shot on
+    // the server side gets hit twice — keep that in mind when adding
+    // GET handlers that mutate request-scoped state.
     function submitViaFetch(form, submitter) {
       var data = new FormData(form);
       // Match native semantics: include the clicked submitter's name/value
