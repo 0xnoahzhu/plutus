@@ -18,9 +18,15 @@ import {
   space,
   type Theme,
 } from '../ui/layout.tsx'
+import { setFlash, takeFlash } from '../utils/flash-store.ts'
 import { render } from '../utils/render.tsx'
 
 import { AdminTabs } from './admin.tsx'
+
+interface FreshTokenFlash {
+  token: string
+  label: string
+}
 
 interface TokenRow {
   id: number
@@ -43,7 +49,9 @@ interface Props {
   freshLabel: string | null
 }
 
-/// GET /admin/tokens — list every admin-grade token.
+/// GET /admin/tokens — list every admin-grade token. If `?fresh=<uuid>`
+/// is set by a just-completed create, take the entry from the flash
+/// store and render the copy-this-now banner once.
 export const adminTokens: BuildAction<'GET', typeof routes.adminTokens> = {
   async handler({ request }) {
     let url = new URL(request.url)
@@ -52,6 +60,7 @@ export const adminTokens: BuildAction<'GET', typeof routes.adminTokens> = {
     let cookie = request.headers.get('cookie')
     let error = url.searchParams.get('error')
     let flash = url.searchParams.get('flash')
+    let fresh = takeFlash<FreshTokenFlash>(url.searchParams.get('fresh'))
 
     let tokens: TokenRow[] = []
     try {
@@ -68,8 +77,8 @@ export const adminTokens: BuildAction<'GET', typeof routes.adminTokens> = {
         tokens={tokens}
         error={error}
         flash={flash}
-        freshToken={null}
-        freshLabel={null}
+        freshToken={fresh?.token ?? null}
+        freshLabel={fresh?.label ?? null}
       />,
       request,
       { locale, theme },
@@ -77,15 +86,13 @@ export const adminTokens: BuildAction<'GET', typeof routes.adminTokens> = {
   },
 }
 
-/// POST /admin/tokens/new — mint a fresh admin-grade token and render
-/// the page directly so the plain token surfaces in a copy-this-now
-/// banner. No redirect because the secret must not travel through a
-/// `Location` header.
+/// POST /admin/tokens/new — mint a fresh admin-grade token, stash it in
+/// the in-process flash store, then 303 to the list page with
+/// `?fresh=<uuid>`. The UUID is opaque, the secret never travels via the
+/// URL/cookie/log, and refreshing the resulting GET is just a GET (no
+/// browser "resubmit form" prompt).
 export const adminTokenCreate: BuildAction<'POST', typeof routes.adminTokenCreate> = {
   async handler({ request }) {
-    let url = new URL(request.url)
-    let locale = resolveLocale(request, url.searchParams)
-    let theme = resolveTheme(request, url.searchParams)
     let form = await request.formData()
     let label = String(form.get('label') ?? '').trim()
     let cookie = request.headers.get('cookie')
@@ -105,20 +112,10 @@ export const adminTokenCreate: BuildAction<'POST', typeof routes.adminTokenCreat
       )
     }
     let body = (await upstream.json()) as { token: string; label: string }
-    let tokens = await api.adminListTokens(cookie).catch(() => [] as TokenRow[])
-    tokens.sort((a, b) => b.created_at.localeCompare(a.created_at))
-    return render(
-      <AdminTokensPage
-        locale={locale}
-        theme={theme}
-        tokens={tokens}
-        error={null}
-        flash={null}
-        freshToken={body.token}
-        freshLabel={body.label}
-      />,
-      request,
-      { locale, theme },
+    let id = setFlash<FreshTokenFlash>({ token: body.token, label: body.label })
+    return Response.redirect(
+      new URL(`/admin/tokens?fresh=${encodeURIComponent(id)}`, request.url),
+      303,
     )
   },
 }

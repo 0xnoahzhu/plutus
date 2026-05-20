@@ -17,7 +17,13 @@ import {
   space,
   type Theme,
 } from '../ui/layout.tsx'
+import { setFlash, takeFlash } from '../utils/flash-store.ts'
 import { render } from '../utils/render.tsx'
+
+interface FreshTokenFlash {
+  token: string
+  label: string
+}
 
 interface TokenRow {
   id: number
@@ -39,7 +45,9 @@ interface Props {
   freshLabel: string | null
 }
 
-/// GET /api-keys — list the caller's tokens.
+/// GET /api-keys — list the caller's tokens. If the request carries a
+/// `?fresh=<uuid>` produced by a just-completed create, take the entry
+/// from the flash store and render the copy-this-now banner once.
 export const apiKeys: BuildAction<'GET', typeof routes.apiKeys> = {
   async handler({ request }) {
     let url = new URL(request.url)
@@ -47,6 +55,7 @@ export const apiKeys: BuildAction<'GET', typeof routes.apiKeys> = {
     let theme = resolveTheme(request, url.searchParams)
     let flash = url.searchParams.get('flash')
     let error = url.searchParams.get('error')
+    let fresh = takeFlash<FreshTokenFlash>(url.searchParams.get('fresh'))
     let tokens = (await api.tokens().catch(() => [])) as TokenRow[]
     tokens.sort((a, b) => b.created_at.localeCompare(a.created_at))
     return render(
@@ -56,8 +65,8 @@ export const apiKeys: BuildAction<'GET', typeof routes.apiKeys> = {
         tokens={tokens}
         error={error}
         flash={flash}
-        freshToken={null}
-        freshLabel={null}
+        freshToken={fresh?.token ?? null}
+        freshLabel={fresh?.label ?? null}
       />,
       request,
       { locale, theme },
@@ -65,16 +74,13 @@ export const apiKeys: BuildAction<'GET', typeof routes.apiKeys> = {
   },
 }
 
-/// POST /api-keys/new — create. Renders the list page directly (no
-/// redirect) so the freshly minted token shows up in a copy-this-now
-/// banner. Putting the secret in a redirect URL or cookie would leak
-/// it into browser history and the access log; rendering once and
-/// requiring the user to navigate away to dismiss is safer.
+/// POST /api-keys/new — create. Follows Post-Redirect-Get: stash the
+/// plain token in an in-process flash store keyed by a fresh UUID, then
+/// 303 to the list page with `?fresh=<uuid>`. The UUID is opaque, the
+/// secret never travels through the URL/cookie/log, and a refresh of
+/// the resulting GET is just a GET (no browser "resubmit form" prompt).
 export const apiKeyCreate: BuildAction<'POST', typeof routes.apiKeyCreate> = {
   async handler({ request }) {
-    let url = new URL(request.url)
-    let locale = resolveLocale(request, url.searchParams)
-    let theme = resolveTheme(request, url.searchParams)
     let form = await request.formData()
     let label = String(form.get('label') ?? '').trim()
     let cookie = request.headers.get('cookie')
@@ -87,20 +93,10 @@ export const apiKeyCreate: BuildAction<'POST', typeof routes.apiKeyCreate> = {
       return Response.redirect(new URL('/api-keys?error=server', request.url), 303)
     }
     let body = (await upstream.json()) as { token: string; label: string }
-    let tokens = (await api.tokens().catch(() => [])) as TokenRow[]
-    tokens.sort((a, b) => b.created_at.localeCompare(a.created_at))
-    return render(
-      <ApiKeysPage
-        locale={locale}
-        theme={theme}
-        tokens={tokens}
-        error={null}
-        flash={null}
-        freshToken={body.token}
-        freshLabel={body.label}
-      />,
-      request,
-      { locale, theme },
+    let id = setFlash<FreshTokenFlash>({ token: body.token, label: body.label })
+    return Response.redirect(
+      new URL(`/api-keys?fresh=${encodeURIComponent(id)}`, request.url),
+      303,
     )
   },
 }
