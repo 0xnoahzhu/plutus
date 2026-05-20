@@ -297,6 +297,10 @@ const en = {
   /// row's display name and returns the full sentence rendered as the
   /// destructive submit button's `title` attribute.
   confirms: {
+    /// Generic dialog title shown above every confirm prompt.
+    dialogTitle: 'Please confirm',
+    confirmLabel: 'Confirm',
+    cancelLabel: 'Cancel',
     deleteUser: (username: string) =>
       `Delete user "${username}"? This cannot be undone.`,
     resetUserPassword: (username: string) =>
@@ -615,6 +619,9 @@ const zhCN: Messages = {
   },
 
   confirms: {
+    dialogTitle: '请确认',
+    confirmLabel: '确认',
+    cancelLabel: '取消',
     deleteUser: (username: string) => `确认删除用户 "${username}"？该操作无法撤销。`,
     resetUserPassword: (username: string) =>
       `确认重置用户 "${username}" 的密码？下次登录时将被强制修改。`,
