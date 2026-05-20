@@ -549,7 +549,8 @@ fn paths() -> Value {
     }));
     paths.insert("/accounts/{id}".into(), json!({
         "parameters": [id_param()],
-        "get": get_op("reference", "Fetch one account.", "AccountOut")
+        "get": get_op("reference", "Fetch one account.", "AccountOut"),
+        "delete": delete_op("reference", "Delete an account (refused while any transaction references it).")
     }));
     paths.insert("/sectors".into(), json!({
         "get": list_op("reference", "List sector codes (ICB / GICS / TRBC; mixed scheme).", "SectorOut"),
@@ -1253,5 +1254,191 @@ mod tests {
                 assert!(schemas.contains_key(name), "missing schema: {name}");
             }
         }
+    }
+
+    /// Drift detector: every `.route(...)` in lib.rs must have a matching
+    /// entry in `paths()`, and every entry in `paths()` must correspond
+    /// to a real route. The check is path + HTTP-method tuple.
+    ///
+    /// Catches the common drift class: "I added a handler but forgot
+    /// to update the OpenAPI spec." Run by `cargo test -p plutus-api`.
+    ///
+    /// Parser: we read `lib.rs` as a literal string at compile time and
+    /// scan for `.route("<path>", <methods-blob>)` blocks. The path is
+    /// the first string literal; the methods are any of
+    /// {get, post, patch, put, delete} called as a function inside the
+    /// methods blob. Axum's `:id` style is normalized to OpenAPI's
+    /// `{id}` style for comparison.
+    ///
+    /// Exempt paths: the outer router's `/` (mounted outside `/api/v1`
+    /// and intentionally undocumented).
+    #[test]
+    fn routes_match_spec() {
+        use std::collections::{BTreeMap, BTreeSet};
+
+        const LIB_SRC: &str = include_str!("lib.rs");
+        const EXEMPT: &[&str] = &[
+            // Lives on the outer router, not under /api/v1 — not part of
+            // the documented API surface.
+            "/",
+        ];
+
+        /// Parse lib.rs for `.route("path", ...method(...).method(...)...)`.
+        /// Returns path → set of upper-case method names. Multiple
+        /// `.route("/x", ...)` calls for the same path merge their methods.
+        fn parse_axum_routes(src: &str) -> BTreeMap<String, BTreeSet<String>> {
+            let mut out: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+            let bytes = src.as_bytes();
+            let needle = b".route(";
+            let mut i = 0;
+            while i + needle.len() <= bytes.len() {
+                let Some(rel) = bytes[i..].windows(needle.len()).position(|w| w == needle) else {
+                    break;
+                };
+                let after_open = i + rel + needle.len();
+                let mut p = after_open;
+                // Skip whitespace, then expect the opening quote of the path literal.
+                while p < bytes.len() && bytes[p].is_ascii_whitespace() {
+                    p += 1;
+                }
+                if p >= bytes.len() || bytes[p] != b'"' {
+                    i = after_open;
+                    continue;
+                }
+                p += 1;
+                let path_start = p;
+                while p < bytes.len() && bytes[p] != b'"' {
+                    p += 1;
+                }
+                if p >= bytes.len() {
+                    break;
+                }
+                let raw_path = std::str::from_utf8(&bytes[path_start..p]).unwrap();
+                // Normalize axum's `:id` to OpenAPI's `{id}`.
+                let path: String = raw_path
+                    .split('/')
+                    .map(|seg| {
+                        if let Some(name) = seg.strip_prefix(':') {
+                            format!("{{{name}}}")
+                        } else {
+                            seg.to_string()
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join("/");
+                p += 1; // past the closing quote of the path
+                // Scan to the matching ')' for the .route( call, tracking
+                // paren depth so nested ( ) inside method calls are skipped.
+                let methods_start = p;
+                let mut depth: i32 = 1;
+                while p < bytes.len() && depth > 0 {
+                    match bytes[p] {
+                        b'(' => depth += 1,
+                        b')' => depth -= 1,
+                        _ => {}
+                    }
+                    if depth > 0 {
+                        p += 1;
+                    }
+                }
+                let methods_blob = std::str::from_utf8(&bytes[methods_start..p]).unwrap();
+
+                // Pull verbs that are called as functions: `verb(`. Guard
+                // against matching `foo_get(` or `route_get(` by checking
+                // the preceding byte isn't alphanumeric or underscore.
+                let mut methods: BTreeSet<String> = BTreeSet::new();
+                for verb in ["get", "post", "patch", "put", "delete"] {
+                    let pat = format!("{verb}(");
+                    let mut start = 0;
+                    while let Some(found) = methods_blob[start..].find(&pat) {
+                        let abs = start + found;
+                        let preceding = if abs == 0 {
+                            b' '
+                        } else {
+                            methods_blob.as_bytes()[abs - 1]
+                        };
+                        if !preceding.is_ascii_alphanumeric() && preceding != b'_' {
+                            methods.insert(verb.to_uppercase());
+                        }
+                        start = abs + pat.len();
+                    }
+                }
+                out.entry(path).or_default().extend(methods);
+                i = p;
+            }
+            out
+        }
+
+        let mut axum_routes = parse_axum_routes(LIB_SRC);
+        for ex in EXEMPT {
+            axum_routes.remove(*ex);
+        }
+        assert!(
+            !axum_routes.is_empty(),
+            "axum route parser found nothing — did lib.rs's `.route(...)` formatting change?"
+        );
+
+        let spec = spec();
+        let spec_paths = spec
+            .pointer("/paths")
+            .and_then(|v| v.as_object())
+            .expect("paths present");
+
+        // path → set of methods (uppercase) for the spec side.
+        let mut spec_routes: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        for (path, ops_value) in spec_paths {
+            let Some(ops) = ops_value.as_object() else { continue };
+            let methods: BTreeSet<String> = ops
+                .keys()
+                .filter(|k| matches!(k.as_str(), "get" | "post" | "patch" | "put" | "delete"))
+                .map(|k| k.to_uppercase())
+                .collect();
+            if !methods.is_empty() {
+                spec_routes.insert(path.clone(), methods);
+            }
+        }
+
+        let mut errors: Vec<String> = Vec::new();
+
+        // Routes present in axum but not in the spec (or with extra methods
+        // the spec doesn't document).
+        for (path, methods) in &axum_routes {
+            match spec_routes.get(path) {
+                None => errors.push(format!(
+                    "path {path:?} is wired in lib.rs but missing from openapi.rs::paths() entirely (methods {methods:?})"
+                )),
+                Some(spec_methods) => {
+                    let missing: Vec<_> = methods.difference(spec_methods).collect();
+                    if !missing.is_empty() {
+                        errors.push(format!(
+                            "path {path:?}: lib.rs has methods {missing:?} but the spec doesn't"
+                        ));
+                    }
+                }
+            }
+        }
+
+        // Routes present in the spec but with no axum route to back them.
+        for (path, methods) in &spec_routes {
+            match axum_routes.get(path) {
+                None => errors.push(format!(
+                    "path {path:?} is documented in openapi.rs::paths() but no axum route handles it (methods {methods:?})"
+                )),
+                Some(actual_methods) => {
+                    let extra: Vec<_> = methods.difference(actual_methods).collect();
+                    if !extra.is_empty() {
+                        errors.push(format!(
+                            "path {path:?}: spec documents methods {extra:?} that lib.rs doesn't expose"
+                        ));
+                    }
+                }
+            }
+        }
+
+        assert!(
+            errors.is_empty(),
+            "OpenAPI spec drift from actual routes:\n  - {}",
+            errors.join("\n  - ")
+        );
     }
 }
