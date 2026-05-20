@@ -1,0 +1,18 @@
+[Unit]
+Description=Plutus database backup (pg_dump → ~/podman-volume/plutus-backups)
+# Want the DB running, but don't fail backup if it's transiently down —
+# the script will just error and exit non-zero, which the timer logs.
+Wants=plutus-postgres.service
+After=plutus-postgres.service
+
+[Service]
+Type=oneshot
+# Runs as the user (this is a systemd --user unit). Reads RETAIN env if
+# you want to override the default 14-day window:
+# Environment=RETAIN=30
+ExecStart=%h/app/plutus/scripts/backup.sh
+
+# Stdout / stderr go to the user's journal; inspect with:
+#   journalctl --user -u plutus-backup.service -n 50
+StandardOutput=journal
+StandardError=journal

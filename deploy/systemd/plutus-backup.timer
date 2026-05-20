@@ -1,0 +1,14 @@
+[Unit]
+Description=Daily plutus database backup
+
+[Timer]
+# 03:30 server-local time, every day. Persistent=true catches up if the
+# machine was off during the scheduled window — runs on next boot.
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+# A small jitter so backups don't all fire at exactly 03:30 if you have
+# multiple services on the same schedule.
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target
