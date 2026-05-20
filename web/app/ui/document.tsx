@@ -118,24 +118,41 @@ const GLOBAL_CSS = `
   }
 `
 
-/// Page-wide submit guard with a custom modal. Any submit button that
-/// carries a non-empty `title` attribute triggers our styled confirm
-/// dialog instead of the browser-native `window.confirm()` (which looks
-/// out of place on top of the themed UI).
+/// Page-wide submit guard. Two responsibilities:
 ///
-/// Flow:
-///   1. Submit event fires; we read `event.submitter` to find the
-///      specific button the user clicked (so multiple destructive
-///      buttons inside one form prompt with the right copy).
-///   2. If the button has a non-empty `title`, we `preventDefault` the
-///      submit and capture the form + button.
-///   3. The modal pops with the prompt as body text. Cancel / Escape /
-///      backdrop click all close it without doing anything. Confirm
-///      calls `form.submit()` on the captured form — that bypasses our
-///      listener entirely (programmatic submits don't fire `submit`
-///      events) so the request goes through cleanly.
-///   4. Focus lands on the Cancel button by default — Enter cancels
-///      rather than confirms, which is safer for destructive actions.
+/// 1. **Confirm modal** — any submit button with a non-empty `title`
+///    attribute prompts via our styled dialog before the request goes
+///    out. Replaces the browser-native `confirm()` so it matches the UI.
+///
+/// 2. **Fetch-based POST submission** — instead of letting the browser
+///    natively navigate on POST submit, we intercept and use `fetch()`
+///    with `redirect: 'follow'`, then `location.replace(resp.url)`.
+///    This means the browser's navigation history NEVER contains a POST
+///    entry, so refresh on the destination page can never trigger
+///    "Confirm Form Resubmission" — regardless of browser quirks.
+///
+/// Why intercept rather than rely on PRG alone: every controller already
+/// returns 303 redirects (POST-Redirect-Get), which is the spec-correct
+/// way to avoid resubmit warnings. But some browsers (older Safari in
+/// particular) still warn on F5 in edge cases after PRG. Going through
+/// fetch eliminates the problem at the source: the browser never sees
+/// the POST as a navigation, so there's nothing to "resubmit".
+///
+/// Flow for a destructive submit (button has title):
+///   1. submit event fires → preventDefault → modal opens
+///   2. User confirms → `submitViaFetch(form, submitter)` runs
+///   3. Set-Cookie / 303 / final GET all happen inside fetch
+///   4. `location.replace(resp.url)` lands the user on the destination
+///      with no POST in history
+///
+/// Flow for a non-destructive submit (no title):
+///   1. submit event fires → preventDefault → straight to submitViaFetch
+///   2. Same fetch + replace pattern
+///
+/// Falls back gracefully if JS is disabled: the form submits natively
+/// (standard HTML behavior). Our controllers all return 303, so the
+/// no-JS path still works — it's just subject to the original
+/// browser-quirk warning the interceptor was added to dodge.
 const CONFIRM_SUBMIT_JS = `
   (function() {
     var modal = document.getElementById('confirm-modal');
@@ -144,6 +161,7 @@ const CONFIRM_SUBMIT_JS = `
     var cancelBtn = document.getElementById('confirm-modal-cancel');
     var confirmBtn = document.getElementById('confirm-modal-confirm');
     var pendingForm = null;
+    var pendingSubmitter = null;
 
     function openModal(text) {
       promptEl.textContent = text;
@@ -154,7 +172,44 @@ const CONFIRM_SUBMIT_JS = `
     function closeModal() {
       modal.removeAttribute('data-open');
       pendingForm = null;
+      pendingSubmitter = null;
     }
+
+    /// Submit a form via fetch and navigate to the final URL.
+    /// Replaces the current history entry so the POST never appears in
+    /// the back-button stack — F5 on the destination is always a GET.
+    function submitViaFetch(form, submitter) {
+      var data = new FormData(form);
+      // Match native semantics: include the clicked submitter's name/value
+      // if it has a name. Forms can rely on knowing which button fired.
+      if (submitter && submitter.name) {
+        data.append(submitter.name, submitter.value || '');
+      }
+      var action = form.getAttribute('action') || window.location.href;
+      fetch(action, {
+        method: 'POST',
+        body: data,
+        credentials: 'same-origin',
+        redirect: 'follow',
+      }).then(function(resp) {
+        // After a PRG follow, resp.url is the final GET destination.
+        // Use replace() so back-button skips this entry — there's no
+        // "previous page" worth returning to from a form result.
+        if (resp.redirected || resp.url !== action) {
+          window.location.replace(resp.url);
+        } else {
+          // Server returned the same URL without redirecting (rare —
+          // would mean a 200 OK from a POST handler). Force a reload
+          // to pick up whatever state changed.
+          window.location.reload();
+        }
+      }).catch(function(err) {
+        console.error('form submit failed:', err);
+        // Network error — reload so the user sees a fresh state.
+        window.location.reload();
+      });
+    }
+
     cancelBtn.addEventListener('click', closeModal);
     modal.addEventListener('click', function(e) {
       // Only the backdrop dismisses; clicks inside the card don't.
@@ -167,20 +222,28 @@ const CONFIRM_SUBMIT_JS = `
     });
     confirmBtn.addEventListener('click', function() {
       var f = pendingForm;
+      var s = pendingSubmitter;
       closeModal();
-      // form.submit() bypasses the submit-event listener entirely, so
-      // the request goes through without re-prompting.
-      if (f) f.submit();
+      // Confirmed destructive action — go through fetch like any other
+      // submit so the destination history entry is a clean GET.
+      if (f) submitViaFetch(f, s);
     });
 
     document.addEventListener('submit', function(e) {
+      var form = e.target;
+      if (!form || (form.method || 'GET').toUpperCase() !== 'POST') return;
       var btn = e.submitter;
-      if (!btn || btn.type !== 'submit') return;
-      var prompt = btn.getAttribute('title');
-      if (!prompt) return;
+      // Always intercept POSTs — even non-destructive ones — so the
+      // browser never tracks the POST in its navigation history.
       e.preventDefault();
-      pendingForm = e.target;
-      openModal(prompt);
+      var prompt = btn && btn.type === 'submit' && btn.getAttribute('title');
+      if (prompt) {
+        pendingForm = form;
+        pendingSubmitter = btn;
+        openModal(prompt);
+      } else {
+        submitViaFetch(form, btn);
+      }
     });
   })();
 `
