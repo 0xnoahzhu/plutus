@@ -28,8 +28,20 @@ interface FreshTokenFlash {
 interface TokenRow {
   id: number
   label: string
+  /// Plaintext token. `null` for legacy rows minted before the column
+  /// existed — those render as "—" with no copy button.
+  token_plain: string | null
   created_at: string
   last_used_at: string | null
+}
+
+/// Mask a token for the list view: `chD3...4UUU`. Keep 4 chars at each
+/// end so users can identify which token it is without exposing the
+/// whole secret on-screen. The full value still lives in the DOM via
+/// `data-copy` so the copy button can grab it.
+function maskToken(token: string): string {
+  if (token.length <= 12) return token
+  return `${token.slice(0, 4)}...${token.slice(-4)}`
 }
 
 interface Props {
@@ -201,6 +213,7 @@ function ApiKeysPage() {
                 <thead>
                   <tr>
                     <Th>{p.columnLabel}</Th>
+                    <Th>{p.columnKey}</Th>
                     <Th>{p.columnCreated}</Th>
                     <Th>{p.columnLastUsed}</Th>
                     <Th>{''}</Th>
@@ -228,6 +241,40 @@ function TokenRowView() {
     return (
       <tr mix={css({ borderTop: `1px solid ${color.borderSoft}` })}>
         <Td>{token.label}</Td>
+        <Td>
+          {token.token_plain ? (
+            <div
+              mix={css({
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: space[2],
+              })}
+            >
+              <code
+                mix={css({
+                  fontFamily: font.mono,
+                  fontSize: font.sm,
+                  color: color.textMuted,
+                })}
+              >
+                {maskToken(token.token_plain)}
+              </code>
+              {/* The full plaintext lives in `data-copy` only; the rendered
+                  text is the mask. The global handler in document.tsx
+                  copies the attribute value to the clipboard on click. */}
+              <button
+                type="button"
+                data-copy={token.token_plain}
+                data-copy-done={p.copied}
+                mix={css(copyButton)}
+              >
+                {p.copy}
+              </button>
+            </div>
+          ) : (
+            <span mix={css({ color: color.textDim })}>—</span>
+          )}
+        </Td>
         <Td>{token.created_at.slice(0, 10)}</Td>
         <Td>{token.last_used_at ? token.last_used_at.slice(0, 10) : p.neverUsed}</Td>
         <Td>
@@ -449,4 +496,17 @@ const dangerButton = {
   fontFamily: 'inherit',
   cursor: 'pointer',
   '&:hover': { background: color.dangerSoft, borderColor: color.danger },
+}
+
+const copyButton = {
+  padding: `2px ${space[2]}`,
+  background: 'transparent',
+  border: `1px solid ${color.border}`,
+  borderRadius: radius.sm,
+  color: color.text,
+  fontSize: font.xs,
+  fontWeight: 500,
+  fontFamily: 'inherit',
+  cursor: 'pointer',
+  '&:hover': { background: color.hover },
 }

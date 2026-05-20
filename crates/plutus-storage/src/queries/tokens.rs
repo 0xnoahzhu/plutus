@@ -42,6 +42,9 @@ pub async fn create(
 ) -> Result<ApiToken> {
     let label = label.to_string();
     let token_hash = hash_token(plain_token);
+    // Store the literal plaintext so the UI list can show + copy it later
+    // without having to regenerate. See model docs for the trade-off.
+    let token_plain = plain_token.to_string();
     let now = jiff::Timestamp::now();
     let row = db
         .with(async |d| {
@@ -50,6 +53,7 @@ pub async fn create(
                 is_admin: is_admin,
                 label: label,
                 token_hash: token_hash,
+                token_plain: Some(token_plain),
                 created_at: now,
                 last_used_at: None::<jiff::Timestamp>,
             })

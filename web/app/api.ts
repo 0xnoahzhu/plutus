@@ -781,6 +781,7 @@ export const api = {
       Array<{
         id: number
         label: string
+        token_plain: string | null
         created_at: string
         last_used_at: string | null
       }>
@@ -887,6 +888,7 @@ export const api = {
       Array<{
         id: number
         label: string
+        token_plain: string | null
         created_at: string
         last_used_at: string | null
       }>

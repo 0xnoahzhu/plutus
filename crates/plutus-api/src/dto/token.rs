@@ -7,6 +7,11 @@ use plutus_storage::models::ApiToken;
 pub struct TokenOut {
     pub id: i64,
     pub label: String,
+    /// Plaintext token, returned so the UI list can render a masked
+    /// preview + copy button. `None` for legacy tokens minted before the
+    /// `token_plain` column existed — those render as "—" without a copy
+    /// affordance. See `models/api_token.rs` for the trade-off rationale.
+    pub token_plain: Option<String>,
     pub created_at: String,
     pub last_used_at: Option<String>,
 }
@@ -16,6 +21,7 @@ impl From<ApiToken> for TokenOut {
         Self {
             id: t.id,
             label: t.label,
+            token_plain: t.token_plain,
             created_at: t.created_at.to_string(),
             last_used_at: t.last_used_at.map(|t| t.to_string()),
         }

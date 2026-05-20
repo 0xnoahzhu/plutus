@@ -196,6 +196,11 @@ ALTER TABLE accounts          ADD COLUMN IF NOT EXISTS user_id BIGINT NOT NULL D
 ALTER TABLE transactions      ADD COLUMN IF NOT EXISTS user_id BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE api_tokens        ADD COLUMN IF NOT EXISTS user_id BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE api_tokens        ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE;
+-- Plaintext token, kept alongside the hash so the list view can show +
+-- copy without regenerating. Nullable: pre-existing rows from before this
+-- column landed have NULL and render as "—" (no copy button). New tokens
+-- always populate it. See models/api_token.rs for the trade-off rationale.
+ALTER TABLE api_tokens        ADD COLUMN IF NOT EXISTS token_plain TEXT;
 -- Tokens are hard-deleted on revoke now; purge any soft-revoked rows
 -- from the previous design and drop the column. Wrapped in a DO block so
 -- referencing `revoked_at` doesn't fail on already-migrated databases
