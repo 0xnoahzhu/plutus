@@ -446,6 +446,34 @@ export interface TradePlanLevel {
   updated_at: string
 }
 
+/// One pending limit order placed with the broker. Standalone — no
+/// parent header, optional back-pointer to a trade-plan level.
+export interface PendingOrder {
+  id: number
+  account_id: number
+  stock_id: number
+  trade_plan_level_id: number | null
+  /// 'buy' | 'sell'
+  side: string
+  /// 'limit' | 'stop' | 'stop_limit'
+  order_type: string
+  limit_price: string | null
+  stop_price: string | null
+  quantity: string
+  /// 'gtc' | 'day' | 'gtd'
+  time_in_force: string
+  expires_at: string | null
+  /// 'open' | 'filled' | 'cancelled' | 'expired'
+  status: string
+  placed_at: string
+  filled_at: string | null
+  cancelled_at: string | null
+  broker_order_ref: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface Catalyst {
   id: number
   stock_id: number | null
@@ -943,5 +971,82 @@ export const api = {
       method: 'DELETE',
       headers,
     })
+  },
+
+  // ── Pending orders (limit orders live at the broker) ─────────────────
+  pendingOrders: (
+    params: { account_id?: number; stock_id?: number; status?: string } = {},
+  ) => {
+    let q = new URLSearchParams()
+    if (params.account_id !== undefined) q.set('account_id', String(params.account_id))
+    if (params.stock_id !== undefined) q.set('stock_id', String(params.stock_id))
+    if (params.status) q.set('status', params.status)
+    let suffix = q.toString() ? `?${q.toString()}` : ''
+    return get<PendingOrder[]>(`/pending-orders${suffix}`)
+  },
+
+  createPendingOrderRaw: (
+    cookie: string | null | undefined,
+    body: {
+      account_id: number
+      stock_id: number
+      trade_plan_level_id?: number | null
+      side: string
+      order_type: string
+      limit_price?: string | null
+      stop_price?: string | null
+      quantity: string
+      time_in_force?: string
+      expires_at?: string | null
+      broker_order_ref?: string | null
+      notes?: string | null
+      placed_at?: string | null
+    },
+  ) => {
+    let headers: Record<string, string> = {
+      'content-type': 'application/json',
+      accept: 'application/json',
+    }
+    if (cookie) headers.cookie = cookie
+    return fetch(`${BASE}/api/v1/pending-orders`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    })
+  },
+
+  updatePendingOrderRaw: (
+    cookie: string | null | undefined,
+    id: number,
+    body: {
+      account_id?: number
+      side?: string
+      order_type?: string
+      limit_price?: string | null
+      stop_price?: string | null
+      quantity?: string
+      time_in_force?: string
+      expires_at?: string | null
+      broker_order_ref?: string | null
+      notes?: string | null
+      status?: string
+    },
+  ) => {
+    let headers: Record<string, string> = {
+      'content-type': 'application/json',
+      accept: 'application/json',
+    }
+    if (cookie) headers.cookie = cookie
+    return fetch(`${BASE}/api/v1/pending-orders/${id}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(body),
+    })
+  },
+
+  deletePendingOrderRaw: (cookie: string | null | undefined, id: number) => {
+    let headers: Record<string, string> = { accept: 'application/json' }
+    if (cookie) headers.cookie = cookie
+    return fetch(`${BASE}/api/v1/pending-orders/${id}`, { method: 'DELETE', headers })
   },
 }

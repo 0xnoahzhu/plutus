@@ -28,6 +28,14 @@ import { logout } from './controllers/logout.tsx'
 import { macroEvents } from './controllers/macro-events.tsx'
 import { news } from './controllers/news.tsx'
 import { newsDetail } from './controllers/news-detail.tsx'
+import {
+  orderCancel,
+  orderCreate,
+  orderDelete,
+  orderFill,
+  orderReopen,
+  orders,
+} from './controllers/orders.tsx'
 import { portfolioReviews } from './controllers/portfolio-reviews.tsx'
 import { recommendations } from './controllers/recommendations.tsx'
 import { screeners } from './controllers/screeners.tsx'
@@ -117,3 +125,9 @@ router.map(routes.tradePlanLevelTrigger, withAuth(tradePlanLevelTrigger))
 router.map(routes.tradePlanLevelCancel, withAuth(tradePlanLevelCancel))
 router.map(routes.tradePlanLevelReset, withAuth(tradePlanLevelReset))
 router.map(routes.tradePlanLevelDelete, withAuth(tradePlanLevelDelete))
+router.map(routes.orders, withAuth(orders))
+router.map(routes.orderCreate, withAuth(orderCreate))
+router.map(routes.orderFill, withAuth(orderFill))
+router.map(routes.orderCancel, withAuth(orderCancel))
+router.map(routes.orderReopen, withAuth(orderReopen))
+router.map(routes.orderDelete, withAuth(orderDelete))

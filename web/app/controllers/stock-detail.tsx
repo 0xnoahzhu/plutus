@@ -3,13 +3,17 @@ import { css, type RemixNode } from 'remix/ui'
 
 import {
   api,
+  type Account,
   type NewsItem,
   type NewsStockLink,
+  type PendingOrder,
   type Stock,
   type TradePlan,
   type TradePlanLevel,
 } from '../api.ts'
+import { messages } from '../i18n/messages.ts'
 import type { routes } from '../routes.ts'
+import { OrdersTable } from './orders.tsx'
 import {
   Badge,
   type BadgeTone,
@@ -38,11 +42,15 @@ export const stockDetail: BuildAction<'GET', typeof routes.stockDetail> = {
     let locale = resolveLocale(request, url.searchParams)
     let theme = resolveTheme(request, url.searchParams)
 
-    let [stock, newsLinks, allNews, plans] = await Promise.all([
+    let [stock, newsLinks, allNews, plans, openOrders, accounts] = await Promise.all([
       api.stock(id, locale).catch(() => null),
       api.newsForStock(id).catch(() => [] as NewsStockLink[]),
       api.news(locale).catch(() => [] as NewsItem[]),
       api.tradePlans({ stock_id: id }).catch(() => [] as TradePlan[]),
+      api.pendingOrders({ stock_id: id, status: 'open' }).catch(
+        () => [] as PendingOrder[],
+      ),
+      api.accounts().catch(() => [] as Account[]),
     ])
     if (!stock) {
       return new Response('Stock not found', { status: 404 })
@@ -65,6 +73,8 @@ export const stockDetail: BuildAction<'GET', typeof routes.stockDetail> = {
       plans.map((p) => api.tradePlanLevels(p.id).catch(() => [] as TradePlanLevel[])),
     )
     let plansWithLevels = plans.map((p, i) => ({ plan: p, levels: levelsPerPlan[i] ?? [] }))
+    let accountMap = new Map<number, Account>(accounts.map((a) => [a.id, a]))
+    let stockMap = new Map<number, Stock>([[stock.id, stock]])
 
     return render(
       <StockDetailPage
@@ -74,6 +84,9 @@ export const stockDetail: BuildAction<'GET', typeof routes.stockDetail> = {
         recentNews={recentTrimmed}
         totalNews={recentNews.length}
         plans={plansWithLevels}
+        openOrders={openOrders}
+        accountMap={accountMap}
+        stockMap={stockMap}
       />,
       request,
       { locale, theme },
@@ -88,10 +101,23 @@ interface StockDetailProps {
   recentNews: Array<{ link: NewsStockLink; item: NewsItem }>
   totalNews: number
   plans: Array<{ plan: TradePlan; levels: TradePlanLevel[] }>
+  openOrders: PendingOrder[]
+  accountMap: Map<number, Account>
+  stockMap: Map<number, Stock>
 }
 
 function StockDetailPage() {
-  return ({ stock, locale, theme, recentNews, totalNews, plans }: StockDetailProps) => {
+  return ({
+    stock,
+    locale,
+    theme,
+    recentNews,
+    totalNews,
+    plans,
+    openOrders,
+    accountMap,
+    stockMap,
+  }: StockDetailProps) => {
     let displayName = stock.name ?? stock.symbol
     return (
       <Layout title={displayName} subtitle={`${stock.symbol} · ${stock.market_code}`} locale={locale} theme={theme}>
@@ -190,6 +216,72 @@ function StockDetailPage() {
               </a>
             </div>
             <TradePlansSection plans={plans} stock={stock} />
+          </Card>
+        </div>
+
+        <div mix={css({ marginTop: space[4] })}>
+          <Card>
+            <div
+              mix={css({
+                display: 'flex',
+                alignItems: 'baseline',
+                justifyContent: 'space-between',
+                gap: space[3],
+                marginBottom: space[3],
+              })}
+            >
+              <SectionTitle
+                hint={
+                  openOrders.length === 0
+                    ? 'none open'
+                    : `${openOrders.length} open`
+                }
+              >
+                Open orders
+              </SectionTitle>
+              <a
+                href="/orders"
+                mix={css({
+                  fontSize: font.xs,
+                  color: color.brand,
+                  textDecoration: 'none',
+                  fontWeight: 600,
+                  '&:hover': { textDecoration: 'underline' },
+                })}
+              >
+                manage →
+              </a>
+            </div>
+            {openOrders.length === 0 ? (
+              <EmptyState
+                title={messages(locale).orders.stockDetailEmpty}
+                hint={
+                  <>
+                    Record an order on the{' '}
+                    <a
+                      href="/orders"
+                      mix={css({
+                        color: color.brand,
+                        textDecoration: 'none',
+                        '&:hover': { textDecoration: 'underline' },
+                      })}
+                    >
+                      Open orders
+                    </a>{' '}
+                    page after placing it with your broker.
+                  </>
+                }
+              />
+            ) : (
+              <OrdersTable
+                locale={locale}
+                orders={openOrders}
+                accountMap={accountMap}
+                stockMap={stockMap}
+                showStockColumn={false}
+                showAccountColumn={true}
+              />
+            )}
           </Card>
         </div>
 

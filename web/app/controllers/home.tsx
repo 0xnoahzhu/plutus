@@ -24,17 +24,27 @@ export const home: BuildAction<'GET', typeof routes.home> = {
     let url = new URL(request.url)
     let locale = resolveLocale(request, url.searchParams)
     let theme = resolveTheme(request, url.searchParams)
-    let [markets, brokers, accounts, stocks, watchlistItems, transactions, holdings, plans] =
-      await Promise.all([
-        api.markets().catch(() => []),
-        api.brokers().catch(() => []),
-        api.accounts().catch(() => []),
-        api.stocks().catch(() => []),
-        api.watchlistItems().catch(() => []),
-        api.transactions().catch(() => []),
-        api.holdings().catch(() => []),
-        api.tradePlans({ status: 'active' }).catch(() => []),
-      ])
+    let [
+      markets,
+      brokers,
+      accounts,
+      stocks,
+      watchlistItems,
+      transactions,
+      holdings,
+      plans,
+      openOrders,
+    ] = await Promise.all([
+      api.markets().catch(() => []),
+      api.brokers().catch(() => []),
+      api.accounts().catch(() => []),
+      api.stocks().catch(() => []),
+      api.watchlistItems().catch(() => []),
+      api.transactions().catch(() => []),
+      api.holdings().catch(() => []),
+      api.tradePlans({ status: 'active' }).catch(() => []),
+      api.pendingOrders({ status: 'open' }).catch(() => []),
+    ])
     let healthy = markets.length > 0
     return render(
       <DashboardPage
@@ -50,6 +60,7 @@ export const home: BuildAction<'GET', typeof routes.home> = {
           transactions: transactions.length,
           holdings: holdings.length,
           tradePlans: plans.length,
+          openOrders: openOrders.length,
         }}
       />,
       request,
@@ -93,6 +104,7 @@ function DashboardPage() {
         <Stat label="Transactions" value={String(counts.transactions)} caption="recorded" />
         <Stat label="Open Positions" value={String(counts.holdings)} caption="current" />
         <Stat label="Trade plans" value={String(counts.tradePlans)} caption="active" />
+        <Stat label="Open orders" value={String(counts.openOrders)} caption="at broker" />
       </div>
 
       <div
