@@ -2,7 +2,13 @@ import { createRouter } from 'remix/fetch-router'
 
 import { assets } from './assets.ts'
 import { accountCreate, accountDelete, accounts } from './controllers/accounts.tsx'
-import { admin, adminUserCreate, adminUserDelete, adminUserReset } from './controllers/admin.tsx'
+import {
+  admin,
+  adminUserCountries,
+  adminUserCreate,
+  adminUserDelete,
+  adminUserReset,
+} from './controllers/admin.tsx'
 import {
   adminBrokerCreate,
   adminBrokerDelete,
@@ -82,6 +88,7 @@ router.map(routes.adminBrokers, adminBrokers)
 router.map(routes.adminUserCreate, adminUserCreate)
 router.map(routes.adminUserReset, adminUserReset)
 router.map(routes.adminUserDelete, adminUserDelete)
+router.map(routes.adminUserCountries, adminUserCountries)
 router.map(routes.adminBrokerCreate, adminBrokerCreate)
 router.map(routes.adminBrokerRename, adminBrokerRename)
 router.map(routes.adminBrokerDelete, adminBrokerDelete)

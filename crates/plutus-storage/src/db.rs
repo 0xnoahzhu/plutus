@@ -179,10 +179,17 @@ CREATE TABLE IF NOT EXISTS users (
     username                 TEXT NOT NULL,
     password_hash            TEXT NOT NULL,
     password_reset_required  BOOLEAN NOT NULL DEFAULT FALSE,
+    -- CSV of two-letter country codes (e.g. 'US,HK,CN') scoping which
+    -- market tabs the user sees in the web UI. Defaults to all three so
+    -- existing users carry on with current behavior; admin can narrow it
+    -- per-user from /admin. See `User::country_codes()` for parsing.
+    allowed_countries        TEXT NOT NULL DEFAULT 'US,HK,CN',
     created_at               TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at               TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS users_username_uniq ON users (username);
+-- Backfill for databases created before allowed_countries existed.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS allowed_countries TEXT NOT NULL DEFAULT 'US,HK,CN';
 
 -- Toasty-managed tables: ensure user_id exists for older deployments.
 ALTER TABLE accounts          ADD COLUMN IF NOT EXISTS user_id BIGINT NOT NULL DEFAULT 0;

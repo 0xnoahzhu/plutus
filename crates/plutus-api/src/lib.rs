@@ -47,6 +47,10 @@ pub fn build_router(state: AppState) -> Router {
             post(handlers::admin::users::reset_password),
         )
         .route(
+            "/admin/users/:id/countries",
+            post(handlers::admin::users::update_countries),
+        )
+        .route(
             "/admin/brokers",
             get(handlers::admin::brokers::list).post(handlers::admin::brokers::create),
         )

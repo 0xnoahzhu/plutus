@@ -24,9 +24,15 @@ pub async fn find_by_username(db: &Db, username: &str) -> Result<Option<User>> {
         .map_err(Into::into)
 }
 
-pub async fn create(db: &Db, username: &str, password_hash: &str) -> Result<User> {
+pub async fn create(
+    db: &Db,
+    username: &str,
+    password_hash: &str,
+    allowed_countries: &[String],
+) -> Result<User> {
     let username = username.to_string();
     let password_hash = password_hash.to_string();
+    let allowed = allowed_countries.join(",");
     let now = jiff::Timestamp::now();
     let row = db
         .with(async |d| {
@@ -34,6 +40,7 @@ pub async fn create(db: &Db, username: &str, password_hash: &str) -> Result<User
                 username: username,
                 password_hash: password_hash,
                 password_reset_required: false,
+                allowed_countries: allowed,
                 created_at: now,
                 updated_at: now,
             })
@@ -42,6 +49,24 @@ pub async fn create(db: &Db, username: &str, password_hash: &str) -> Result<User
         })
         .await?;
     Ok(row)
+}
+
+/// Replace a user's country allowlist with `codes`. Caller (API DTO
+/// layer) has already validated that each entry is in `{US, HK, CN}`
+/// and that the list is non-empty.
+pub async fn set_countries(db: &Db, id: i64, codes: &[String]) -> Result<User> {
+    let csv = codes.join(",");
+    let mut row = get(db, id).await?;
+    let now = jiff::Timestamp::now();
+    db.with(async |d| {
+        row.update()
+            .allowed_countries(csv)
+            .updated_at(now)
+            .exec(d)
+            .await
+    })
+    .await?;
+    get(db, id).await
 }
 
 /// Apply a new hash directly. Used by the user-driven /change-password flow

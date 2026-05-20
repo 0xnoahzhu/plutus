@@ -11,13 +11,17 @@
 
 import type { RequestHandler } from 'remix/fetch-router'
 
-import { api, runWithCookie } from '../api.ts'
+import { api, runWithAllowedCountries, runWithCookie } from '../api.ts'
 
 export interface SignedInUser {
   kind: 'web' | 'api_token' | 'admin'
   username: string
   user_id: number | null
   is_admin: boolean
+  /// Two-letter country codes the user is scoped to. Empty for admin
+  /// (admin sees everything — no scope). Used to clamp the visible
+  /// country tabs in the Layout.
+  allowed_countries: string[]
 }
 
 /// Returns the caller's identity, or `null` when no valid session is
@@ -34,6 +38,7 @@ export async function resolveMe(request: Request): Promise<SignedInUser | null> 
       username: me.label,
       user_id: me.user_id,
       is_admin: me.is_admin,
+      allowed_countries: me.allowed_countries,
     }
   } catch {
     return null
@@ -73,10 +78,13 @@ export function withAuth<A>(action: A): A {
     if (me.is_admin) {
       return Response.redirect(new URL('/admin', req.url), 303)
     }
-    // Bind the cookie to an async-local context so every `api.*()` call
-    // the handler makes inherits the session automatically — no need to
-    // thread the cookie through every controller's call sites.
-    return runWithCookie(cookie, () => inner(ctx))
+    // Bind the cookie + the resolved country scope to async-local
+    // contexts so every `api.*()` call inherits the session and every
+    // `parseCountry` / `CountryChips` call inherits the user's allowed
+    // list — no need to thread either through every controller.
+    return runWithCookie(cookie, () =>
+      runWithAllowedCountries(me.allowed_countries, () => inner(ctx)),
+    )
   }
   return { handler: wrapped } as unknown as A
 }

@@ -1,4 +1,6 @@
 import { css, type RemixNode } from 'remix/ui'
+
+import { ambientAllowedCountries } from '../api.ts'
 import {
   ArrowLeftRight,
   BarChart3,
@@ -129,12 +131,26 @@ export const MARKET_TO_COUNTRY: Record<string, string> = Object.fromEntries(
   ),
 )
 
-/// Read the `country` query parameter. Always returns one country — unknown
-/// or missing values fall back to `DEFAULT_COUNTRY`.
-export function parseCountry(search: URLSearchParams): string {
+/// Read the `country` query parameter. Always returns one country —
+/// unknown or out-of-scope values fall back to the first country the
+/// caller is allowed to see.
+///
+/// The allowed list is read from the per-request AsyncLocalStorage
+/// populated by `withAuth` (from `/auth/me`). Callers can override
+/// explicitly by passing `allowed`; admin / preboot code paths can
+/// pass `ALL_COUNTRIES` to get the global behavior.
+export function parseCountry(
+  search: URLSearchParams,
+  allowed?: readonly string[],
+): string {
+  let effective = allowed ?? ambientAllowedCountries() ?? ALL_COUNTRIES
+  // Empty allowed list means "no scope" (admin actor) — treat as ALL.
+  let pool = effective.length > 0 ? effective : ALL_COUNTRIES
   let c = search.get('country')
-  if (c && ALL_COUNTRIES.includes(c)) return c
-  return DEFAULT_COUNTRY
+  if (c && pool.includes(c)) return c
+  // Fall back to the user's first allowed country (or DEFAULT_COUNTRY
+  // if it's in their list, for stability across upgrades).
+  return pool.includes(DEFAULT_COUNTRY) ? DEFAULT_COUNTRY : pool[0]
 }
 
 /// Filter items by a single country. `pickMarket` returns each item's
@@ -329,7 +345,14 @@ export function Layout() {
                 marginBottom: space[6],
               })}
             >
-              <CountryChips selected={country} options={ALL_COUNTRIES} locale={locale} />
+              <CountryChips
+                selected={country}
+                options={(() => {
+                  let amb = ambientAllowedCountries()
+                  return amb && amb.length > 0 ? amb : ALL_COUNTRIES
+                })()}
+                locale={locale}
+              />
             </div>
           )}
 

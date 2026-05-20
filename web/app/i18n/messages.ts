@@ -123,6 +123,12 @@ const en = {
     createUsername: 'username',
     createPassword: 'initial password',
     createSubmit: 'Create',
+    countriesLabel: 'Markets',
+    countryUS: 'US',
+    countryHK: 'HK',
+    countryCN: 'CN',
+    updateCountriesSubmit: 'Save markets',
+    flashCountriesUpdated: 'Markets updated.',
     usersSection: 'Users',
     emptyTitle: 'No users yet',
     emptyHint: 'Create the first user above.',
@@ -136,6 +142,7 @@ const en = {
     flashDeleted: 'User deleted.',
     errMissingCreate: 'Username and password are required.',
     errMissingReset: 'New password is required.',
+    errMissingCountries: 'Pick at least one market.',
     errBadId: 'Bad user id.',
     errTaken: 'That username is already taken (or matches the admin name).',
     errForbidden: 'Admin privileges required.',
@@ -371,6 +378,8 @@ const en = {
       `Delete user "${username}"? This cannot be undone.`,
     resetUserPassword: (username: string) =>
       `Reset password for user "${username}"? They'll be forced to change it on next login.`,
+    updateUserCountries: (username: string) =>
+      `Update market scope for user "${username}"? Tabs they can see in the UI change immediately on the next request.`,
     deleteBroker: (name: string) =>
       `Delete broker "${name}"? Refused if any account still references it.`,
     renameBroker: (name: string) => `Rename broker "${name}"?`,
@@ -524,6 +533,12 @@ const zhCN: Messages = {
     createUsername: '用户名',
     createPassword: '初始密码',
     createSubmit: '创建',
+    countriesLabel: '市场',
+    countryUS: '美国',
+    countryHK: '香港',
+    countryCN: '中国',
+    updateCountriesSubmit: '保存市场',
+    flashCountriesUpdated: '市场范围已更新。',
     usersSection: '用户列表',
     emptyTitle: '暂无用户',
     emptyHint: '请在上方创建第一个用户。',
@@ -536,6 +551,7 @@ const zhCN: Messages = {
     flashDeleted: '用户已删除。',
     errMissingCreate: '请填写用户名和密码。',
     errMissingReset: '请填写新密码。',
+    errMissingCountries: '至少选择一个市场。',
     errBadId: '用户 ID 无效。',
     errTaken: '该用户名已被使用（或与管理员账号冲突）。',
     errForbidden: '需要管理员权限。',
@@ -761,6 +777,8 @@ const zhCN: Messages = {
     deleteUser: (username: string) => `确认删除用户 "${username}"？该操作无法撤销。`,
     resetUserPassword: (username: string) =>
       `确认重置用户 "${username}" 的密码？下次登录时将被强制修改。`,
+    updateUserCountries: (username: string) =>
+      `确认更新用户 "${username}" 的市场范围？用户下次请求时即生效。`,
     deleteBroker: (name: string) => `确认删除券商 "${name}"？仍有账户引用时将被拒绝。`,
     renameBroker: (name: string) => `确认重命名券商 "${name}"？`,
     deleteAdminToken: (label: string) =>

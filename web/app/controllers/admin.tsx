@@ -24,8 +24,24 @@ interface UserRow {
   id: number
   username: string
   password_reset_required: boolean
+  allowed_countries: string[]
   created_at: string
   updated_at: string
+}
+
+/// Country codes the API accepts. Kept in sync with
+/// `SUPPORTED_COUNTRIES` on the Rust side and `COUNTRY_TO_MARKETS` in
+/// `ui/layout.tsx`. The order here is the order the checkboxes render
+/// in.
+const SUPPORTED_COUNTRIES = ['US', 'HK', 'CN'] as const
+type CountryCode = (typeof SUPPORTED_COUNTRIES)[number]
+
+/// Parse the multi-checkbox `country` field out of a submit. Returns
+/// only known codes — anything else is silently dropped (the API would
+/// 400 anyway).
+function parseCountriesFromForm(form: FormData): string[] {
+  let raw = form.getAll('country').map((v) => String(v).trim().toUpperCase())
+  return SUPPORTED_COUNTRIES.filter((c) => raw.includes(c))
 }
 
 /// GET /admin — list all users. Reachable only to the env-configured admin.
@@ -70,8 +86,19 @@ export const adminUserCreate: BuildAction<'POST', typeof routes.adminUserCreate>
     if (!username || !password) {
       return Response.redirect(new URL('/admin?error=missing-create', request.url), 303)
     }
+    let countries = parseCountriesFromForm(form)
+    if (countries.length === 0) {
+      return Response.redirect(
+        new URL('/admin?error=missing-countries', request.url),
+        303,
+      )
+    }
     let cookie = request.headers.get('cookie')
-    let upstream = await api.adminCreateUserRaw(cookie, { username, password })
+    let upstream = await api.adminCreateUserRaw(cookie, {
+      username,
+      password,
+      allowed_countries: countries,
+    })
     if (!upstream.ok) {
       let code = upstream.status === 409 ? 'taken' : upstream.status === 403 ? 'forbidden' : 'server'
       return Response.redirect(new URL(`/admin?error=${code}`, request.url), 303)
@@ -80,6 +107,41 @@ export const adminUserCreate: BuildAction<'POST', typeof routes.adminUserCreate>
       new URL(`/admin?flash=created&user=${encodeURIComponent(username)}`, request.url),
       303,
     )
+  },
+}
+
+/// POST /admin/users/:id/countries — replace a user's country allowlist.
+/// Empty selection is rejected here so the user always has at least one
+/// tab to land on.
+export const adminUserCountries: BuildAction<
+  'POST',
+  typeof routes.adminUserCountries
+> = {
+  async handler({ request, params }) {
+    let id = Number(params.id)
+    if (!Number.isFinite(id)) {
+      return Response.redirect(new URL('/admin?error=bad-id', request.url), 303)
+    }
+    let form = await request.formData()
+    let countries = parseCountriesFromForm(form)
+    if (countries.length === 0) {
+      return Response.redirect(
+        new URL('/admin?error=missing-countries', request.url),
+        303,
+      )
+    }
+    let cookie = request.headers.get('cookie')
+    let upstream = await api.adminUpdateUserCountriesRaw(cookie, id, countries)
+    if (!upstream.ok) {
+      let code =
+        upstream.status === 403
+          ? 'forbidden'
+          : upstream.status === 404
+            ? 'not-found'
+            : 'server'
+      return Response.redirect(new URL(`/admin?error=${code}`, request.url), 303)
+    }
+    return Response.redirect(new URL(`/admin?flash=countries-updated`, request.url), 303)
   },
 }
 
@@ -247,6 +309,11 @@ function AdminPage() {
                 autoComplete="off"
                 mix={css({ ...fieldStyle, flex: '1 1 220px' })}
               />
+              <CountryCheckboxes
+                locale={locale}
+                selected={SUPPORTED_COUNTRIES}
+                label={m.admin.countriesLabel}
+              />
               <button
                 type="submit"
                 mix={css({
@@ -339,13 +406,18 @@ function UserRow() {
               fontSize: font.xs,
               color: color.textMuted,
               marginTop: space[1],
+              display: 'flex',
+              alignItems: 'center',
+              gap: space[2],
+              flexWrap: 'wrap',
             })}
           >
-            #{user.id} · created {user.created_at.slice(0, 10)}
+            <span>
+              #{user.id} · created {user.created_at.slice(0, 10)}
+            </span>
             {user.password_reset_required && (
               <span
                 mix={css({
-                  marginLeft: space[2],
                   padding: `2px ${space[2]}`,
                   background: color.dangerSoft,
                   color: color.dangerText,
@@ -356,6 +428,20 @@ function UserRow() {
                 {m.resetBadge}
               </span>
             )}
+            {user.allowed_countries.map((c) => (
+              <span
+                mix={css({
+                  padding: `2px ${space[2]}`,
+                  background: color.brandSoft,
+                  color: color.brand,
+                  borderRadius: radius.sm,
+                  fontWeight: 600,
+                  letterSpacing: '0.04em',
+                })}
+              >
+                {c}
+              </span>
+            ))}
           </div>
         </div>
       </div>
@@ -407,7 +493,97 @@ function UserRow() {
           </button>
         </form>
       </div>
+
+      {/* Country scope. Self-contained form: checkboxes + Save. Submitting
+          with no boxes checked is rejected at the controller boundary so
+          the row always renders some country label. */}
+      <form
+        method="post"
+        action={`/admin/users/${user.id}/countries`}
+        mix={css({
+          marginTop: space[3],
+          display: 'flex',
+          gap: space[3],
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          margin: `${space[3]} 0 0`,
+        })}
+      >
+        <CountryCheckboxes
+          locale={locale}
+          selected={user.allowed_countries}
+          label={m.countriesLabel}
+        />
+        <button
+          type="submit"
+          title={confirms.updateUserCountries(user.username)}
+          mix={css(secondaryButtonStyle)}
+        >
+          {m.updateCountriesSubmit}
+        </button>
+      </form>
     </li>
+    )
+  }
+}
+
+/// Three-checkbox group bound to `name="country"` so the multi-select
+/// arrives as a single multi-valued form field. Used in both the create
+/// form and the per-user edit form so the layout is identical.
+function CountryCheckboxes() {
+  return ({
+    locale,
+    selected,
+    label,
+  }: {
+    locale: string
+    selected: readonly string[]
+    label: string
+  }) => {
+    let m = messages(locale).admin
+    let labelFor = (c: CountryCode) =>
+      c === 'US' ? m.countryUS : c === 'HK' ? m.countryHK : m.countryCN
+    return (
+      <div
+        mix={css({
+          display: 'flex',
+          alignItems: 'center',
+          gap: space[3],
+          flexWrap: 'wrap',
+        })}
+      >
+        <span
+          mix={css({
+            fontSize: font.xs,
+            fontWeight: 600,
+            color: color.textMuted,
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+          })}
+        >
+          {label}
+        </span>
+        {SUPPORTED_COUNTRIES.map((c) => (
+          <label
+            mix={css({
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: space[1],
+              fontSize: font.sm,
+              color: color.text,
+              cursor: 'pointer',
+            })}
+          >
+            <input
+              type="checkbox"
+              name="country"
+              value={c}
+              checked={selected.includes(c)}
+            />
+            {labelFor(c)}
+          </label>
+        ))}
+      </div>
     )
   }
 }
@@ -448,6 +624,7 @@ function describe(error: string | null, flash: string | null, locale: string) {
     let table: Record<string, string> = {
       'missing-create': m.errMissingCreate,
       'missing-reset': m.errMissingReset,
+      'missing-countries': m.errMissingCountries,
       'bad-id': m.errBadId,
       taken: m.errTaken,
       forbidden: m.errForbidden,
@@ -461,6 +638,7 @@ function describe(error: string | null, flash: string | null, locale: string) {
       created: m.flashCreated,
       reset: m.flashReset,
       deleted: m.flashDeleted,
+      'countries-updated': m.flashCountriesUpdated,
     }
     return { tone: 'success' as const, message: table[flash] ?? '' }
   }

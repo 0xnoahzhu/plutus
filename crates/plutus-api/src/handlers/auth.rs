@@ -122,9 +122,18 @@ pub struct MeOut {
     pub user_id: Option<i64>,
     pub token_id: Option<i64>,
     pub is_admin: bool,
+    /// Two-letter country codes the user is scoped to. For DB-backed
+    /// users (Web + ApiToken) this is the list stored on the `users`
+    /// row. For admin / anonymous / system actors there's no DB row, so
+    /// the list is empty — callers should treat "no scope" as "see
+    /// everything" rather than "nothing".
+    pub allowed_countries: Vec<String>,
 }
 
-pub async fn me(actor: axum::extract::Extension<Actor>) -> Json<MeOut> {
+pub async fn me(
+    State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
+) -> Json<MeOut> {
     let actor = actor.0;
     let is_admin = actor.is_admin();
     let kind = match actor.kind {
@@ -135,12 +144,24 @@ pub async fn me(actor: axum::extract::Extension<Actor>) -> Json<MeOut> {
         plutus_core::audit::ActorKind::System => "system",
     }
     .to_string();
+    // Look up the country scope for DB-backed actors. We swallow errors
+    // and fall through to an empty list — the worst case is the web UI
+    // briefly showing every country tab, which is harmless and recovers
+    // on the next request.
+    let allowed_countries = match actor.user_id {
+        Some(uid) => plutus_storage::queries::users::get(&state.db, uid)
+            .await
+            .map(|u| u.country_codes())
+            .unwrap_or_default(),
+        None => Vec::new(),
+    };
     Json(MeOut {
         kind,
         label: actor.label,
         user_id: actor.user_id,
         token_id: actor.token_id,
         is_admin,
+        allowed_countries,
     })
 }
 

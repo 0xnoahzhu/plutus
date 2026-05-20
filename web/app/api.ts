@@ -27,6 +27,28 @@ function ambientCookie(): string | null {
   return requestCookieStore.getStore() ?? null
 }
 
+/// Per-request country allowlist. Populated by `withAuth` from
+/// `/auth/me`. `parseCountry` and `CountryChips` read this when no
+/// explicit list is supplied, so per-page controllers don't need to
+/// thread the user's scope through every call site.
+///
+/// `null` (the default) means "no scope" — admin / system / preboot
+/// requests. Callers should treat that as "see everything".
+const requestCountriesStore = new AsyncLocalStorage<string[] | null>()
+
+export function runWithAllowedCountries<T>(
+  countries: string[] | null,
+  fn: () => T,
+): T {
+  return requestCountriesStore.run(countries, fn)
+}
+
+/// Returns the caller's allowed countries for the current request, or
+/// `null` when no scope is set. UI code uses this to clamp tab options.
+export function ambientAllowedCountries(): string[] | null {
+  return requestCountriesStore.getStore() ?? null
+}
+
 export interface Market {
   code: string
   name: string
@@ -675,6 +697,9 @@ export const api = {
       user_id: number | null
       token_id: number | null
       is_admin: boolean
+      /// Two-letter codes scoping the user. Empty for admin / anonymous
+      /// — UI should treat that as "no scope, show everything".
+      allowed_countries: string[]
     }>('/auth/me', cookie),
 
   // ── Admin (admin-only — all return 403 to regular users) ───────────────
@@ -684,6 +709,7 @@ export const api = {
         id: number
         username: string
         password_reset_required: boolean
+        allowed_countries: string[]
         created_at: string
         updated_at: string
       }>
@@ -691,7 +717,11 @@ export const api = {
 
   adminCreateUserRaw: (
     cookie: string | null | undefined,
-    body: { username: string; password: string },
+    body: {
+      username: string
+      password: string
+      allowed_countries?: string[]
+    },
   ) => {
     let headers: Record<string, string> = {
       'content-type': 'application/json',
@@ -702,6 +732,23 @@ export const api = {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
+    })
+  },
+
+  adminUpdateUserCountriesRaw: (
+    cookie: string | null | undefined,
+    id: number,
+    allowed_countries: string[],
+  ) => {
+    let headers: Record<string, string> = {
+      'content-type': 'application/json',
+      accept: 'application/json',
+    }
+    if (cookie) headers.cookie = cookie
+    return fetch(`${BASE}/api/v1/admin/users/${id}/countries`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ allowed_countries }),
     })
   },
 

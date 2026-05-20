@@ -12,6 +12,7 @@ export const routes = route({
   adminUserCreate: post('/admin/users/new'),
   adminUserReset: post('/admin/users/:id/reset'),
   adminUserDelete: post('/admin/users/:id/delete'),
+  adminUserCountries: post('/admin/users/:id/countries'),
   adminBrokerCreate: post('/admin/brokers/new'),
   adminBrokerRename: post('/admin/brokers/:id/rename'),
   adminBrokerDelete: post('/admin/brokers/:id/delete'),
