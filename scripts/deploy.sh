@@ -156,6 +156,32 @@ else
   all_ok=false
 fi
 
+# OpenAPI spec is generated at runtime by the API container, so an API
+# deploy automatically refreshes /api/v1/docs and /api/v1/openapi.json.
+# Make that explicit: when we touched the api, fetch the just-deployed
+# spec and print the path/schema counts. Mismatch vs. local source means
+# something is stale.
+case " ${TARGETS[*]} " in
+  *" api "*)
+    api_url="$(echo "$WEB_URL" | sed 's/:[0-9]*$/:8080/')"
+    spec=$(curl -sf -m 8 "$api_url/api/v1/openapi.json" 2>/dev/null || true)
+    if [[ -n "$spec" ]]; then
+      counts=$(printf '%s' "$spec" | python3 -c "
+import json, sys
+try:
+  s = json.loads(sys.stdin.read())
+  print(f\"paths={len(s.get('paths', {}))} schemas={len(s.get('components', {}).get('schemas', {}))}\")
+except Exception as e:
+  print(f'parse-failed: {e}')" 2>/dev/null || echo "parse-failed")
+      echo "    GET $api_url/api/v1/openapi.json → $counts"
+      echo "    docs:                $api_url/api/v1/docs"
+    else
+      echo "    GET $api_url/api/v1/openapi.json → FAIL (spec not reachable)"
+      all_ok=false
+    fi
+    ;;
+esac
+
 elapsed=$(( $(date +%s) - START_TS ))
 echo
 if $all_ok; then
