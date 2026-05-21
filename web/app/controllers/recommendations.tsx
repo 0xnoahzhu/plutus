@@ -22,6 +22,7 @@ import {
 } from '../ui/layout.tsx'
 import { fmtMoney } from '../ui/format.ts'
 import { LocalTime } from '../ui/local-time.tsx'
+import { MarkdownToggle } from '../ui/markdown.tsx'
 import { render } from '../utils/render.tsx'
 
 export const recommendations: BuildAction<'GET', typeof routes.recommendations> = {
@@ -195,42 +196,12 @@ function RecRow() {
           </span>
         </div>
 
-        <pre
-          mix={css({
-            margin: 0,
-            padding: `${space[2]} ${space[3]}`,
-            background: color.bg,
-            border: `1px solid ${color.borderSoft}`,
-            borderRadius: radius.md,
-            fontSize: font.sm,
-            lineHeight: 1.6,
-            color: color.text,
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
-            fontFamily: 'inherit',
-          })}
-        >
-          {rec.rationale_md ?? ''}
-        </pre>
+        {rec.rationale_md && <MarkdownToggle source={rec.rationale_md} />}
 
         {rec.outcome_md && (
-          <pre
-            mix={css({
-              margin: `${space[2]} 0 0`,
-              padding: `${space[2]} ${space[3]}`,
-              background: color.warnSoft,
-              border: `1px solid ${color.warnSoft}`,
-              borderRadius: radius.md,
-              fontSize: font.sm,
-              lineHeight: 1.6,
-              color: color.warnText,
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-              fontFamily: 'inherit',
-            })}
-          >
-            {rec.outcome_md}
-          </pre>
+          <div mix={css({ marginTop: space[2] })}>
+            <MarkdownToggle source={rec.outcome_md} />
+          </div>
         )}
       </div>
     </Card>

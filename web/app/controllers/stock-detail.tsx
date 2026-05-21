@@ -31,6 +31,7 @@ import {
   type Theme,
 } from '../ui/layout.tsx'
 import { fmtMoney } from '../ui/format.ts'
+import { MarkdownToggle } from '../ui/markdown.tsx'
 import { render } from '../utils/render.tsx'
 
 export const stockDetail: BuildAction<'GET', typeof routes.stockDetail> = {
@@ -615,25 +616,7 @@ function NewsList() {
 }
 
 function Description() {
-  return ({ text }: { text: string }) => (
-    <pre
-      mix={css({
-        margin: 0,
-        padding: `${space[3]} ${space[4]}`,
-        background: color.bg,
-        border: `1px solid ${color.borderSoft}`,
-        borderRadius: '6px',
-        fontSize: font.base,
-        lineHeight: 1.6,
-        color: color.text,
-        whiteSpace: 'pre-wrap',
-        wordBreak: 'break-word',
-        fontFamily: 'inherit',
-      })}
-    >
-      {text}
-    </pre>
-  )
+  return ({ text }: { text: string }) => <MarkdownToggle source={text} />
 }
 
 function Metadata() {

@@ -21,6 +21,7 @@ import {
   StockBadge,
   type Theme,
 } from '../ui/layout.tsx'
+import { MarkdownToggle } from '../ui/markdown.tsx'
 import { render } from '../utils/render.tsx'
 
 interface DayGroup {
@@ -214,23 +215,9 @@ function CatalystRow() {
         {catalyst.title ?? '(untitled)'}
       </div>
       {catalyst.summary_md && (
-        <pre
-          mix={css({
-            margin: `${space[2]} 0 0`,
-            padding: `${space[2]} ${space[3]}`,
-            background: color.bg,
-            border: `1px solid ${color.borderSoft}`,
-            borderRadius: radius.md,
-            fontSize: font.sm,
-            lineHeight: 1.6,
-            color: color.text,
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
-            fontFamily: 'inherit',
-          })}
-        >
-          {catalyst.summary_md}
-        </pre>
+        <div mix={css({ marginTop: space[2] })}>
+          <MarkdownToggle source={catalyst.summary_md} />
+        </div>
       )}
       {(catalyst.bull_case_md || catalyst.bear_case_md) && (
         <div
@@ -326,19 +313,7 @@ function CasePane() {
         >
           {kind} case
         </div>
-        <pre
-          mix={css({
-            margin: 0,
-            fontSize: font.sm,
-            lineHeight: 1.6,
-            color: color.text,
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
-            fontFamily: 'inherit',
-          })}
-        >
-          {body}
-        </pre>
+        <MarkdownToggle source={body} />
       </div>
     )
   }

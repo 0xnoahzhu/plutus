@@ -20,6 +20,7 @@ import {
   StockBadge,
   type Theme,
 } from '../ui/layout.tsx'
+import { MarkdownToggle, renderMarkdown } from '../ui/markdown.tsx'
 import { render } from '../utils/render.tsx'
 
 export const screeners: BuildAction<'GET', typeof routes.screeners> = {
@@ -177,23 +178,9 @@ function RunCard() {
           {run.name}
         </div>
         {run.summary_md && (
-          <pre
-            mix={css({
-              margin: `${space[2]} 0 0`,
-              padding: `${space[2]} ${space[3]}`,
-              background: color.bg,
-              border: `1px solid ${color.borderSoft}`,
-              borderRadius: radius.md,
-              fontSize: font.sm,
-              lineHeight: 1.6,
-              color: color.text,
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-              fontFamily: 'inherit',
-            })}
-          >
-            {run.summary_md}
-          </pre>
+          <div mix={css({ marginTop: space[2] })}>
+            <MarkdownToggle source={run.summary_md} />
+          </div>
         )}
       </div>
 
@@ -279,7 +266,7 @@ function HitRow() {
         {hit.score ?? ''}
       </td>
       <td mix={css({ ...cellBase, fontSize: font.sm, color: color.textMuted })}>
-        {hit.rationale_md ?? ''}
+        {hit.rationale_md ? renderMarkdown(hit.rationale_md) : ''}
       </td>
     </tr>
   )

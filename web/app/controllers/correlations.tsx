@@ -25,6 +25,7 @@ import {
   StockBadge,
   type Theme,
 } from '../ui/layout.tsx'
+import { MarkdownToggle } from '../ui/markdown.tsx'
 import { render } from '../utils/render.tsx'
 
 const TOP_PAIRS = 30
@@ -205,15 +206,8 @@ function UniverseList() {
               {n} stock{n === 1 ? '' : 's'}
             </div>
             {u.description_md && (
-              <div
-                mix={css({
-                  marginTop: space[2],
-                  fontSize: font.sm,
-                  color: color.textMuted,
-                  lineHeight: 1.5,
-                })}
-              >
-                {u.description_md}
+              <div mix={css({ marginTop: space[2] })}>
+                <MarkdownToggle source={u.description_md} />
               </div>
             )}
           </Card>
@@ -276,23 +270,9 @@ function RunHeader() {
         </strong>
       </div>
       {run.summary_md && (
-        <pre
-          mix={css({
-            margin: `${space[2]} 0 0`,
-            padding: `${space[2]} ${space[3]}`,
-            background: color.bg,
-            border: `1px solid ${color.borderSoft}`,
-            borderRadius: radius.md,
-            fontSize: font.sm,
-            lineHeight: 1.55,
-            color: color.text,
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
-            fontFamily: 'inherit',
-          })}
-        >
-          {run.summary_md}
-        </pre>
+        <div mix={css({ marginTop: space[2] })}>
+          <MarkdownToggle source={run.summary_md} />
+        </div>
       )}
     </Card>
   )

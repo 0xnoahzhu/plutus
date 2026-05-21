@@ -385,16 +385,9 @@ function ReportCard() {
           {r.headline ?? '(untitled)'}
         </div>
         {r.summary_md && (
-          <p
-            mix={css({
-              margin: `0 0 ${space[2]}`,
-              fontSize: font.sm,
-              color: color.textMuted,
-              lineHeight: 1.55,
-            })}
-          >
-            {r.summary_md}
-          </p>
+          <div mix={css({ marginBottom: space[2] })}>
+            <MarkdownToggle source={r.summary_md} />
+          </div>
         )}
         {r.content_md && <MarkdownToggle source={r.content_md} />}
       </div>
