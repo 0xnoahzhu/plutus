@@ -1,5 +1,6 @@
 import type { BuildAction } from 'remix/fetch-router'
 import { css, type RemixNode } from 'remix/ui'
+import { Option, Select } from 'remix/ui/select'
 
 import {
   api,
@@ -342,18 +343,17 @@ function TradePlansPage() {
                 '@media (max-width: 700px)': { gridTemplateColumns: '1fr' },
               })}
             >
-              <label mix={css(labelWrap)}>
+              <div mix={css(labelWrap)}>
                 <span mix={css(labelText)}>{p.stockLabel}</span>
-                <select name="stock_id" required mix={css(fieldStyle)}>
-                  <option value="">{p.stockPlaceholder}</option>
+                <Select name="stock_id" defaultLabel={p.stockPlaceholder}>
                   {allStocks.map((s) => (
-                    <option value={s.id}>
-                      {s.symbol}
-                      {s.name ? ` — ${s.name}` : ''}
-                    </option>
+                    <Option
+                      value={String(s.id)}
+                      label={`${s.symbol}${s.name ? ` — ${s.name}` : ''}`}
+                    />
                   ))}
-                </select>
-              </label>
+                </Select>
+              </div>
               <label mix={css(labelWrap)}>
                 <span mix={css(labelText)}>{p.rationaleLabel}</span>
                 <textarea
@@ -582,15 +582,15 @@ function PlanCard() {
               },
             })}
           >
-            <label mix={css(labelWrap)}>
+            <div mix={css(labelWrap)}>
               <span mix={css(labelText)}>{p.kindLabel}</span>
-              <select name="kind" required mix={css(fieldStyle)}>
-                <option value="buy">{p.kindBuy}</option>
-                <option value="stop_loss">{p.kindStopLoss}</option>
-                <option value="take_profit">{p.kindTakeProfit}</option>
-                <option value="trim">{p.kindTrim}</option>
-              </select>
-            </label>
+              <Select name="kind" defaultLabel={p.kindBuy} defaultValue="buy">
+                <Option value="buy" label={p.kindBuy} />
+                <Option value="stop_loss" label={p.kindStopLoss} />
+                <Option value="take_profit" label={p.kindTakeProfit} />
+                <Option value="trim" label={p.kindTrim} />
+              </Select>
+            </div>
             <label mix={css(labelWrap)}>
               <span mix={css(labelText)}>{p.priceLabel}</span>
               <input
