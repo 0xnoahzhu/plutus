@@ -26,6 +26,7 @@ import {
   StockBadge,
   type Theme,
 } from '../ui/layout.tsx'
+import { MarkdownToggle } from '../ui/markdown.tsx'
 import { render } from '../utils/render.tsx'
 
 export const watchlists: BuildAction<'GET', typeof routes.watchlists> = {
@@ -317,25 +318,7 @@ function ReportCard() {
             {r.summary_md}
           </p>
         )}
-        {r.content_md && (
-          <pre
-            mix={css({
-              margin: `${space[2]} 0 0`,
-              padding: `${space[3]} ${space[3]}`,
-              background: color.bg,
-              border: `1px solid ${color.borderSoft}`,
-              borderRadius: radius.md,
-              fontSize: font.sm,
-              lineHeight: 1.6,
-              color: color.text,
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-              fontFamily: 'inherit',
-            })}
-          >
-            {r.content_md}
-          </pre>
-        )}
+        {r.content_md && <MarkdownToggle source={r.content_md} />}
       </div>
     )
   }

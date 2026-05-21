@@ -116,6 +116,14 @@ const GLOBAL_CSS = `
     background: ${color.dangerText};
     border-color: ${color.dangerText};
   }
+
+  /* Markdown raw/preview toggle. Both views ship in the DOM; CSS picks
+     which one to show based on \`data-md-view\` on the container. The
+     click handler in CONFIRM_SUBMIT_JS just flips that attribute. */
+  [data-md-view] > [data-md-rendered] { display: block; }
+  [data-md-view] > [data-md-raw] { display: none; }
+  [data-md-view="raw"] > [data-md-rendered] { display: none; }
+  [data-md-view="raw"] > [data-md-raw] { display: block; }
 `
 
 /// Page-wide submit guard. Two responsibilities:
@@ -289,6 +297,30 @@ const CONFIRM_SUBMIT_JS = `
         navigator.clipboard.writeText(text).then(flash, legacyCopy);
       } else {
         legacyCopy();
+      }
+    });
+
+    // Markdown raw/preview toggle. Any button carrying
+    // [data-md-toggle][data-md-target="rendered"|"raw"] flips the closest
+    // ancestor [data-md-view] container to the matching view. CSS rules
+    // in GLOBAL_CSS handle the actual show/hide; we just update the
+    // attribute and the sibling buttons' [data-active] state for the
+    // soft-active pill look.
+    document.addEventListener('click', function(e) {
+      var btn = e.target && e.target.closest && e.target.closest('[data-md-toggle]');
+      if (!btn) return;
+      e.preventDefault();
+      var target = btn.getAttribute('data-md-target');
+      var container = btn.closest('[data-md-view]');
+      if (!container || !target) return;
+      container.setAttribute('data-md-view', target);
+      var buttons = container.querySelectorAll('[data-md-toggle]');
+      for (var i = 0; i < buttons.length; i++) {
+        var b = buttons[i];
+        b.setAttribute(
+          'data-active',
+          b.getAttribute('data-md-target') === target ? 'true' : 'false'
+        );
       }
     });
   })();

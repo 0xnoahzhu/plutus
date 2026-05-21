@@ -27,6 +27,7 @@ import {
   StockBadge,
   type Theme,
 } from '../ui/layout.tsx'
+import { MarkdownToggle } from '../ui/markdown.tsx'
 import { render } from '../utils/render.tsx'
 
 export const newsDetail: BuildAction<'GET', typeof routes.newsDetail> = {
@@ -437,19 +438,5 @@ function ChipRow() {
 }
 
 function BodyText() {
-  return ({ text }: { text: string }) => (
-    <pre
-      mix={css({
-        margin: 0,
-        fontSize: font.base,
-        lineHeight: 1.7,
-        color: color.text,
-        whiteSpace: 'pre-wrap',
-        wordBreak: 'break-word',
-        fontFamily: 'inherit',
-      })}
-    >
-      {text}
-    </pre>
-  )
+  return ({ text }: { text: string }) => <MarkdownToggle source={text} />
 }
