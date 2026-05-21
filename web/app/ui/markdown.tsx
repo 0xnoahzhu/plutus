@@ -3,7 +3,8 @@
 /// + user-typed notes) and the dep budget is tight. Supports headings
 /// (`#` → `######`), bold (`**`), italic (`*` / `_`), inline code
 /// (`` ` ``), unordered lists (`-`, `*`, `+`), ordered lists (`1.` etc),
-/// links (`[text](url)`), and paragraphs separated by blank lines.
+/// links (`[text](url)`), GFM-style pipe tables, and paragraphs separated
+/// by blank lines.
 ///
 /// Output goes through the JSX runtime, so all text is escaped — no
 /// `innerHTML` / `dangerouslySetInnerHTML` paths. URLs in links are
@@ -192,9 +193,15 @@ function renderBlock(block: string, key: number): RemixNode {
     let text = headingMatch[2]
     return renderHeading(level, text, key)
   }
+  let lines = block.split('\n')
+  // GFM table: header row, separator row (`|---|:---:|---:|`), body
+  // rows. The separator's existence is the structural marker — without
+  // it, what looks like a table is just a paragraph with pipes.
+  if (lines.length >= 2 && lines[0].includes('|') && isTableSeparator(lines[1])) {
+    return renderTable(lines, key)
+  }
   // Lists: every line in the block starts with a list marker. Use the
   // first line's marker to decide ordered vs unordered.
-  let lines = block.split('\n')
   let isList = lines.every((l) => /^\s*(?:[-*+]|\d+\.)\s+/.test(l))
   if (isList) {
     let ordered = /^\s*\d+\.\s+/.test(lines[0])
@@ -295,6 +302,132 @@ function renderList(lines: string[], ordered: boolean, key: number): RemixNode {
     <ul key={key} mix={listStyle}>
       {items}
     </ul>
+  )
+}
+
+/// Detect a GFM table separator row: a line whose cells are all
+/// dashes (optionally bookended by `:` for alignment), separated by
+/// pipes. The leading and trailing pipes are optional in GFM.
+function isTableSeparator(line: string): boolean {
+  let trimmed = line.trim()
+  if (!trimmed.includes('-')) return false
+  let inner = trimmed.replace(/^\|/, '').replace(/\|$/, '')
+  let cells = inner.split('|')
+  if (cells.length === 0) return false
+  return cells.every((c) => /^\s*:?-{1,}:?\s*$/.test(c))
+}
+
+type Align = 'left' | 'center' | 'right'
+
+function parseAlign(separatorCell: string): Align {
+  let c = separatorCell.trim()
+  let left = c.startsWith(':')
+  let right = c.endsWith(':')
+  if (left && right) return 'center'
+  if (right) return 'right'
+  return 'left'
+}
+
+function splitTableRow(line: string): string[] {
+  let trimmed = line.trim()
+  let inner = trimmed.replace(/^\|/, '').replace(/\|$/, '')
+  // Honor `\|` as a literal pipe inside a cell.
+  let cells: string[] = []
+  let buf = ''
+  for (let i = 0; i < inner.length; i++) {
+    let ch = inner[i]
+    if (ch === '\\' && inner[i + 1] === '|') {
+      buf += '|'
+      i++
+      continue
+    }
+    if (ch === '|') {
+      cells.push(buf.trim())
+      buf = ''
+      continue
+    }
+    buf += ch
+  }
+  cells.push(buf.trim())
+  return cells
+}
+
+function renderTable(lines: string[], key: number): RemixNode {
+  let headers = splitTableRow(lines[0])
+  let aligns = splitTableRow(lines[1]).map(parseAlign)
+  let bodyRows = lines.slice(2).map(splitTableRow)
+  let alignFor = (j: number): Align => aligns[j] ?? 'left'
+  let cellBase = {
+    padding: `${space[2]} ${space[3]}`,
+    verticalAlign: 'top',
+    borderBottom: `1px solid ${color.borderSoft}`,
+  }
+  // Outer wrapper scrolls horizontally on narrow viewports so wide
+  // agent-emitted tables don't blow out the card width.
+  return (
+    <div
+      key={key}
+      mix={css({
+        margin: `${space[3]} 0`,
+        overflowX: 'auto',
+        border: `1px solid ${color.borderSoft}`,
+        borderRadius: radius.md,
+      })}
+    >
+      <table
+        mix={css({
+          width: '100%',
+          borderCollapse: 'collapse',
+          fontSize: font.sm,
+          color: color.text,
+          fontVariantNumeric: 'tabular-nums',
+        })}
+      >
+        <thead>
+          <tr mix={css({ background: color.bg })}>
+            {headers.map((h, j) => (
+              <th
+                key={j}
+                mix={css({
+                  ...cellBase,
+                  textAlign: alignFor(j),
+                  fontWeight: 600,
+                  fontSize: font.xs,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  color: color.textMuted,
+                  whiteSpace: 'nowrap',
+                })}
+              >
+                {renderInline(h)}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {bodyRows.map((row, i) => (
+            <tr
+              key={i}
+              mix={css({
+                '&:last-child td': { borderBottom: 'none' },
+              })}
+            >
+              {headers.map((_, j) => (
+                <td
+                  key={j}
+                  mix={css({
+                    ...cellBase,
+                    textAlign: alignFor(j),
+                  })}
+                >
+                  {renderInline(row[j] ?? '')}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }
 
