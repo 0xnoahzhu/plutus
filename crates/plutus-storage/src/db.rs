@@ -513,6 +513,20 @@ CREATE INDEX IF NOT EXISTS macro_events_kind_idx ON macro_events (event_kind);
 CREATE UNIQUE INDEX IF NOT EXISTS macro_events_natural_key
     ON macro_events (indicator_code, event_date);
 
+-- macro_observations: time series. The model docstring claims a natural
+-- key of (indicator_code, obs_date) "enforced at the app layer", but
+-- the old insert path was a plain INSERT and the index didn't exist,
+-- so a re-POST of the same day's value silently dup'd. Dedupe first
+-- (keep max id per group — that's the latest revision the agent sent),
+-- then add the unique index so future POSTs go through ON CONFLICT.
+DELETE FROM macro_observations
+WHERE id NOT IN (
+    SELECT MAX(id) FROM macro_observations
+    GROUP BY indicator_code, obs_date
+);
+CREATE UNIQUE INDEX IF NOT EXISTS macro_observations_natural_key
+    ON macro_observations (indicator_code, obs_date);
+
 -- The user's watchlist is a single flat list — the historical `watchlists`
 -- group table is gone and `watchlist_items` no longer carries `watchlist_id`.
 -- The DROP/ALTER below clean up older deployments that still have the

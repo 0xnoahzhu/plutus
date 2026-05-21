@@ -306,7 +306,7 @@ pub fn build_router(state: AppState) -> Router {
         )
         .route(
             "/macro/observations",
-            post(handlers::macros::insert_observation),
+            post(handlers::macros::upsert_observation),
         )
         // Macro events (FOMC decisions, CPI releases, …)
         .route(

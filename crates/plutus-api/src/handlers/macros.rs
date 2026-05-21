@@ -42,11 +42,11 @@ pub async fn list_observations(
     Ok(Json(rows.into_iter().map(Into::into).collect()))
 }
 
-pub async fn insert_observation(
+pub async fn upsert_observation(
     State(state): State<AppState>,
     Json(input): Json<MacroObservationIn>,
 ) -> ApiResult<Json<MacroObservationOut>> {
-    let row = plutus_storage::queries::macros::insert_observation(
+    let row = plutus_storage::queries::macros::upsert_observation(
         &state.db,
         plutus_storage::queries::macros::NewObservation {
             indicator_code: &input.indicator_code,
