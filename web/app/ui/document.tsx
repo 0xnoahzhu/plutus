@@ -163,22 +163,36 @@ const GLOBAL_CSS = `
 /// browser-quirk warning the interceptor was added to dodge.
 const CONFIRM_SUBMIT_JS = `
   (function() {
-    var modal = document.getElementById('confirm-modal');
-    if (!modal) return;
-    var promptEl = document.getElementById('confirm-modal-prompt');
-    var cancelBtn = document.getElementById('confirm-modal-cancel');
-    var confirmBtn = document.getElementById('confirm-modal-confirm');
+    // The framework swaps the document body during client-side
+    // navigation (see assets/entry.ts → resolveFrame), so any element
+    // reference we cache here will dangle after the user clicks a
+    // sidebar link. Look up the modal/prompt/buttons lazily on every
+    // access, and delegate the cancel/confirm/backdrop click handlers
+    // to the document so they survive frame swaps. The submit
+    // interceptor below is already document-level; this just brings
+    // the modal infrastructure into the same model.
+    function getModal() { return document.getElementById('confirm-modal'); }
+    function getPromptEl() { return document.getElementById('confirm-modal-prompt'); }
+    function getCancelBtn() { return document.getElementById('confirm-modal-cancel'); }
+
     var pendingForm = null;
     var pendingSubmitter = null;
 
     function openModal(text) {
+      var modal = getModal();
+      var promptEl = getPromptEl();
+      if (!modal || !promptEl) return;
       promptEl.textContent = text;
       modal.setAttribute('data-open', 'true');
       // Defer focus until the next paint so the transition can start.
-      setTimeout(function() { cancelBtn.focus(); }, 0);
+      setTimeout(function() {
+        var cancelBtn = getCancelBtn();
+        if (cancelBtn) cancelBtn.focus();
+      }, 0);
     }
     function closeModal() {
-      modal.removeAttribute('data-open');
+      var modal = getModal();
+      if (modal) modal.removeAttribute('data-open');
       pendingForm = null;
       pendingSubmitter = null;
     }
@@ -223,23 +237,37 @@ const CONFIRM_SUBMIT_JS = `
       });
     }
 
-    cancelBtn.addEventListener('click', closeModal);
-    modal.addEventListener('click', function(e) {
-      // Only the backdrop dismisses; clicks inside the card don't.
-      if (e.target === modal) closeModal();
-    });
-    document.addEventListener('keydown', function(e) {
-      if (e.key === 'Escape' && modal.getAttribute('data-open') === 'true') {
+    // Document-level click delegation for cancel/confirm/backdrop so
+    // the handlers survive client-side frame swaps. Use \`.closest(...)\`
+    // so clicks on icons/spans inside the buttons still match.
+    document.addEventListener('click', function(e) {
+      var t = e.target;
+      if (!t || !t.closest) return;
+      var modal = getModal();
+      if (t.closest('#confirm-modal-cancel')) {
+        closeModal();
+        return;
+      }
+      if (t.closest('#confirm-modal-confirm')) {
+        var f = pendingForm;
+        var s = pendingSubmitter;
+        closeModal();
+        // Confirmed destructive action — go through fetch like any
+        // other submit so the destination history entry is a clean
+        // GET.
+        if (f) submitViaFetch(f, s);
+        return;
+      }
+      if (modal && t === modal) {
+        // Backdrop click (modal element itself, not a descendant).
         closeModal();
       }
     });
-    confirmBtn.addEventListener('click', function() {
-      var f = pendingForm;
-      var s = pendingSubmitter;
-      closeModal();
-      // Confirmed destructive action — go through fetch like any other
-      // submit so the destination history entry is a clean GET.
-      if (f) submitViaFetch(f, s);
+    document.addEventListener('keydown', function(e) {
+      var modal = getModal();
+      if (e.key === 'Escape' && modal && modal.getAttribute('data-open') === 'true') {
+        closeModal();
+      }
     });
 
     document.addEventListener('submit', function(e) {
