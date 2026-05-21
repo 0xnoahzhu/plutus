@@ -762,29 +762,30 @@ export function Stat() {
       trend === 'up' ? color.success : trend === 'down' ? color.danger : color.text
     return (
       <Card>
-        <div mix={css({ ...labelStyle, marginBottom: space[2] })}>{label}</div>
-        <div
-          mix={css({
-            fontSize: font.xxl,
-            fontWeight: 700,
-            color: valueColor,
-            lineHeight: 1.1,
-            letterSpacing: '-0.02em',
-          })}
-        >
-          {value}
-        </div>
-        {caption && (
+        <div mix={css({ textAlign: 'center' })}>
+          <div mix={css({ ...labelStyle, marginBottom: space[2] })}>{label}</div>
           <div
             mix={css({
-              marginTop: space[1],
-              fontSize: font.xs,
-              color: color.textMuted,
+              fontSize: font.xxl,
+              fontWeight: 700,
+              color: valueColor,
+              lineHeight: 1.1,
             })}
           >
-            {caption}
+            {value}
           </div>
-        )}
+          {caption && (
+            <div
+              mix={css({
+                marginTop: space[1],
+                fontSize: font.xs,
+                color: color.textMuted,
+              })}
+            >
+              {caption}
+            </div>
+          )}
+        </div>
       </Card>
     )
   }

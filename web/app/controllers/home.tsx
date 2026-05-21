@@ -253,8 +253,7 @@ function DashboardPage() {
         >
           <Stat
             label="API Status"
-            value={healthy ? 'Connected' : 'Down'}
-            caption={healthy ? 'all systems go' : 'check the server'}
+            value={healthy ? 'Up' : 'Down'}
             trend={healthy ? 'up' : 'down'}
           />
           <Stat label="Markets" value={String(counts.markets)} caption="open" />
