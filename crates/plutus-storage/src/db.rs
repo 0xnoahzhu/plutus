@@ -207,6 +207,29 @@ ALTER TABLE transactions      ADD COLUMN IF NOT EXISTS user_id BIGINT NOT NULL D
 UPDATE transactions
    SET kind = UPPER(kind)
  WHERE kind <> UPPER(kind);
+
+-- Account dedup + uniqueness. There was no constraint preventing two
+-- account rows with the same (user_id, broker_id, account_number), and a
+-- user actually hit this — two "IBKR / U18630011" rows under one user,
+-- one with all the transactions and one empty. This block deletes the
+-- redundant rows (ONLY when they're truly unreferenced — zero
+-- transactions, zero pending orders) and then installs the unique index.
+-- NULLS NOT DISTINCT so two accounts both lacking account_number still
+-- collide; without it Postgres treats every NULL pair as distinct.
+DELETE FROM accounts a
+ WHERE EXISTS (
+     SELECT 1
+       FROM accounts other
+      WHERE other.user_id = a.user_id
+        AND other.broker_id = a.broker_id
+        AND other.account_number IS NOT DISTINCT FROM a.account_number
+        AND other.id <> a.id
+ )
+   AND NOT EXISTS (SELECT 1 FROM transactions  t WHERE t.account_id  = a.id)
+   AND NOT EXISTS (SELECT 1 FROM pending_orders p WHERE p.account_id = a.id);
+CREATE UNIQUE INDEX IF NOT EXISTS accounts_user_broker_number_uniq
+    ON accounts (user_id, broker_id, account_number)
+    NULLS NOT DISTINCT;
 ALTER TABLE api_tokens        ADD COLUMN IF NOT EXISTS user_id BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE api_tokens        ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE;
 -- Plaintext token, kept alongside the hash so the list view can show +

@@ -27,6 +27,32 @@ pub struct NewAccount<'a> {
 }
 
 pub async fn create(db: &Db, input: NewAccount<'_>) -> Result<Account> {
+    // Pre-check for a duplicate on the natural key
+    // `(user_id, broker_id, account_number)`. Backstop is the
+    // UNIQUE NULLS NOT DISTINCT index on the table, but checking here
+    // converts the postgres unique-violation 23505 into a clean 409
+    // with a user-friendly message instead of a raw "db error" 500.
+    let existing: Vec<Account> = db
+        .with(async |d| {
+            Account::all()
+                .filter(Account::fields().broker_id().eq(input.broker_id))
+                .exec(d)
+                .await
+        })
+        .await?
+        .into_iter()
+        .filter(|a| {
+            a.user_id == input.user_id
+                && a.account_number.as_deref() == input.account_number
+        })
+        .collect();
+    if let Some(dup) = existing.first() {
+        return Err(DbError::Conflict(format!(
+            "account already exists with same broker_id={} and account_number={:?} (existing id={})",
+            input.broker_id, input.account_number, dup.id
+        )));
+    }
+
     let now = jiff::Timestamp::now();
     let user_id = input.user_id;
     let broker_id = input.broker_id;
