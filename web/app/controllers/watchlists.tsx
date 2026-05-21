@@ -51,19 +51,9 @@ export const watchlists: BuildAction<'GET', typeof routes.watchlists> = {
       api.watchlistReports({ kind: 'weekly', locale }).catch(() => [] as WatchlistReport[]),
     ])
     let stockMap = new Map<number, Stock>(allStocks.map((s) => [s.id, s]))
-
-    items.sort((a, b) => b.added_at.localeCompare(a.added_at))
-    // The API already orders by `period_start` desc, but normalize
-    // defensively in case that changes — the hero relies on `[0]`
-    // being the newest.
-    let sortReports = (rs: WatchlistReport[]) =>
-      rs.sort((a, b) => {
-        let byPeriod = b.period_start.localeCompare(a.period_start)
-        if (byPeriod !== 0) return byPeriod
-        return b.created_at.localeCompare(a.created_at)
-      })
-    sortReports(dailyReports)
-    sortReports(weeklyReports)
+    // Items and reports are both ordered server-side now (items by
+    // added_at desc, reports by period_start desc + kind asc); no
+    // client-side re-sort needed.
 
     return render(
       <WatchlistPage

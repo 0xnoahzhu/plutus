@@ -43,7 +43,7 @@ export const accounts: BuildAction<'GET', typeof routes.accounts> = {
     ])
     let brokerMap: Record<number, Broker> = {}
     for (let b of brks) brokerMap[b.id] = b
-    accts.sort((a, b) => b.created_at.localeCompare(a.created_at))
+    // Order set server-side: created_at desc, id desc.
     return render(
       <AccountsPage
         locale={locale}

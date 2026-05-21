@@ -53,13 +53,8 @@ export const tradePlans: BuildAction<'GET', typeof routes.tradePlans> = {
     plans.forEach((p, i) => levelsByPlan.set(p.id, levelLists[i]))
 
     let stockMap = new Map<number, Stock>(allStocks.map((s) => [s.id, s]))
-
-    // Active first, then by most-recently-created.
-    plans.sort((a, b) => {
-      if (a.status !== b.status) return a.status === 'active' ? -1 : 1
-      return b.created_at.localeCompare(a.created_at)
-    })
-
+    // Plans come pre-sorted from the API: status asc (active before
+    // closed alphabetically), then created_at desc.
     return render(
       <TradePlansPage
         locale={locale}
@@ -428,13 +423,9 @@ function PlanCard() {
     let statusLabel = isActive ? p.statusActive : p.statusClosed
     let statusTone: BadgeTone = isActive ? 'success' : 'neutral'
 
-    // Stable level order: by sort_order asc (nulls last) then by id asc.
-    let sortedLevels = [...levels].sort((a, b) => {
-      let ao = a.sort_order ?? Number.MAX_SAFE_INTEGER
-      let bo = b.sort_order ?? Number.MAX_SAFE_INTEGER
-      if (ao !== bo) return ao - bo
-      return a.id - b.id
-    })
+    // Levels come pre-sorted from the API (sort_order asc, nulls last,
+    // then price asc) — no client-side re-sort.
+    let sortedLevels = levels
 
     return (
       <Card>

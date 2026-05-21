@@ -44,11 +44,11 @@ export const correlations: BuildAction<'GET', typeof routes.correlations> = {
     let universeMap = new Map<number, UniverseDefinition>(universes.map((u) => [u.id, u]))
 
     let latest = runs[0]
+    // Pairs come pre-sorted from the API by |correlation| desc, so the
+    // first TOP_PAIRS slice is exactly the strongest-correlated rows.
     let pairs: CorrelationPair[] = latest
       ? await api.correlationPairs(latest.id).catch(() => [])
       : []
-    // Sort by absolute correlation so the most-correlated pairs surface first.
-    pairs.sort((a, b) => Math.abs(parseFloat(b.correlation)) - Math.abs(parseFloat(a.correlation)))
     let topPairs = pairs.slice(0, TOP_PAIRS)
 
     return render(
