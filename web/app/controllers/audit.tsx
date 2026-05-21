@@ -48,10 +48,7 @@ function AuditPage() {
     <Layout title={p.title} subtitle={p.subtitle} locale={locale} theme={theme}>
       {rows.length === 0 ? (
         <Card>
-          <EmptyState
-            title="No audit entries yet"
-            hint="Audit writes from handlers are wired up in a follow-up; for now the table holds the spec but isn't populated by every endpoint."
-          />
+          <EmptyState title={p.emptyTitle} />
         </Card>
       ) : (
         <Card padding="0">
@@ -64,10 +61,10 @@ function AuditPage() {
           >
             <thead>
               <tr>
-                <Th>When</Th>
-                <Th>Action</Th>
-                <Th>Entity</Th>
-                <Th>Actor</Th>
+                <Th>{p.columnWhen}</Th>
+                <Th>{p.columnAction}</Th>
+                <Th>{p.columnEntity}</Th>
+                <Th>{p.columnActor}</Th>
               </tr>
             </thead>
             <tbody>

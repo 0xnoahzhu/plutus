@@ -77,11 +77,11 @@ function StocksPage() {
           >
             <thead>
               <tr>
-                <Th>Symbol</Th>
-                <Th>Market</Th>
-                <Th>Currency</Th>
-                <Th>Asset class</Th>
-                <Th align="right">ID</Th>
+                <Th>{p.columnSymbol}</Th>
+                <Th>{p.columnMarket}</Th>
+                <Th>{p.columnCurrency}</Th>
+                <Th>{p.columnAssetClass}</Th>
+                <Th align="right">{p.columnId}</Th>
               </tr>
             </thead>
             <tbody>

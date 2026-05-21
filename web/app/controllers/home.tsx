@@ -242,7 +242,7 @@ function DashboardPage() {
     let p = messages(locale).pages.dashboard
     return (
       <Layout title={p.title} subtitle={p.subtitle} locale={locale} theme={theme}>
-        <SectionTitle hint="real-time">Quick Stats</SectionTitle>
+        <SectionTitle hint={p.quickStatsHint}>{p.sectionQuickStats}</SectionTitle>
         <div
           mix={css({
             display: 'grid',
@@ -252,19 +252,19 @@ function DashboardPage() {
           })}
         >
           <Stat
-            label="API Status"
+            label={p.statApiStatus}
             value={healthy ? 'up' : 'down'}
             trend={healthy ? 'up' : 'down'}
           />
-          <Stat label="Markets" value={String(counts.markets)} caption="open" />
-          <Stat label="Brokers" value={String(counts.brokers)} caption="active" />
-          <Stat label="Accounts" value={String(counts.accounts)} caption="total" />
-          <Stat label="Stocks" value={String(counts.stocks)} caption="tracked" />
-          <Stat label="Watchlist" value={String(counts.watchlist)} caption="stocks" />
-          <Stat label="Transactions" value={String(counts.transactions)} caption="recorded" />
-          <Stat label="Open Positions" value={String(counts.holdings)} caption="current" />
-          <Stat label="Trade plans" value={String(counts.tradePlans)} caption="active" />
-          <Stat label="Open orders" value={String(counts.openOrders)} caption="at broker" />
+          <Stat label={p.statMarkets} value={String(counts.markets)} caption={p.captionOpen} />
+          <Stat label={p.statBrokers} value={String(counts.brokers)} caption={p.captionActive} />
+          <Stat label={p.statAccounts} value={String(counts.accounts)} caption={p.captionTotal} />
+          <Stat label={p.statStocks} value={String(counts.stocks)} caption={p.captionTracked} />
+          <Stat label={p.statWatchlist} value={String(counts.watchlist)} caption={p.captionStocks} />
+          <Stat label={p.statTransactions} value={String(counts.transactions)} caption={p.captionRecorded} />
+          <Stat label={p.statOpenPositions} value={String(counts.holdings)} caption={p.captionCurrent} />
+          <Stat label={p.statTradePlans} value={String(counts.tradePlans)} caption={p.captionActive} />
+          <Stat label={p.statOpenOrders} value={String(counts.openOrders)} caption={p.captionAtBroker} />
         </div>
 
         <div
@@ -275,11 +275,15 @@ function DashboardPage() {
             '@media (max-width: 1000px)': { gridTemplateColumns: '1fr' },
           })}
         >
-          <PortfolioSnapshotCard snapshot={snapshot} series={valueSeries} />
+          <PortfolioSnapshotCard
+            snapshot={snapshot}
+            series={valueSeries}
+            locale={locale}
+          />
 
           <div mix={css({ display: 'flex', flexDirection: 'column', gap: space[4] })}>
-            <RecentActivityCard rows={recentActivity} />
-            <TopMoversCard movers={movers} />
+            <RecentActivityCard rows={recentActivity} locale={locale} />
+            <TopMoversCard movers={movers} locale={locale} />
           </div>
         </div>
 
@@ -290,7 +294,7 @@ function DashboardPage() {
             color: color.textMuted,
           })}
         >
-          API base: <code>{api.base}</code>
+          {p.apiBaseLabel}: <code>{api.base}</code>
         </p>
       </Layout>
     )
@@ -301,18 +305,18 @@ function PortfolioSnapshotCard() {
   return ({
     snapshot,
     series,
+    locale,
   }: {
     snapshot: PortfolioSnapshot
     series: DailyValue[]
+    locale: string
   }) => {
+    let p = messages(locale).pages.dashboard
     if (snapshot.cost_basis === 0 && snapshot.market_value === 0) {
       return (
         <Card>
-          <SectionTitle>Portfolio Snapshot</SectionTitle>
-          <EmptyState
-            title="No open positions"
-            hint="Post buy transactions to /api/v1/transactions and the rollup lands here."
-          />
+          <SectionTitle>{p.sectionPortfolioSnapshot}</SectionTitle>
+          <EmptyState title={p.emptyNoPositions} hint={p.emptyPositionsHint} />
         </Card>
       )
     }
@@ -324,8 +328,8 @@ function PortfolioSnapshotCard() {
     let tone: BadgeTone = upTrend ? 'success' : 'danger'
     return (
       <Card>
-        <SectionTitle hint={snapshot.fully_priced ? '30-day window' : 'partial — missing prices'}>
-          Portfolio Performance
+        <SectionTitle hint={snapshot.fully_priced ? p.windowFull : p.windowPartial}>
+          {p.portfolioPerformance}
         </SectionTitle>
         <div
           mix={css({
@@ -335,10 +339,10 @@ function PortfolioSnapshotCard() {
             marginBottom: space[4],
           })}
         >
-          <Metric label="Market Value" value={fmtMoney(snapshot.market_value)} />
-          <Metric label="Cost Basis" value={fmtMoney(snapshot.cost_basis)} />
+          <Metric label={p.metricMarketValue} value={fmtMoney(snapshot.market_value)} />
+          <Metric label={p.metricCostBasis} value={fmtMoney(snapshot.cost_basis)} />
           <Metric
-            label="Unrealized P&L"
+            label={p.metricUnrealizedPnl}
             value={`${upTrend ? '+' : ''}${fmtMoney(snapshot.unrealized)}`}
             badge={
               <Badge tone={tone}>
@@ -574,18 +578,19 @@ function Metric() {
 }
 
 function RecentActivityCard() {
-  return ({ rows }: { rows: AuditEntry[] }) => {
+  return ({ rows, locale }: { rows: AuditEntry[]; locale: string }) => {
+    let p = messages(locale).pages.dashboard
     if (rows.length === 0) {
       return (
         <Card>
-          <SectionTitle>Recent Activity</SectionTitle>
-          <EmptyState title="No activity yet" hint="agent writes will surface here" />
+          <SectionTitle>{p.sectionRecentActivity}</SectionTitle>
+          <EmptyState title={p.emptyNoActivity} hint={p.emptyActivityHint} />
         </Card>
       )
     }
     return (
       <Card>
-        <SectionTitle>Recent Activity</SectionTitle>
+        <SectionTitle>{p.sectionRecentActivity}</SectionTitle>
         <ul
           mix={css({
             margin: 0,
@@ -648,21 +653,19 @@ function RecentActivityCard() {
 }
 
 function TopMoversCard() {
-  return ({ movers }: { movers: Mover[] }) => {
+  return ({ movers, locale }: { movers: Mover[]; locale: string }) => {
+    let p = messages(locale).pages.dashboard
     if (movers.length === 0) {
       return (
         <Card>
-          <SectionTitle>Top Movers</SectionTitle>
-          <EmptyState
-            title="Need at least 2 days of OHLCV"
-            hint="The day-over-day %-change needs a prior close to compare against. Backfill via POST /api/v1/ohlcv/batch."
-          />
+          <SectionTitle>{p.sectionTopMovers}</SectionTitle>
+          <EmptyState title={p.emptyNoMovers} hint={p.emptyMoversHint} />
         </Card>
       )
     }
     return (
       <Card>
-        <SectionTitle hint="latest close">Top Movers</SectionTitle>
+        <SectionTitle hint={p.topMoversHint}>{p.sectionTopMovers}</SectionTitle>
         <ul
           mix={css({
             margin: 0,

@@ -83,15 +83,15 @@ function TransactionsPage() {
           >
             <thead>
               <tr>
-                <Th>Date</Th>
-                <Th>Kind</Th>
-                <Th>Symbol</Th>
-                <Th>Market</Th>
-                <Th align="right">Qty</Th>
-                <Th align="right">Price</Th>
-                <Th>Curr</Th>
-                <Th align="right">Commission</Th>
-                <Th>Source</Th>
+                <Th>{p.columnDate}</Th>
+                <Th>{p.columnKind}</Th>
+                <Th>{p.columnSymbol}</Th>
+                <Th>{p.columnMarket}</Th>
+                <Th align="right">{p.columnQty}</Th>
+                <Th align="right">{p.columnPrice}</Th>
+                <Th>{p.columnCurrency}</Th>
+                <Th align="right">{p.columnCommission}</Th>
+                <Th>{p.columnSource}</Th>
               </tr>
             </thead>
             <tbody>

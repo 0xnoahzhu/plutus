@@ -71,17 +71,14 @@ function HoldingsPage() {
     return (
     <Layout
       title={p.title}
-      subtitle={`Cost basis: ${method.toUpperCase()}`}
+      subtitle={`${p.costBasisLabel}: ${method.toUpperCase()}`}
       country={country}
       locale={locale}
       theme={theme}
     >
       {rows.length === 0 ? (
         <Card>
-          <EmptyState
-            title="No open positions"
-            hint="Add a buy transaction or change the country filter."
-          />
+          <EmptyState title={p.emptyTitle} hint={p.emptyHint} />
         </Card>
       ) : (
         <Card padding="0">
@@ -94,13 +91,13 @@ function HoldingsPage() {
           >
             <thead>
               <tr>
-                <Th>Symbol</Th>
-                <Th>Market</Th>
-                <Th>Currency</Th>
-                <Th align="right">Quantity</Th>
-                <Th align="right">Avg Cost</Th>
-                <Th align="right">Cost Basis</Th>
-                <Th align="right">Realized P&L</Th>
+                <Th>{p.columnSymbol}</Th>
+                <Th>{p.columnMarket}</Th>
+                <Th>{p.columnCurrency}</Th>
+                <Th align="right">{p.columnQuantity}</Th>
+                <Th align="right">{p.columnAvgCost}</Th>
+                <Th align="right">{p.columnCostBasis}</Th>
+                <Th align="right">{p.columnRealizedPnl}</Th>
               </tr>
             </thead>
             <tbody>

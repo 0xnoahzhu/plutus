@@ -99,17 +99,17 @@ function WatchlistPage() {
     let p = messages(locale).pages.watchlist
     let subtitle =
       tab === 'items'
-        ? `${items.length} ${items.length === 1 ? 'stock' : 'stocks'}`
+        ? p.subtitleStocks(items.length)
         : tab === 'daily'
-          ? `${dailyReports.length} ${dailyReports.length === 1 ? 'report' : 'reports'}`
-          : `${weeklyReports.length} ${weeklyReports.length === 1 ? 'report' : 'reports'}`
+          ? p.subtitleReports(dailyReports.length)
+          : p.subtitleReports(weeklyReports.length)
     return (
       <Layout title={p.title} subtitle={subtitle} locale={locale} theme={theme}>
         <div mix={css({ marginBottom: space[5] })}>
           <TabStrip active={tab} locale={locale} />
         </div>
 
-        {tab === 'items' && <ItemsView items={items} stocks={stocks} />}
+        {tab === 'items' && <ItemsView items={items} stocks={stocks} locale={locale} />}
         {tab === 'daily' && (
           <ReportsView reports={dailyReports} kind="daily" locale={locale} />
         )}
@@ -154,21 +154,17 @@ function ItemsView() {
   return ({
     items,
     stocks,
+    locale,
   }: {
     items: WatchlistItem[]
     stocks: Map<number, Stock>
+    locale: string
   }) => {
+    let p = messages(locale).pages.watchlist
     if (items.length === 0) {
       return (
         <Card>
-          <EmptyState
-            title="Nothing on the watchlist yet"
-            hint={
-              <>
-                Add a stock with <code>POST /api/v1/watchlist/items</code>.
-              </>
-            }
-          />
+          <EmptyState title={p.emptyTitle} hint={p.emptyHint} />
         </Card>
       )
     }
@@ -183,12 +179,12 @@ function ItemsView() {
         >
           <thead>
             <tr>
-              <Th>Symbol</Th>
-              <Th>Market</Th>
-              <Th>Currency</Th>
-              <Th>Asset class</Th>
-              <Th>Added</Th>
-              <Th>Notes</Th>
+              <Th>{p.columnSymbol}</Th>
+              <Th>{p.columnMarket}</Th>
+              <Th>{p.columnCurrency}</Th>
+              <Th>{p.columnAssetClass}</Th>
+              <Th>{p.columnAdded}</Th>
+              <Th>{p.columnNotes}</Th>
             </tr>
           </thead>
           <tbody>
