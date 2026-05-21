@@ -525,7 +525,15 @@ export const api = {
   markets: () => get<Market[]>('/markets'),
   brokers: () => get<Broker[]>('/brokers'),
   accounts: () => get<Account[]>('/accounts'),
-  stocks: (locale?: string) => get<Stock[]>(withLocale('/stocks', locale)),
+  /// Fetch the stock catalog for building a `stockId → Stock` lookup map.
+  /// All UI pages (watchlist, holdings, transactions, …) use this and
+  /// expect the full universe back. The backend's `?symbol=` / `?q=`
+  /// search mode caps results at `MAX_LIMIT=200` so we explicitly ask for
+  /// the max here; otherwise we'd silently get the default page (50) and
+  /// lose rows with `stock_id > 50`. A `?limit=200` is well under the
+  /// payload-size threshold for the current catalog (~76 stocks).
+  stocks: (locale?: string) =>
+    get<Stock[]>(withLocale('/stocks?limit=200', locale)),
   stock: (id: number, locale?: string) =>
     get<Stock>(withLocale(`/stocks/${id}`, locale)),
   createStock: (input: {
