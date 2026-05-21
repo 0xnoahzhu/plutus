@@ -3,9 +3,21 @@ use rust_decimal::Decimal;
 use crate::db::{Db, DbError, Result};
 use crate::models::Transaction;
 
+/// All transactions sorted newest first. `id desc` is the deterministic
+/// tie-breaker so transactions executed at the same instant (rare but
+/// possible in bulk imports) keep a stable relative order across
+/// refreshes — important once pagination lands.
 pub async fn list(db: &Db, user_id: i64) -> Result<Vec<Transaction>> {
     let rows = db
-        .with(async |d| Transaction::all().exec(d).await)
+        .with(async |d| {
+            Transaction::all()
+                .order_by((
+                    Transaction::fields().executed_at().desc(),
+                    Transaction::fields().id().desc(),
+                ))
+                .exec(d)
+                .await
+        })
         .await?;
     Ok(rows.into_iter().filter(|r| r.user_id == user_id).collect())
 }
@@ -15,6 +27,10 @@ pub async fn list_for_account(db: &Db, user_id: i64, account_id: i64) -> Result<
         .with(async |d| {
             Transaction::all()
                 .filter(Transaction::fields().account_id().eq(account_id))
+                .order_by((
+                    Transaction::fields().executed_at().desc(),
+                    Transaction::fields().id().desc(),
+                ))
                 .exec(d)
                 .await
         })
@@ -27,6 +43,10 @@ pub async fn list_for_stock(db: &Db, user_id: i64, stock_id: i64) -> Result<Vec<
         .with(async |d| {
             Transaction::all()
                 .filter(Transaction::fields().stock_id().eq(Some(stock_id)))
+                .order_by((
+                    Transaction::fields().executed_at().desc(),
+                    Transaction::fields().id().desc(),
+                ))
                 .exec(d)
                 .await
         })

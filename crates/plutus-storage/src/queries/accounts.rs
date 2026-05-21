@@ -3,7 +3,15 @@ use crate::models::Account;
 
 pub async fn list(db: &Db, user_id: i64) -> Result<Vec<Account>> {
     let rows = db
-        .with(async |d| Account::all().exec(d).await)
+        .with(async |d| {
+            Account::all()
+                .order_by((
+                    Account::fields().created_at().desc(),
+                    Account::fields().id().desc(),
+                ))
+                .exec(d)
+                .await
+        })
         .await?;
     Ok(rows.into_iter().filter(|r| r.user_id == user_id).collect())
 }

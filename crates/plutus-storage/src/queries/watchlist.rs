@@ -7,7 +7,15 @@ use crate::models::WatchlistItem;
 
 pub async fn list_items(db: &Db, user_id: i64) -> Result<Vec<WatchlistItem>> {
     let rows = db
-        .with(async |d| WatchlistItem::all().exec(d).await)
+        .with(async |d| {
+            WatchlistItem::all()
+                .order_by((
+                    WatchlistItem::fields().added_at().desc(),
+                    WatchlistItem::fields().id().desc(),
+                ))
+                .exec(d)
+                .await
+        })
         .await?;
     Ok(rows.into_iter().filter(|r| r.user_id == user_id).collect())
 }

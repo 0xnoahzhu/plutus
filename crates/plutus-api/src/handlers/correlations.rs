@@ -149,8 +149,9 @@ pub async fn list_pairs(
     let user_id = require_user(&actor.0)?;
     // Verify run ownership first; otherwise return NotFound.
     plutus_storage::queries::correlations::get_run(&state.db, user_id, "en", run_id).await?;
-    let rows =
+    let mut rows =
         plutus_storage::queries::correlations::list_pairs(&state.db, user_id, run_id).await?;
+    sort_pairs_by_abs_corr(&mut rows);
     Ok(Json(rows.into_iter().map(Into::into).collect()))
 }
 
@@ -160,11 +161,26 @@ pub async fn list_pairs_for_stock(
     Path(stock_id): Path<i64>,
 ) -> ApiResult<Json<Vec<CorrelationPairOut>>> {
     let user_id = require_user(&actor.0)?;
-    let rows = plutus_storage::queries::correlations::list_pairs_for_stock(
+    let mut rows = plutus_storage::queries::correlations::list_pairs_for_stock(
         &state.db, user_id, stock_id,
     )
     .await?;
+    sort_pairs_by_abs_corr(&mut rows);
     Ok(Json(rows.into_iter().map(Into::into).collect()))
+}
+
+/// Sort pairs by `|correlation|` descending so the strongest signals
+/// (positive or negative) lead. `id` is the deterministic tie-breaker
+/// for identical magnitudes. Toasty's order_by builder can't express
+/// `ABS()` today; if the pair count ever outgrows in-memory sort,
+/// switch list_pairs to raw SQL with `ORDER BY ABS(correlation) DESC`.
+fn sort_pairs_by_abs_corr(rows: &mut [plutus_storage::models::CorrelationPair]) {
+    rows.sort_by(|a, b| {
+        b.correlation
+            .abs()
+            .cmp(&a.correlation.abs())
+            .then_with(|| a.id.cmp(&b.id))
+    });
 }
 
 pub async fn insert_pair(

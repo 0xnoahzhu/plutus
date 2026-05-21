@@ -19,8 +19,22 @@ pub struct ListFilter<'a> {
 pub async fn list(db: &Db, filter: ListFilter<'_>) -> Result<Vec<TradePlan>> {
     let user_id = filter.user_id;
     let status_filter = filter.status.map(str::to_string);
+    // status asc happens to sort 'active' before 'closed' alphabetically,
+    // which is the order the UI wants (open plans on top). If a third
+    // status is ever added that should outrank `active`, switch this to
+    // raw SQL with a CASE expression — toasty's order_by builder doesn't
+    // model CASE today.
     let rows = db
-        .with(async |d| TradePlan::all().exec(d).await)
+        .with(async |d| {
+            TradePlan::all()
+                .order_by((
+                    TradePlan::fields().status().asc(),
+                    TradePlan::fields().created_at().desc(),
+                    TradePlan::fields().id().desc(),
+                ))
+                .exec(d)
+                .await
+        })
         .await?;
     Ok(rows
         .into_iter()
