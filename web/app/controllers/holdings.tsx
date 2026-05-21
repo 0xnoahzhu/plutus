@@ -39,6 +39,13 @@ export const holdings: BuildAction<'GET', typeof routes.holdings> = {
     let filtered = filterByCountry(holdingsList, country, (h) =>
       stockMap.get(h.stock_id)?.market_code,
     )
+    // The API doesn't promise an order, so successive Postgres heap scans
+    // can return holdings in different sequences between refreshes. Sort
+    // by ticker so the table is stable; missing stocks fall back to the
+    // numeric id key so they cluster predictably at the end.
+    let symbolOf = (h: Holding) =>
+      stockMap.get(h.stock_id)?.symbol ?? `#${h.stock_id}`
+    filtered.sort((a, b) => symbolOf(a).localeCompare(symbolOf(b)))
 
     return render(
       <HoldingsPage
