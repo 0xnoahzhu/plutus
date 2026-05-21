@@ -23,6 +23,7 @@ pub mod meta;
 pub mod news;
 pub mod ohlcv;
 pub mod pending_orders;
+pub mod portfolio;
 pub mod portfolio_reviews;
 pub mod recommendations;
 pub mod screeners;

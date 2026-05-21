@@ -29,6 +29,7 @@ use crate::dto::{
     fundamentals::{FundamentalsIn, FundamentalsOut},
     fx::{FxIn, FxOut},
     holding::HoldingOut,
+    portfolio::DailyValueOut,
     insider::{InsiderTxnIn, InsiderTxnOut},
     macro_event::{MacroEventBatchIn, MacroEventBatchOut, MacroEventIn, MacroEventOut},
     macros::{MacroIndicatorIn, MacroIndicatorOut, MacroObservationIn, MacroObservationOut},
@@ -81,6 +82,7 @@ use crate::handlers::admin::brokers::{AdminCreateBrokerIn, AdminUpdateBrokerIn};
     FundamentalsIn, FundamentalsOut,
     FxIn, FxOut,
     HoldingOut,
+    DailyValueOut,
     InsiderTxnIn, InsiderTxnOut,
     MacroEventIn, MacroEventOut, MacroEventBatchIn, MacroEventBatchOut,
     MacroIndicatorIn, MacroIndicatorOut,
@@ -727,6 +729,18 @@ fn paths() -> Value {
                 "schema": { "type": "string", "enum": ["fifo", "lifo", "average"], "default": "fifo" }
             })],
             "responses": ok_list("HoldingOut")
+        }
+    }));
+    paths.insert("/portfolio/value-series".into(), json!({
+        "get": {
+            "tags": ["holdings"],
+            "summary": "Daily portfolio market value + cost basis over a window.",
+            "description": "Derived from `transactions` (FIFO cost basis) and `ohlcv_daily` (latest close on or before the date, carried forward across weekends and holidays). One row per calendar day. Default window is 30 days; capped at 365.",
+            "parameters": [json!({
+                "name": "days", "in": "query",
+                "schema": { "type": "integer", "minimum": 1, "maximum": 365, "default": 30 }
+            })],
+            "responses": ok_list("DailyValueOut")
         }
     }));
 

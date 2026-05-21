@@ -147,6 +147,16 @@ export interface AuditEntry {
   created_at: string
 }
 
+export interface DailyValue {
+  /// ISO date `YYYY-MM-DD`. Calendar day, not trading day.
+  date: string
+  /// Total market value at that day's close (carry-forward across
+  /// weekends + holidays). Sent as a Decimal-string.
+  market_value: string
+  /// FIFO cost basis of open positions as of that day. Decimal-string.
+  cost_basis: string
+}
+
 /// Append `?locale=` to a path when the caller passed a non-default locale.
 /// Default ('en' / undefined) returns the path unchanged.
 function withLocale(path: string, locale?: string): string {
@@ -688,6 +698,10 @@ export const api = {
 
   audit: () => get<AuditEntry[]>('/audit'),
   stockOhlcv: (stockId: number) => get<Ohlcv[]>(`/stocks/${stockId}/ohlcv`),
+  portfolioValueSeries: (days?: number) => {
+    let q = days ? `?days=${days}` : ''
+    return get<DailyValue[]>(`/portfolio/value-series${q}`)
+  },
 
   /// Returns the raw upstream Response so the caller can read the
   /// `Set-Cookie` header AND the JSON body (to check `password_reset_required`),

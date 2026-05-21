@@ -253,6 +253,11 @@ pub fn build_router(state: AppState) -> Router {
         )
         // Holdings (derived)
         .route("/holdings", get(handlers::holdings::list))
+        // Portfolio time-series (derived from transactions + ohlcv)
+        .route(
+            "/portfolio/value-series",
+            get(handlers::portfolio::value_series),
+        )
         // FX
         .route("/fx", get(handlers::fx::list).post(handlers::fx::insert))
         // Audit

@@ -4,6 +4,7 @@ import { css } from 'remix/ui'
 import {
   api,
   type AuditEntry,
+  type DailyValue,
   type Holding,
   type Ohlcv,
   type Stock,
@@ -74,6 +75,7 @@ export const home: BuildAction<'GET', typeof routes.home> = {
       plans,
       openOrders,
       auditEntries,
+      valueSeries,
     ] = await Promise.all([
       api.markets().catch(() => []),
       api.brokers().catch(() => []),
@@ -85,6 +87,7 @@ export const home: BuildAction<'GET', typeof routes.home> = {
       api.tradePlans({ status: 'active' }).catch(() => []),
       api.pendingOrders({ status: 'open' }).catch(() => []),
       api.audit().catch(() => [] as AuditEntry[]),
+      api.portfolioValueSeries(30).catch(() => [] as DailyValue[]),
     ])
 
     let stockMap = new Map<number, Stock>(stocks.map((s) => [s.id, s]))
@@ -134,6 +137,7 @@ export const home: BuildAction<'GET', typeof routes.home> = {
         snapshot={snapshot}
         movers={movers}
         recentActivity={recentActivity}
+        valueSeries={valueSeries}
       />,
       request,
       { locale, theme },
@@ -220,6 +224,7 @@ interface DashboardProps {
   snapshot: PortfolioSnapshot
   movers: Mover[]
   recentActivity: AuditEntry[]
+  valueSeries: DailyValue[]
 }
 
 function DashboardPage() {
@@ -231,6 +236,7 @@ function DashboardPage() {
     snapshot,
     movers,
     recentActivity,
+    valueSeries,
   }: DashboardProps) => {
     let p = messages(locale).pages.dashboard
     return (
@@ -269,7 +275,7 @@ function DashboardPage() {
             '@media (max-width: 1000px)': { gridTemplateColumns: '1fr' },
           })}
         >
-          <PortfolioSnapshotCard snapshot={snapshot} />
+          <PortfolioSnapshotCard snapshot={snapshot} series={valueSeries} />
 
           <div mix={css({ display: 'flex', flexDirection: 'column', gap: space[4] })}>
             <RecentActivityCard rows={recentActivity} />
@@ -292,7 +298,13 @@ function DashboardPage() {
 }
 
 function PortfolioSnapshotCard() {
-  return ({ snapshot }: { snapshot: PortfolioSnapshot }) => {
+  return ({
+    snapshot,
+    series,
+  }: {
+    snapshot: PortfolioSnapshot
+    series: DailyValue[]
+  }) => {
     if (snapshot.cost_basis === 0 && snapshot.market_value === 0) {
       return (
         <Card>
@@ -312,8 +324,8 @@ function PortfolioSnapshotCard() {
     let tone: BadgeTone = upTrend ? 'success' : 'danger'
     return (
       <Card>
-        <SectionTitle hint={snapshot.fully_priced ? 'live' : 'partial — missing prices'}>
-          Portfolio Snapshot
+        <SectionTitle hint={snapshot.fully_priced ? '30-day window' : 'partial — missing prices'}>
+          Portfolio Performance
         </SectionTitle>
         <div
           mix={css({
@@ -336,20 +348,190 @@ function PortfolioSnapshotCard() {
             }
           />
         </div>
-        <p
-          mix={css({
-            margin: 0,
-            fontSize: font.xs,
-            color: color.textMuted,
-            lineHeight: 1.5,
-          })}
-        >
-          Snapshot at the latest available OHLCV close. A time-series chart needs
-          per-day historical position rollups, which is the next phase.
-        </p>
+        <PortfolioChart series={series} />
       </Card>
     )
   }
+}
+
+/// Hand-rolled SVG line chart for the portfolio value time series.
+/// Two lines: solid = market value, dashed = cost basis. Both share
+/// the same y-scale so the gap visualizes unrealized P&L directly.
+/// Y-axis ticks are computed from `niceTicks` so they round to
+/// human-readable values; x-axis shows three date labels (start /
+/// middle / latest) — denser labels overlap at 30 days. Empty / too-
+/// short series → a friendly hint instead of a one-pixel line.
+function PortfolioChart() {
+  return ({ series }: { series: DailyValue[] }) => {
+    if (series.length < 2) {
+      return (
+        <p
+          mix={css({
+            margin: 0,
+            padding: `${space[4]} 0`,
+            textAlign: 'center',
+            fontSize: font.sm,
+            color: color.textMuted,
+          })}
+        >
+          Need at least 2 days of OHLCV to draw the curve. Backfill more bars
+          via <code>POST /api/v1/ohlcv/batch</code>.
+        </p>
+      )
+    }
+
+    // Convert decimal strings to numbers once.
+    let pts = series.map((d) => ({
+      date: d.date,
+      mv: Number.parseFloat(d.market_value),
+      cb: Number.parseFloat(d.cost_basis),
+    }))
+    let allValues = pts.flatMap((p) => [p.mv, p.cb])
+    let dataMin = Math.min(...allValues)
+    let dataMax = Math.max(...allValues)
+    // Pad the y-range so the line never glues to the chart edge.
+    let padFrac = 0.05
+    let span = Math.max(dataMax - dataMin, 1)
+    let yMin = dataMin - span * padFrac
+    let yMax = dataMax + span * padFrac
+    let ticks = niceTicks(yMin, yMax, 4)
+    let plotMin = Math.min(yMin, ticks[0])
+    let plotMax = Math.max(yMax, ticks[ticks.length - 1])
+
+    // viewBox-based geometry — the SVG scales fluidly into whatever
+    // width the card gives it. Height stays fixed so neighboring
+    // cards align.
+    let w = 600
+    let h = 200
+    let padL = 56 // room for y-axis labels
+    let padR = 12
+    let padT = 8
+    let padB = 24 // room for x-axis labels
+    let plotW = w - padL - padR
+    let plotH = h - padT - padB
+
+    let x = (i: number) =>
+      pts.length === 1 ? padL + plotW / 2 : padL + (i / (pts.length - 1)) * plotW
+    let y = (v: number) =>
+      padT + plotH - ((v - plotMin) / (plotMax - plotMin || 1)) * plotH
+
+    let mvPath = pathFor(pts.map((p, i) => [x(i), y(p.mv)] as const))
+    let cbPath = pathFor(pts.map((p, i) => [x(i), y(p.cb)] as const))
+
+    // X-axis labels: first, middle, last date (in browser TZ — those
+    // are calendar dates, no conversion needed but locale formatting
+    // shortens them).
+    let labelIdxs = pts.length >= 3 ? [0, Math.floor(pts.length / 2), pts.length - 1] : [0, pts.length - 1]
+
+    return (
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        preserveAspectRatio="none"
+        mix={css({
+          display: 'block',
+          width: '100%',
+          height: 'auto',
+          marginBottom: space[2],
+        })}
+      >
+        {/* Horizontal grid + y-axis labels */}
+        {ticks.map((t, i) => {
+          let ty = y(t)
+          return (
+            <g key={i}>
+              <line
+                x1={padL}
+                x2={w - padR}
+                y1={ty}
+                y2={ty}
+                stroke={color.borderSoft}
+                stroke-width="1"
+              />
+              <text
+                x={padL - 6}
+                y={ty + 3}
+                text-anchor="end"
+                font-size="10"
+                fill={color.textMuted}
+                font-family={font.mono}
+              >
+                {fmtCompact(t)}
+              </text>
+            </g>
+          )
+        })}
+
+        {/* Cost basis (dashed, behind) */}
+        <path
+          d={cbPath}
+          fill="none"
+          stroke={color.textMuted}
+          stroke-width="1.5"
+          stroke-dasharray="4 4"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+        {/* Market value (solid, in front) */}
+        <path
+          d={mvPath}
+          fill="none"
+          stroke={color.brand}
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+
+        {/* X-axis labels */}
+        {labelIdxs.map((i) => (
+          <text
+            key={i}
+            x={x(i)}
+            y={h - 6}
+            text-anchor={
+              i === 0 ? 'start' : i === pts.length - 1 ? 'end' : 'middle'
+            }
+            font-size="10"
+            fill={color.textMuted}
+            font-family={font.mono}
+          >
+            {pts[i].date.slice(5)}
+          </text>
+        ))}
+      </svg>
+    )
+  }
+}
+
+/// Build an SVG path `d` string from a list of (x, y) points.
+function pathFor(points: ReadonlyArray<readonly [number, number]>): string {
+  return points
+    .map(([px, py], i) => `${i === 0 ? 'M' : 'L'} ${px.toFixed(2)},${py.toFixed(2)}`)
+    .join(' ')
+}
+
+/// Pick `count` human-readable ticks covering [min, max]. Aims for
+/// round multiples of 1 / 2 / 5 × 10^N — the classic "nice number"
+/// trick.
+function niceTicks(min: number, max: number, count: number): number[] {
+  let raw = (max - min) / Math.max(count - 1, 1)
+  let mag = Math.pow(10, Math.floor(Math.log10(raw)))
+  let norm = raw / mag
+  let step = (norm >= 5 ? 10 : norm >= 2 ? 5 : norm >= 1 ? 2 : 1) * mag
+  let start = Math.floor(min / step) * step
+  let end = Math.ceil(max / step) * step
+  let ticks: number[] = []
+  for (let v = start; v <= end + step / 2; v += step) ticks.push(v)
+  return ticks
+}
+
+/// Compact money string for axis labels (`12.3K`, `1.45M`). Keeps the
+/// chart visually balanced when the y-range is large.
+function fmtCompact(n: number): string {
+  let abs = Math.abs(n)
+  if (abs >= 1e9) return `${(n / 1e9).toFixed(1)}B`
+  if (abs >= 1e6) return `${(n / 1e6).toFixed(1)}M`
+  if (abs >= 1e3) return `${(n / 1e3).toFixed(1)}K`
+  return n.toFixed(0)
 }
 
 function Metric() {
