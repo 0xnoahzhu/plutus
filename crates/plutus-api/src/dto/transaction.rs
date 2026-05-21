@@ -109,13 +109,21 @@ pub struct TransactionIn {
     pub account_id: i64,
     /// FK to `stocks.id`. `null` for cash entries.
     pub stock_id: Option<i64>,
-    /// `buy` / `sell` / `dividend` / `deposit` / `withdraw` / `fee` /
-    /// `tax_withholding` / `transfer_in` / `transfer_out`.
+    /// Transaction type, canonical `SCREAMING_SNAKE_CASE`. Accepts
+    /// case-insensitively: `BUY`, `SELL`, `DIVIDEND`, `FEE`, `INTEREST`,
+    /// `DEPOSIT`, `WITHDRAWAL` (alias `WITHDRAW`), `FX`,
+    /// `CORPORATE_ACTION`. Unknown values return 400. Stored canonically
+    /// in upper form regardless of input.
+    ///
+    /// Only `BUY`, `SELL`, and `CORPORATE_ACTION` roll up into
+    /// `/holdings`; the others are cash-only.
     pub kind: String,
     /// RFC 3339 UTC timestamp.
     pub executed_at: String,
-    /// Shares (positive for buy/transfer_in, negative for sell/transfer_out)
-    /// or cash amount.
+    /// Signed share count for share-moving kinds: positive for `BUY` /
+    /// `CORPORATE_ACTION` (add) and negative for `SELL` (subtract from
+    /// position). Cash amount for `DEPOSIT` / `WITHDRAWAL` /
+    /// `DIVIDEND` / `FEE` / `INTEREST` / `FX`.
     #[schema(value_type = String)]
     pub quantity: Decimal,
     /// Per-share price or `1.00` for cash entries.
