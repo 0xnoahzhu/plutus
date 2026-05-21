@@ -123,6 +123,30 @@ export interface Holding {
   realized_pnl_base: string
 }
 
+export interface Ohlcv {
+  id: number
+  stock_id: number
+  trade_date: string
+  open: string
+  high: string
+  low: string
+  close: string
+  adjusted_close: string | null
+  volume: number
+  source: string
+}
+
+export interface AuditEntry {
+  id: number
+  entity_type: string
+  entity_id: string
+  action: string
+  actor_kind: string
+  actor_label: string
+  request_id: string
+  created_at: string
+}
+
 /// Append `?locale=` to a path when the caller passed a non-default locale.
 /// Default ('en' / undefined) returns the path unchanged.
 function withLocale(path: string, locale?: string): string {
@@ -662,7 +686,8 @@ export const api = {
   catalystsForStock: (stockId: number, locale?: string) =>
     get<Catalyst[]>(withLocale(`/stocks/${stockId}/catalysts`, locale)),
 
-  audit: () => get<unknown[]>('/audit'),
+  audit: () => get<AuditEntry[]>('/audit'),
+  stockOhlcv: (stockId: number) => get<Ohlcv[]>(`/stocks/${stockId}/ohlcv`),
 
   /// Returns the raw upstream Response so the caller can read the
   /// `Set-Cookie` header AND the JSON body (to check `password_reset_required`),
