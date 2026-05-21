@@ -27,6 +27,7 @@ import {
   StockBadge,
   type Theme,
 } from '../ui/layout.tsx'
+import { fmtMoney } from '../ui/format.ts'
 import { LocalTime } from '../ui/local-time.tsx'
 import { render } from '../utils/render.tsx'
 
@@ -716,7 +717,7 @@ function TopMoversCard() {
                       color: color.textMuted,
                     })}
                   >
-                    {m.close.toFixed(2)}
+                    {fmtMoney(m.close)}
                   </span>
                   <Badge tone={tone}>
                     {up ? '+' : ''}
@@ -739,16 +740,3 @@ function actionTone(action: string): BadgeTone {
   return 'neutral'
 }
 
-function fmtMoney(n: number): string {
-  // Format with thousands separators, two decimals. Currency-agnostic
-  // for now (assumes the user's base currency; the snapshot doesn't
-  // mix currencies because /holdings rolls up per-account base).
-  let sign = n < 0 ? '-' : ''
-  let abs = Math.abs(n)
-  let int = Math.floor(abs)
-  let cents = Math.round((abs - int) * 100)
-    .toString()
-    .padStart(2, '0')
-  let intStr = int.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-  return `${sign}${intStr}.${cents}`
-}

@@ -20,6 +20,7 @@ import {
   StockBadge,
   type Theme,
 } from '../ui/layout.tsx'
+import { fmtMoney } from '../ui/format.ts'
 import { LocalTime } from '../ui/local-time.tsx'
 import { render } from '../utils/render.tsx'
 
@@ -135,10 +136,10 @@ function TransactionsPage() {
                     </Td>
                     <Td>{s ? <Badge tone="neutral">{s.market_code}</Badge> : '—'}</Td>
                     <Td align="right" mono>{t.quantity}</Td>
-                    <Td align="right" mono>{t.price}</Td>
+                    <Td align="right" mono>{fmtMoney(t.price)}</Td>
                     <Td>{t.trade_currency}</Td>
                     <Td align="right" mono>
-                      {t.commission} {t.commission_currency}
+                      {fmtMoney(t.commission)} {t.commission_currency}
                     </Td>
                     <Td>
                       <span

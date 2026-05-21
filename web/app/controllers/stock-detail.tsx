@@ -30,6 +30,7 @@ import {
   StockBadge,
   type Theme,
 } from '../ui/layout.tsx'
+import { fmtMoney } from '../ui/format.ts'
 import { render } from '../utils/render.tsx'
 
 export const stockDetail: BuildAction<'GET', typeof routes.stockDetail> = {
@@ -482,7 +483,7 @@ function LevelRow() {
             fontVariantNumeric: 'tabular-nums',
           })}
         >
-          {level.price} {stock.currency}
+          {fmtMoney(level.price)} {stock.currency}
         </td>
         <td
           mix={css({

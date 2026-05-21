@@ -20,6 +20,7 @@ import {
   StockBadge,
   type Theme,
 } from '../ui/layout.tsx'
+import { fmtMoney } from '../ui/format.ts'
 import { LocalTime } from '../ui/local-time.tsx'
 import { render } from '../utils/render.tsx'
 
@@ -177,7 +178,7 @@ function RecRow() {
                 fontFamily: font.mono,
               })}
             >
-              target {rec.target_price}
+              target {fmtMoney(rec.target_price)}
               {rec.target_currency ? ` ${rec.target_currency}` : ''}
             </span>
           )}

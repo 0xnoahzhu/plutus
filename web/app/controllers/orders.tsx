@@ -35,6 +35,7 @@ import {
   StockBadge,
   type Theme,
 } from '../ui/layout.tsx'
+import { fmtMoney } from '../ui/format.ts'
 import { LocalTime } from '../ui/local-time.tsx'
 import { render } from '../utils/render.tsx'
 
@@ -509,10 +510,10 @@ function OrderRow() {
     let symbol = stock?.symbol ?? `#${order.stock_id}`
     let priceText =
       order.order_type === 'stop'
-        ? order.stop_price ?? '—'
+        ? fmtMoney(order.stop_price)
         : order.order_type === 'stop_limit'
-          ? `${order.stop_price ?? '—'} / ${order.limit_price ?? '—'}`
-          : order.limit_price ?? '—'
+          ? `${fmtMoney(order.stop_price)} / ${fmtMoney(order.limit_price)}`
+          : fmtMoney(order.limit_price)
     let sideLabel = order.side === 'buy' ? p.sideBuy : p.sideSell
     let sideTone: BadgeTone = order.side === 'buy' ? 'success' : 'danger'
     let typeLabel =

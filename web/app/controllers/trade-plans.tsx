@@ -25,6 +25,7 @@ import {
   StockBadge,
   type Theme,
 } from '../ui/layout.tsx'
+import { fmtMoney } from '../ui/format.ts'
 import { LocalTime } from '../ui/local-time.tsx'
 import { render } from '../utils/render.tsx'
 
@@ -674,7 +675,7 @@ function LevelRow() {
         </Td>
         <Td>
           <span mix={css({ fontFamily: font.mono, fontWeight: 600 })}>
-            {level.price}
+            {fmtMoney(level.price)}
           </span>
         </Td>
         <Td>{sizeCell}</Td>
@@ -735,7 +736,7 @@ function LevelRow() {
             >
               <button
                 type="submit"
-                title={confirms.deleteTradePlanLevel(kindLabel, level.price)}
+                title={confirms.deleteTradePlanLevel(kindLabel, fmtMoney(level.price))}
                 mix={css(dangerButton)}
               >
                 {p.deleteLevelSubmit}

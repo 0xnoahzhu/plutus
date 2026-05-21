@@ -20,6 +20,7 @@ import {
   StockBadge,
   type Theme,
 } from '../ui/layout.tsx'
+import { fmtMoney } from '../ui/format.ts'
 import { render } from '../utils/render.tsx'
 
 export const holdings: BuildAction<'GET', typeof routes.holdings> = {
@@ -149,10 +150,10 @@ function HoldingsPage() {
                       {h.quantity}
                     </Td>
                     <Td align="right" mono>
-                      {h.avg_cost_trade}
+                      {fmtMoney(h.avg_cost_trade)}
                     </Td>
                     <Td align="right" mono>
-                      {h.cost_base}
+                      {fmtMoney(h.cost_base)}
                     </Td>
                     <Td align="right">
                       <PnlPill value={h.realized_pnl_base} trend={trend} />
@@ -225,6 +226,6 @@ function PnlPill() {
       trend === 'up' ? 'success' : trend === 'down' ? 'danger' : 'neutral'
     let n = Number.parseFloat(value)
     let sign = n > 0 ? '+' : ''
-    return <Badge tone={tone}>{`${sign}${value}`}</Badge>
+    return <Badge tone={tone}>{`${sign}${fmtMoney(value)}`}</Badge>
   }
 }
