@@ -301,43 +301,81 @@ const CONFIRM_SUBMIT_JS = `
     });
 
     // Localize <time datetime="..."> elements. The server emits UTC
-    // strings; here we walk the DOM once on load and replace textContent
-    // with the user-locale-formatted time. The data-fmt attribute picks
-    // the shape (date / datetime / full); see ui/local-time.tsx for the
-    // contract. No-JS users keep the UTC fallback rendered server-side,
-    // which is wide-matched to the JS output so the layout doesn't jump.
-    function localizeTimes() {
-      var els = document.querySelectorAll('time[datetime]');
-      for (var i = 0; i < els.length; i++) {
-        var el = els[i];
-        var iso = el.getAttribute('datetime');
-        if (!iso) continue;
-        var d = new Date(iso);
-        if (isNaN(d.getTime())) continue;
-        var fmt = el.getAttribute('data-fmt') || 'date';
-        var opts;
-        if (fmt === 'full') {
-          opts = { year: 'numeric', month: '2-digit', day: '2-digit',
-                   hour: '2-digit', minute: '2-digit', second: '2-digit',
-                   hour12: false };
-        } else if (fmt === 'datetime') {
-          opts = { year: 'numeric', month: '2-digit', day: '2-digit',
-                   hour: '2-digit', minute: '2-digit', hour12: false };
-        } else {
-          opts = { year: 'numeric', month: '2-digit', day: '2-digit' };
-        }
-        // Force YYYY-MM-DD ordering regardless of locale by using the
-        // 'sv-SE' (Swedish) locale, which formats as ISO-style. Time
-        // values still respect the user's clock (24h here, browser TZ).
-        try {
-          el.textContent = new Intl.DateTimeFormat('sv-SE', opts).format(d);
-        } catch (e) {
-          // Some old browsers don't accept the options bag — leave the
-          // SSR fallback in place.
-        }
+    // strings; we replace textContent with the user-locale-formatted
+    // time. The data-fmt attribute picks the shape (date / datetime /
+    // full); see ui/local-time.tsx for the contract. No-JS users keep
+    // the UTC fallback rendered server-side, which is wide-matched to
+    // the JS output so the layout doesn't jump.
+    //
+    // Why MutationObserver: the remix runtime's diff-dom resets text
+    // nodes during hydration and frame re-renders, which would clobber
+    // a one-shot localize-on-load pass back to the SSR UTC string. The
+    // observer re-applies localization whenever a <time>'s textContent
+    // is rewritten or a new <time> appears in the tree. The
+    // current==new short-circuit inside localizeTime prevents an
+    // infinite loop with our own writes.
+    function localizeTime(el) {
+      var iso = el.getAttribute('datetime');
+      if (!iso) return;
+      var d = new Date(iso);
+      if (isNaN(d.getTime())) return;
+      var fmt = el.getAttribute('data-fmt') || 'date';
+      var opts;
+      if (fmt === 'full') {
+        opts = { year: 'numeric', month: '2-digit', day: '2-digit',
+                 hour: '2-digit', minute: '2-digit', second: '2-digit',
+                 hour12: false };
+      } else if (fmt === 'datetime') {
+        opts = { year: 'numeric', month: '2-digit', day: '2-digit',
+                 hour: '2-digit', minute: '2-digit', hour12: false };
+      } else {
+        opts = { year: 'numeric', month: '2-digit', day: '2-digit' };
+      }
+      // Force YYYY-MM-DD ordering regardless of locale by using the
+      // 'sv-SE' (Swedish) locale, which formats as ISO-style. Time
+      // values still respect the user's clock (24h here, browser TZ).
+      try {
+        var next = new Intl.DateTimeFormat('sv-SE', opts).format(d);
+        if (el.textContent !== next) el.textContent = next;
+      } catch (e) {
+        // Some old browsers don't accept the options bag — leave the
+        // SSR fallback in place.
       }
     }
-    localizeTimes();
+    function localizeAllTimes(root) {
+      var scope = root && root.querySelectorAll ? root : document;
+      var els = scope.querySelectorAll('time[datetime]');
+      for (var i = 0; i < els.length; i++) localizeTime(els[i]);
+      if (root && root.tagName === 'TIME' && root.hasAttribute('datetime')) {
+        localizeTime(root);
+      }
+    }
+    localizeAllTimes(document);
+    if (typeof MutationObserver === 'function') {
+      var timeObserver = new MutationObserver(function(mutations) {
+        for (var i = 0; i < mutations.length; i++) {
+          var m = mutations[i];
+          if (m.type === 'characterData') {
+            var p = m.target.parentNode;
+            if (p && p.nodeType === 1 && p.tagName === 'TIME' &&
+                p.hasAttribute && p.hasAttribute('datetime')) {
+              localizeTime(p);
+            }
+          } else if (m.type === 'childList') {
+            for (var j = 0; j < m.addedNodes.length; j++) {
+              var n = m.addedNodes[j];
+              if (n.nodeType !== 1) continue;
+              localizeAllTimes(n);
+            }
+          }
+        }
+      });
+      timeObserver.observe(document.body, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+      });
+    }
 
     // Markdown raw/preview toggle. Any button carrying
     // [data-md-toggle][data-md-target="rendered"|"raw"] flips the closest

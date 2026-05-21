@@ -1,8 +1,10 @@
 /// Render a server-side UTC timestamp as the user's local time, falling
 /// back to a truncated UTC string when JavaScript is disabled. Emits a
 /// semantic `<time datetime="...">` element with a `data-fmt` hint; the
-/// inline hydration script in `document.tsx` rewrites the textContent on
-/// load using `Intl.DateTimeFormat` with no `timeZone` (= browser default).
+/// inline script in `document.tsx` rewrites the textContent using
+/// `Intl.DateTimeFormat` with no `timeZone` (= browser default), and a
+/// MutationObserver re-applies the conversion whenever the framework's
+/// hydration/render passes clobber the text back to the SSR UTC value.
 ///
 /// Use only for genuine UTC timestamps (`created_at`, `executed_at`,
 /// `published_at`, etc.). Calendar-only dates (`trade_date`, `run_date`,
