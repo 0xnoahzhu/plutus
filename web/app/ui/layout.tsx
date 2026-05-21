@@ -112,12 +112,21 @@ function buildNav(m: Messages): NavEntry[] {
 
 // ── Country / locale ─────────────────────────────────────────────────────────
 
-// Country → list of MIC codes covered. Stocks carry market_code; we map back
-// to a country to decide whether a row passes the country filter.
+// Country → list of `stocks.market_code` values covered. Stocks carry a
+// `market_code` and we map back to a country here to decide whether a
+// row passes the country filter.
+//
+// Two conventions coexist in the data: the canonical MIC codes
+// (`XNAS`, `XNYS`, `XHKG`, `XSHG`, `XSHE`) — present in the `markets`
+// reference table — and the lowercase pseudo-codes the `stocks` table
+// actually stores (`us`, `us_etf`, `us_adr`, `hk`, `hk_etf`, `cn_a`,
+// `cn_etf`). Listing both means the filter works regardless of which
+// convention the row was written with. New rows should prefer the
+// lowercase pseudo-codes — the MIC entries are kept for back-compat.
 export const COUNTRY_TO_MARKETS: Record<string, string[]> = {
-  US: ['XNAS', 'XNYS'],
-  HK: ['XHKG'],
-  CN: ['XSHG', 'XSHE'],
+  US: ['XNAS', 'XNYS', 'us', 'us_etf', 'us_adr'],
+  HK: ['XHKG', 'hk', 'hk_etf'],
+  CN: ['XSHG', 'XSHE', 'cn_a', 'cn_etf'],
 }
 const ALL_COUNTRIES = Object.keys(COUNTRY_TO_MARKETS)
 
