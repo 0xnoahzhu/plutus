@@ -34,6 +34,11 @@ pub async fn record(db: &Db, entry: RecordAudit<'_>) -> Result<AuditLog> {
     // back to token_id so api-token actors that aren't yet user-scoped still
     // get a non-null actor_id for the audit row.
     let actor_id = entry.actor.user_id.or(entry.actor.token_id);
+    // Owning user goes into its own column (FK -> users.id). Admin /
+    // anonymous / system actors fall back to the `id=0` sentinel row so
+    // the FK is always satisfied without inventing dummy DB rows for
+    // each env-based admin login.
+    let user_id = entry.actor.user_id.unwrap_or(0);
     let actor_label = entry.actor.label.clone();
     let before = entry.before;
     let after = entry.after;
@@ -42,6 +47,7 @@ pub async fn record(db: &Db, entry: RecordAudit<'_>) -> Result<AuditLog> {
     let row = db
         .with(async |d| {
             toasty::create!(AuditLog {
+                user_id: user_id,
                 entity_type: entity_type,
                 entity_id: entity_id,
                 action: action,
@@ -69,8 +75,8 @@ pub async fn list(db: &Db) -> Result<Vec<AuditLog>> {
     let client = db.raw_client().await?;
     let rows = client
         .query(
-            "SELECT id, entity_type, entity_id, action, actor_kind, actor_id, \
-                    actor_label, before, after, request_id, created_at \
+            "SELECT id, user_id, entity_type, entity_id, action, actor_kind, \
+                    actor_id, actor_label, before, after, request_id, created_at \
                FROM audit_log \
               ORDER BY created_at DESC, id DESC \
               LIMIT $1",
@@ -82,6 +88,7 @@ pub async fn list(db: &Db) -> Result<Vec<AuditLog>> {
         .into_iter()
         .map(|r| AuditLog {
             id: r.get("id"),
+            user_id: r.get("user_id"),
             entity_type: r.get("entity_type"),
             entity_id: r.get("entity_id"),
             action: r.get("action"),

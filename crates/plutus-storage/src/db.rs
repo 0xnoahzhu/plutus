@@ -1096,19 +1096,37 @@ CREATE INDEX IF NOT EXISTS pending_orders_plan_level_idx ON pending_orders (trad
 
 -- ── Foreign keys ───────────────────────────────────────────────────────────
 -- Every per-user table carried a `user_id BIGINT NOT NULL DEFAULT 0` from
--- the multi-user migration, but no FK constraint actually enforced
--- referential integrity against `users(id)`. That let early test data
--- accumulate with user_id ∈ {0, 1} (neither row ever existed in users),
--- so the audit log has ~800 orphan rows, web_sessions has ~35, etc.
+-- the multi-user migration, but no FK constraint enforced referential
+-- integrity against `users(id)`. That let two distinct kinds of rows
+-- accumulate:
 --
--- Two-step migration:
---   1. UPDATE every per-user table to repoint orphan user_ids at
---      user_id=4 (`0xnoahzhu`), the only real account. We pick "adopt
---      to id=4" instead of DELETE so the historical web_sessions and
---      audit_log entries stay attached to the user who created them.
---   2. Add ON DELETE CASCADE FK constraints. Wrapped in a DO block
---      that checks pg_constraint first so this is idempotent across
---      re-runs and tolerates tables that may have been retired.
+--   * **Admin-authored rows** (user_id = 0). Admin auth is env-only
+--     (`PLUTUS_ADMIN_USERNAME`/`_PASSWORD`); there is no row in `users`
+--     for admin. Code paths use `user_id = 0` as the sentinel for
+--     "admin or system actor" (handlers/auth.rs admin login creates a
+--     web_session with user_id=0, and the audit insert defaults to 0
+--     when the Actor has no user_id). This is a load-bearing convention,
+--     not a bug.
+--   * **Truly orphaned rows** (user_id = 1 from early test data, etc.)
+--     that point at IDs that never existed.
+--
+-- A previous version of this migration treated user_id=0 as orphan and
+-- reassigned 800+ admin/anonymous audit rows + 19 admin web sessions to
+-- user_id=4. That mis-attributed admin's actions to a regular user and
+-- broke the audit trail. This block:
+--
+--   1. Inserts an `id=0` sentinel users row so the FK can accept the
+--      admin convention. Username `__admin` is reserved; the
+--      password_hash is a non-Argon2 string so it can never validate.
+--   2. Reverts the bad reassignment by inspecting kind/is_admin
+--      columns: any audit_log row written by admin/anonymous/system,
+--      and any is_admin=true web_session, gets user_id reset to 0.
+--      api_token-authored audit rows are left at user_id=4 since
+--      that's the (correct) owner of those tokens.
+--   3. Adopts true orphans (user_id NOT in users AND not 0) to
+--      user_id=4, the only real account.
+--   4. Adds ON DELETE CASCADE FK constraints. Idempotent via
+--      pg_constraint existence checks.
 --
 -- The internal FKs on trade_plan_levels(plan_id) and
 -- pending_orders(trade_plan_level_id) are declared in the inline
@@ -1116,6 +1134,26 @@ CREATE INDEX IF NOT EXISTS pending_orders_plan_level_idx ON pending_orders (trad
 -- DB (those tables were created before the FK clauses were added).
 -- Recreate them here so a delete of a trade plan cleans up its levels,
 -- and a delete of a level nulls out the order's back-reference.
+
+-- Step 0: insert the admin sentinel so user_id=0 is a valid FK target.
+INSERT INTO users (
+    id, username, password_hash, password_reset_required,
+    allowed_countries, created_at, updated_at
+)
+VALUES (
+    0, '__admin', '!sentinel:env-auth-no-login', false,
+    '[]', now(), now()
+)
+ON CONFLICT (id) DO NOTHING;
+
+-- Step 1: undo the previous migration's over-eager UPDATE for the rows
+-- that originally belonged to admin or to non-user actors.
+UPDATE web_sessions SET user_id = 0
+WHERE is_admin = true AND user_id <> 0;
+
+UPDATE audit_log SET user_id = 0
+WHERE actor_kind IN ('admin', 'anonymous', 'system') AND user_id <> 0;
+
 DO $migrate_user_fks$
 DECLARE
     t TEXT;
@@ -1128,8 +1166,9 @@ DECLARE
         'market_briefs', 'web_sessions', 'api_tokens', 'audit_log'
     ];
 BEGIN
-    -- 1. Adopt orphans to user_id=4 wherever the column exists and the
-    --    row's user_id isn't in users.
+    -- Step 2: adopt the remaining orphans (user_id not in users and
+    -- not 0) to user_id=4. After the sentinel insert above, user_id=0
+    -- is already a valid target and won't be touched.
     FOREACH t IN ARRAY per_user_tables LOOP
         IF EXISTS (
             SELECT 1 FROM information_schema.columns
@@ -1142,9 +1181,9 @@ BEGIN
         END IF;
     END LOOP;
 
-    -- 2. Add the FK constraints, ON DELETE CASCADE. Skip the table if
-    --    the user_id column is gone, or if the constraint already
-    --    exists from a previous run.
+    -- Step 3: add the FK constraints, ON DELETE CASCADE. Skip the
+    -- table if the user_id column is gone, or if the constraint
+    -- already exists from a previous run.
     FOREACH t IN ARRAY per_user_tables LOOP
         IF EXISTS (
             SELECT 1 FROM information_schema.columns

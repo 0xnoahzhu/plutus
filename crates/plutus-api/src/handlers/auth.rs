@@ -43,7 +43,12 @@ pub async fn login(
         return Err(ApiError::BadRequest("username and password are required".into()));
     }
 
-    // Admin path: match against env-var plaintext. Admin is NOT a row in `users`.
+    // Admin path: match against env-var plaintext. Admin is NOT a row in
+    // `users` — credentials are env-only. The web_session row that anchors
+    // the admin's browser cookie uses `user_id = 0`, which points at the
+    // sentinel `__admin` row inserted during migration so the FK to
+    // `users(id)` is valid. See models/audit_log.rs for the full
+    // convention.
     if state.is_admin_username(username) {
         if input.password != state.admin_password {
             return Err(ApiError::Unauthorized);
