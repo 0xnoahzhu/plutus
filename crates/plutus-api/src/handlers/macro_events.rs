@@ -1,7 +1,7 @@
 use axum::extract::{Path, Query, State};
 use axum::Json;
 use serde::Deserialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::dto::macro_event::{
     MacroEventBatchIn, MacroEventBatchOut, MacroEventIn, MacroEventOut,
@@ -72,6 +72,7 @@ pub async fn upsert(
             "content must be a JSON object keyed by locale".into(),
         ));
     }
+    ensure_indicators_known(&state, std::iter::once(input.indicator_code.as_str())).await?;
     let row = plutus_storage::queries::macro_events::upsert(
         &state.db,
         plutus_storage::queries::macro_events::NewMacroEvent {
@@ -109,6 +110,11 @@ pub async fn batch_upsert(
             )));
         }
     }
+    ensure_indicators_known(
+        &state,
+        input.items.iter().map(|i| i.indicator_code.as_str()),
+    )
+    .await?;
     let news: Vec<plutus_storage::queries::macro_events::NewMacroEvent<'_>> = input
         .items
         .iter()
@@ -142,4 +148,33 @@ pub async fn delete(
 ) -> ApiResult<axum::http::StatusCode> {
     plutus_storage::queries::macro_events::delete(&state.db, id).await?;
     Ok(axum::http::StatusCode::NO_CONTENT)
+}
+
+/// App-level FK check: every `indicator_code` on an incoming event
+/// must already exist in `macro_indicators`. Without this, an event
+/// referencing an unknown code is invisible to the country-filter on
+/// /macro-events (the country is resolved via the indicator), so it
+/// silently disappears from the UI. A real DB-level FK would be
+/// stronger but ships a migration; this catches the bug at the agent
+/// boundary with a readable 400.
+async fn ensure_indicators_known<'a>(
+    state: &AppState,
+    codes: impl IntoIterator<Item = &'a str>,
+) -> ApiResult<()> {
+    let indicators = plutus_storage::queries::macros::list_indicators(&state.db).await?;
+    let known: HashSet<String> = indicators.into_iter().map(|i| i.code).collect();
+    let mut missing: Vec<String> = codes
+        .into_iter()
+        .filter(|c| !known.contains(*c))
+        .map(|c| c.to_string())
+        .collect();
+    if missing.is_empty() {
+        return Ok(());
+    }
+    missing.sort();
+    missing.dedup();
+    Err(ApiError::BadRequest(format!(
+        "unknown indicator_code(s): {}. Register via POST /api/v1/macro/indicators before posting events.",
+        missing.join(", ")
+    )))
 }
