@@ -4,6 +4,7 @@
 
 #![allow(clippy::module_name_repetitions)]
 
+pub mod audit_middleware;
 pub mod auth;
 pub mod dto;
 pub mod error;
@@ -403,6 +404,15 @@ pub fn build_router(state: AppState) -> Router {
         )
         .with_state(state.clone());
 
+    // Layer ordering note: layers execute in reverse order they're
+    // added. The audit recorder is added FIRST (deeper) so it sees the
+    // actor that extract_actor inserts, and the extract_actor layer is
+    // added SECOND (outer) so it runs first on the request path.
+    let audit_state = state.clone();
+    let api = api.layer(axum::middleware::from_fn(move |req, next| {
+        let s = audit_state.clone();
+        async move { audit_middleware::record_writes(s, req, next).await }
+    }));
     let auth_state = state.clone();
     let api = api.layer(axum::middleware::from_fn(move |req, next| {
         let s = auth_state.clone();

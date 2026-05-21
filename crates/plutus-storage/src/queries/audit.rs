@@ -60,8 +60,38 @@ pub async fn record(db: &Db, entry: RecordAudit<'_>) -> Result<AuditLog> {
     Ok(row)
 }
 
+/// Newest-first. Cap at 200 rows; the home Recent Activity card slices
+/// the first ~8 and the dedicated `/audit` page rarely needs more —
+/// this keeps a single call lightweight without paginating yet.
+const LIST_CAP: i64 = 200;
+
 pub async fn list(db: &Db) -> Result<Vec<AuditLog>> {
-    db.with(async |d| AuditLog::all().exec(d).await)
+    let client = db.raw_client().await?;
+    let rows = client
+        .query(
+            "SELECT id, entity_type, entity_id, action, actor_kind, actor_id, \
+                    actor_label, before, after, request_id, created_at \
+               FROM audit_log \
+              ORDER BY created_at DESC, id DESC \
+              LIMIT $1",
+            &[&LIST_CAP],
+        )
         .await
-        .map_err(Into::into)
+        .map_err(crate::db::DbError::from)?;
+    Ok(rows
+        .into_iter()
+        .map(|r| AuditLog {
+            id: r.get("id"),
+            entity_type: r.get("entity_type"),
+            entity_id: r.get("entity_id"),
+            action: r.get("action"),
+            actor_kind: r.get("actor_kind"),
+            actor_id: r.get("actor_id"),
+            actor_label: r.get("actor_label"),
+            before: r.get("before"),
+            after: r.get("after"),
+            request_id: r.get("request_id"),
+            created_at: r.get("created_at"),
+        })
+        .collect())
 }
