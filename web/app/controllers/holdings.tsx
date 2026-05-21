@@ -97,15 +97,28 @@ function HoldingsPage() {
                 <Th align="right">{p.columnQuantity}</Th>
                 <Th align="right">{p.columnAvgCost}</Th>
                 <Th align="right">{p.columnCostBasis}</Th>
+                <Th align="right">{p.columnUnrealizedPnl}</Th>
                 <Th align="right">{p.columnRealizedPnl}</Th>
               </tr>
             </thead>
             <tbody>
               {rows.map((h) => {
                 let s = stocks.get(h.stock_id)
-                let pnl = Number.parseFloat(h.realized_pnl_base)
-                let trend: 'up' | 'down' | 'flat' =
-                  pnl > 0 ? 'up' : pnl < 0 ? 'down' : 'flat'
+                let realized = Number.parseFloat(h.realized_pnl_base)
+                let realizedTrend: 'up' | 'down' | 'flat' =
+                  realized > 0 ? 'up' : realized < 0 ? 'down' : 'flat'
+                let unrealizedNum =
+                  h.unrealized_pnl_base != null
+                    ? Number.parseFloat(h.unrealized_pnl_base)
+                    : null
+                let unrealizedTrend: 'up' | 'down' | 'flat' =
+                  unrealizedNum == null
+                    ? 'flat'
+                    : unrealizedNum > 0
+                      ? 'up'
+                      : unrealizedNum < 0
+                        ? 'down'
+                        : 'flat'
                 return (
                   <tr
                     mix={css({
@@ -154,7 +167,10 @@ function HoldingsPage() {
                       {fmtMoney(h.cost_base)}
                     </Td>
                     <Td align="right">
-                      <PnlPill value={h.realized_pnl_base} trend={trend} />
+                      <PnlPill value={h.unrealized_pnl_base} trend={unrealizedTrend} />
+                    </Td>
+                    <Td align="right">
+                      <PnlPill value={h.realized_pnl_base} trend={realizedTrend} />
                     </Td>
                   </tr>
                 )
@@ -219,13 +235,24 @@ function Td() {
 }
 
 function PnlPill() {
-  return ({ value, trend }: { value: string; trend: 'up' | 'down' | 'flat' }) => {
-    let n = Number.parseFloat(value)
-    // realized_pnl_base = 0 in practice means "no sells have happened
-    // for this position yet" (you can only realize gains by selling),
-    // not "the trades broke even to the cent" — that's vanishingly
-    // rare once commissions are involved. Show `—` instead of $0.00
-    // so the column is honest about the absence of data.
+  return ({
+    value,
+    trend,
+  }: {
+    /// Decimal string from the API, or `null` when the source field
+    /// itself is null (e.g. no OHLCV yet → no market value → no
+    /// unrealized P&L).
+    value: string | null
+    trend: 'up' | 'down' | 'flat'
+  }) => {
+    // Render `—` for:
+    //   - null: the underlying field has no value (missing OHLCV bar).
+    //   - 0: realized_pnl_base = 0 means "no sells yet" in practice
+    //     (commissions make true zero break-even vanishingly rare);
+    //     showing $0.00 reads as a bug. unrealized_pnl_base = 0 means
+    //     the market value happens to equal cost basis to the cent,
+    //     also rare; rendering `—` is consistent.
+    let n = value == null ? NaN : Number.parseFloat(value)
     if (!Number.isFinite(n) || n === 0) {
       return (
         <span mix={css({ color: color.textDim, fontVariantNumeric: 'tabular-nums' })}>

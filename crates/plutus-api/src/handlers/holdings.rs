@@ -70,5 +70,18 @@ pub async fn list(
             .unwrap_or("\u{FFFF}");
         sa.cmp(sb).then_with(|| a.stock_id.cmp(&b.stock_id))
     });
-    Ok(Json(rows.into_iter().map(Into::into).collect()))
+    // One OHLCV query for every held stock so we can fill in market
+    // value and unrealized P&L. Stocks with no bar yet get None, which
+    // serializes to null and surfaces as `—` in the UI.
+    let stock_ids: Vec<i64> = rows.iter().map(|h| h.stock_id).collect();
+    let latest_closes =
+        plutus_storage::queries::ohlcv::latest_closes(&state.db, &stock_ids).await?;
+    let out: Vec<HoldingOut> = rows
+        .into_iter()
+        .map(|h| {
+            let close = latest_closes.get(&h.stock_id).copied();
+            HoldingOut::from_holding(h, close)
+        })
+        .collect();
+    Ok(Json(out))
 }

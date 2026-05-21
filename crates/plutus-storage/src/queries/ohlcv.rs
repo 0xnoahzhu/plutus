@@ -1,7 +1,38 @@
 use rust_decimal::Decimal;
+use std::collections::HashMap;
 
 use crate::db::{Db, DbError, Result};
 use crate::models::OhlcvDaily;
+
+/// Most recent close per stock for a batch of stock_ids. Returns a map
+/// keyed by stock_id; stocks with no OHLCV row in the table are simply
+/// absent from the map (callers decide whether to fall back to cost
+/// basis or surface a missing-price hint).
+///
+/// `DISTINCT ON` collapses each stock's series to a single row picked
+/// by `ORDER BY stock_id, trade_date DESC`, which is the canonical
+/// Postgres idiom for "latest per group". One query covers the whole
+/// holdings page in O(N stocks) instead of N round trips.
+pub async fn latest_closes(db: &Db, stock_ids: &[i64]) -> Result<HashMap<i64, Decimal>> {
+    if stock_ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let client = db.raw_client().await?;
+    let rows = client
+        .query(
+            "SELECT DISTINCT ON (stock_id) stock_id, close \
+               FROM ohlcv_daily \
+              WHERE stock_id = ANY($1) \
+              ORDER BY stock_id, trade_date DESC",
+            &[&stock_ids],
+        )
+        .await
+        .map_err(DbError::from)?;
+    Ok(rows
+        .iter()
+        .map(|r| (r.get::<_, i64>("stock_id"), r.get::<_, Decimal>("close")))
+        .collect())
+}
 
 pub async fn list_for_stock(db: &Db, stock_id: i64) -> Result<Vec<OhlcvDaily>> {
     db.with(async |d| {

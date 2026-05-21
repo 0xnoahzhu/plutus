@@ -121,6 +121,12 @@ export interface Holding {
   avg_cost_trade: string
   cost_base: string
   realized_pnl_base: string
+  /// Current market value (= quantity * latest_close) in base currency.
+  /// `null` when no OHLCV bar has ever been recorded for the stock.
+  market_value_base: string | null
+  /// Unrealized P&L = `market_value_base - cost_base`. `null` when
+  /// `market_value_base` is null.
+  unrealized_pnl_base: string | null
 }
 
 export interface Ohlcv {

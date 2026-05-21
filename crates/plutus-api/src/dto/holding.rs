@@ -28,13 +28,32 @@ pub struct HoldingOut {
     #[schema(value_type = String)]
     pub cost_base: Decimal,
     /// Realized P&L from closed legs, in base currency. Lifetime
-    /// (resets only on full close).
+    /// (resets only on full close). 0 means no sells have happened
+    /// against this position yet (commissions make true zero break-even
+    /// vanishingly rare); the UI renders 0 as `—`.
     #[schema(value_type = String)]
     pub realized_pnl_base: Decimal,
+    /// Current market value of the open position in base currency,
+    /// computed as `quantity * latest_close`. `null` when no OHLCV bar
+    /// has ever been recorded for the stock (the UI then renders `—`
+    /// rather than 0). FX is treated as 1 — base currency tracks the
+    /// trade currency for the current data set; cross-currency
+    /// precision can come later if positions diversify.
+    #[schema(value_type = Option<String>)]
+    pub market_value_base: Option<Decimal>,
+    /// Unrealized P&L = `market_value_base - cost_base`. `null` when
+    /// `market_value_base` is null. Sign tracks gain/loss.
+    #[schema(value_type = Option<String>)]
+    pub unrealized_pnl_base: Option<Decimal>,
 }
 
-impl From<Holding> for HoldingOut {
-    fn from(h: Holding) -> Self {
+impl HoldingOut {
+    /// Build a row, layering on the latest-close-derived fields. Pass
+    /// `latest_close = None` when no OHLCV bar is on file for the
+    /// stock — market_value / unrealized then surface as `null`.
+    pub fn from_holding(h: Holding, latest_close: Option<Decimal>) -> Self {
+        let market_value_base = latest_close.map(|c| h.position.quantity * c);
+        let unrealized_pnl_base = market_value_base.map(|mv| mv - h.position.cost_base);
         Self {
             stock_id: h.stock_id,
             account_id: h.account_id,
@@ -42,6 +61,8 @@ impl From<Holding> for HoldingOut {
             avg_cost_trade: h.position.avg_cost_trade,
             cost_base: h.position.cost_base,
             realized_pnl_base: h.position.realized_pnl_base,
+            market_value_base,
+            unrealized_pnl_base,
         }
     }
 }
