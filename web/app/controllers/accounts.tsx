@@ -1,6 +1,5 @@
 import type { BuildAction } from 'remix/fetch-router'
 import { css } from 'remix/ui'
-import { Option, Select } from 'remix/ui/select'
 
 import { api, type Account, type Broker } from '../api.ts'
 import { messages } from '../i18n/messages.ts'
@@ -137,18 +136,16 @@ function AccountsPage() {
                 '@media (max-width: 700px)': { gridTemplateColumns: '1fr' },
               })}
             >
-              <div mix={css(labelWrap)}>
+              <label mix={css(labelWrap)}>
                 <span mix={css(labelText)}>{p.brokerLabel}</span>
-                <Select
-                  name="broker_id"
-                  defaultLabel={brokers[0] ? `${brokers[0].name} (${brokers[0].code})` : '—'}
-                  defaultValue={brokers[0] ? String(brokers[0].id) : null}
-                >
+                <select name="broker_id" required mix={css(fieldStyle)}>
                   {brokers.map((b) => (
-                    <Option value={String(b.id)} label={`${b.name} (${b.code})`} />
+                    <option value={b.id}>
+                      {b.name} ({b.code})
+                    </option>
                   ))}
-                </Select>
-              </div>
+                </select>
+              </label>
               <label mix={css(labelWrap)}>
                 <span mix={css(labelText)}>{p.namePlaceholder}</span>
                 <input

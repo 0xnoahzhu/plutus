@@ -10,7 +10,6 @@
 
 import type { BuildAction } from 'remix/fetch-router'
 import { css, type RemixNode } from 'remix/ui'
-import { Option, Select } from 'remix/ui/select'
 
 import {
   api,
@@ -109,12 +108,11 @@ export const orderCreate: BuildAction<'POST', typeof routes.orderCreate> = {
     if (!TYPE_VALUES.has(order_type)) {
       return Response.redirect(new URL('/orders?error=bad-type', request.url), 303)
     }
-    // GTD: the form posts a calendar date (`YYYY-MM-DD`). Treat it as
-    // end-of-day UTC — GTD orders by convention expire at the close,
-    // not at a specific minute. Padding to `T23:59:59Z` keeps the
-    // order live for the whole expiry day in any timezone the broker
-    // cares about.
-    let expires_at_iso = expires_at ? `${expires_at}T23:59:59Z` : null
+    // GTD: turn a datetime-local string into an RFC3339-ish UTC stamp.
+    // The browser hands us `2026-05-20T14:30` (local, no zone); appending
+    // `:00Z` is a pragmatic approximation — exact zone handling can come
+    // later if users complain.
+    let expires_at_iso = expires_at ? `${expires_at}:00Z` : null
 
     let cookie = request.headers.get('cookie')
     let upstream = await api.createPendingOrderRaw(cookie, {
@@ -299,43 +297,47 @@ function CreateForm() {
           alignItems: 'start',
         })}
       >
-        <div mix={css(labelWrap)}>
+        <label mix={css(labelWrap)}>
           <span mix={css(labelText)}>{p.accountLabel}</span>
-          <Select name="account_id" defaultLabel={p.accountPlaceholder}>
+          <select name="account_id" required mix={css(fieldStyle)}>
+            <option value="">{p.accountPlaceholder}</option>
             {accounts.map((a) => (
-              <Option value={String(a.id)} label={`${a.name} — ${a.base_currency}`} />
+              <option value={a.id}>
+                {a.name} — {a.base_currency}
+              </option>
             ))}
-          </Select>
-        </div>
+          </select>
+        </label>
 
-        <div mix={css(labelWrap)}>
+        <label mix={css(labelWrap)}>
           <span mix={css(labelText)}>{p.stockLabel}</span>
-          <Select name="stock_id" defaultLabel={p.stockPlaceholder}>
+          <select name="stock_id" required mix={css(fieldStyle)}>
+            <option value="">{p.stockPlaceholder}</option>
             {stocks.map((s) => (
-              <Option
-                value={String(s.id)}
-                label={`${s.symbol}${s.name ? ` — ${s.name}` : ''}`}
-              />
+              <option value={s.id}>
+                {s.symbol}
+                {s.name ? ` — ${s.name}` : ''}
+              </option>
             ))}
-          </Select>
-        </div>
+          </select>
+        </label>
 
-        <div mix={css(labelWrap)}>
+        <label mix={css(labelWrap)}>
           <span mix={css(labelText)}>{p.sideLabel}</span>
-          <Select name="side" defaultLabel={p.sideBuy} defaultValue="buy">
-            <Option value="buy" label={p.sideBuy} />
-            <Option value="sell" label={p.sideSell} />
-          </Select>
-        </div>
+          <select name="side" required mix={css(fieldStyle)}>
+            <option value="buy">{p.sideBuy}</option>
+            <option value="sell">{p.sideSell}</option>
+          </select>
+        </label>
 
-        <div mix={css(labelWrap)}>
+        <label mix={css(labelWrap)}>
           <span mix={css(labelText)}>{p.orderTypeLabel}</span>
-          <Select name="order_type" defaultLabel={p.orderTypeLimit} defaultValue="limit">
-            <Option value="limit" label={p.orderTypeLimit} />
-            <Option value="stop" label={p.orderTypeStop} />
-            <Option value="stop_limit" label={p.orderTypeStopLimit} />
-          </Select>
-        </div>
+          <select name="order_type" required mix={css(fieldStyle)}>
+            <option value="limit">{p.orderTypeLimit}</option>
+            <option value="stop">{p.orderTypeStop}</option>
+            <option value="stop_limit">{p.orderTypeStopLimit}</option>
+          </select>
+        </label>
 
         <label mix={css(labelWrap)}>
           <span mix={css(labelText)}>{p.limitPriceLabel}</span>
@@ -371,23 +373,18 @@ function CreateForm() {
           />
         </label>
 
-        <div mix={css(labelWrap)}>
+        <label mix={css(labelWrap)}>
           <span mix={css(labelText)}>{p.tifLabel}</span>
-          <Select name="time_in_force" defaultLabel={p.tifGtc} defaultValue="gtc">
-            <Option value="gtc" label={p.tifGtc} />
-            <Option value="day" label={p.tifDay} />
-            <Option value="gtd" label={p.tifGtd} />
-          </Select>
-        </div>
+          <select name="time_in_force" mix={css(fieldStyle)}>
+            <option value="gtc">{p.tifGtc}</option>
+            <option value="day">{p.tifDay}</option>
+            <option value="gtd">{p.tifGtd}</option>
+          </select>
+        </label>
 
         <label mix={css(labelWrap)}>
           <span mix={css(labelText)}>{p.expiresAtLabel}</span>
-          {/* GTD orders only need a calendar date — minute precision
-              isn't useful. The server pads `T23:59:59Z` so the order
-              expires at end-of-day UTC. Native <input type="date">
-              gives a smaller, less obnoxious browser picker than the
-              full datetime-local control. */}
-          <input type="date" name="expires_at" mix={css(fieldStyle)} />
+          <input type="datetime-local" name="expires_at" mix={css(fieldStyle)} />
         </label>
 
         <label mix={css(labelWrap)}>

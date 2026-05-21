@@ -3,7 +3,6 @@ import type { RemixNode } from 'remix/ui'
 import { messages } from '../i18n/messages.ts'
 import { routes } from '../routes.ts'
 
-import { RemixThemeDark, RemixThemeLight } from './remix-theme.ts'
 import { color, font, radius, shadow, space, THEME_CSS } from './tokens.ts'
 
 export interface DocumentProps {
@@ -427,13 +426,6 @@ export function Document() {
           />
           <style innerHTML={THEME_CSS} />
           <style innerHTML={GLOBAL_CSS} />
-          {/* `@remix-run/ui` primitives (Select / Popover / Listbox /
-              etc.) read their colors and metrics from --rmx-* CSS
-              variables. Bind those variables to our token values so a
-              <Select> nests visually inside a <Card> without any
-              per-call style overrides. */}
-          <RemixThemeLight />
-          <RemixThemeDark />
         </head>
         <body>
           {children}
