@@ -20,6 +20,7 @@ import {
   StockBadge,
   type Theme,
 } from '../ui/layout.tsx'
+import { LocalTime } from '../ui/local-time.tsx'
 import { render } from '../utils/render.tsx'
 
 export const recommendations: BuildAction<'GET', typeof routes.recommendations> = {
@@ -189,7 +190,7 @@ function RecRow() {
               color: color.textDim,
             })}
           >
-            issued {rec.issued_at.slice(0, 10)} · {rec.source}
+            issued <LocalTime value={rec.issued_at} format="date" /> · {rec.source}
           </span>
         </div>
 

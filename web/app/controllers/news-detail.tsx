@@ -27,6 +27,7 @@ import {
   StockBadge,
   type Theme,
 } from '../ui/layout.tsx'
+import { LocalTime } from '../ui/local-time.tsx'
 import { MarkdownToggle } from '../ui/markdown.tsx'
 import { render } from '../utils/render.tsx'
 
@@ -126,7 +127,7 @@ function NewsDetailPage() {
             >
               <strong mix={css({ color: color.text })}>{n.source}</strong>
               <span>·</span>
-              <span>{fmtDate(n.published_at)}</span>
+              <span><LocalTime value={n.published_at} format="datetime" /></span>
               <span>·</span>
               <Badge tone="neutral">{n.region}</Badge>
               <Badge tone="brand">{n.category}</Badge>
@@ -414,13 +415,13 @@ function Links() {
           </a>
         </div>
       )}
-      {n.last_verified_at && <div>last verified {fmtDate(n.last_verified_at)}</div>}
+      {n.last_verified_at && (
+        <div>
+          last verified <LocalTime value={n.last_verified_at} format="datetime" />
+        </div>
+      )}
     </div>
   )
-}
-
-function fmtDate(iso: string): string {
-  return iso.slice(0, 16).replace('T', ' ')
 }
 
 function Dim() {

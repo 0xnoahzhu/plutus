@@ -300,6 +300,45 @@ const CONFIRM_SUBMIT_JS = `
       }
     });
 
+    // Localize <time datetime="..."> elements. The server emits UTC
+    // strings; here we walk the DOM once on load and replace textContent
+    // with the user-locale-formatted time. The data-fmt attribute picks
+    // the shape (date / datetime / full); see ui/local-time.tsx for the
+    // contract. No-JS users keep the UTC fallback rendered server-side,
+    // which is wide-matched to the JS output so the layout doesn't jump.
+    function localizeTimes() {
+      var els = document.querySelectorAll('time[datetime]');
+      for (var i = 0; i < els.length; i++) {
+        var el = els[i];
+        var iso = el.getAttribute('datetime');
+        if (!iso) continue;
+        var d = new Date(iso);
+        if (isNaN(d.getTime())) continue;
+        var fmt = el.getAttribute('data-fmt') || 'date';
+        var opts;
+        if (fmt === 'full') {
+          opts = { year: 'numeric', month: '2-digit', day: '2-digit',
+                   hour: '2-digit', minute: '2-digit', second: '2-digit',
+                   hour12: false };
+        } else if (fmt === 'datetime') {
+          opts = { year: 'numeric', month: '2-digit', day: '2-digit',
+                   hour: '2-digit', minute: '2-digit', hour12: false };
+        } else {
+          opts = { year: 'numeric', month: '2-digit', day: '2-digit' };
+        }
+        // Force YYYY-MM-DD ordering regardless of locale by using the
+        // 'sv-SE' (Swedish) locale, which formats as ISO-style. Time
+        // values still respect the user's clock (24h here, browser TZ).
+        try {
+          el.textContent = new Intl.DateTimeFormat('sv-SE', opts).format(d);
+        } catch (e) {
+          // Some old browsers don't accept the options bag — leave the
+          // SSR fallback in place.
+        }
+      }
+    }
+    localizeTimes();
+
     // Markdown raw/preview toggle. Any button carrying
     // [data-md-toggle][data-md-target="rendered"|"raw"] flips the closest
     // ancestor [data-md-view] container to the matching view. CSS rules

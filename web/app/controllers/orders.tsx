@@ -35,6 +35,7 @@ import {
   StockBadge,
   type Theme,
 } from '../ui/layout.tsx'
+import { LocalTime } from '../ui/local-time.tsx'
 import { render } from '../utils/render.tsx'
 
 const SIDE_VALUES = new Set(['buy', 'sell'])
@@ -571,7 +572,7 @@ function OrderRow() {
         </Td>
         <Td>
           <span mix={css({ fontSize: font.sm, color: color.textMuted })}>
-            {order.placed_at.slice(0, 10)}
+            <LocalTime value={order.placed_at} format="date" />
           </span>
         </Td>
         <Td>

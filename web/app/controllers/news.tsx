@@ -19,6 +19,7 @@ import {
   space,
   type Theme,
 } from '../ui/layout.tsx'
+import { LocalTime } from '../ui/local-time.tsx'
 import { render } from '../utils/render.tsx'
 
 export const news: BuildAction<'GET', typeof routes.news> = {
@@ -127,7 +128,7 @@ function NewsCard() {
             color: color.textDim,
           })}
         >
-          {fmtDate(n.published_at)} · {n.source}
+          <LocalTime value={n.published_at} format="datetime" /> · {n.source}
         </span>
       </div>
       <div
@@ -189,6 +190,3 @@ function ImportanceDot() {
   }
 }
 
-function fmtDate(iso: string): string {
-  return iso.slice(0, 16).replace('T', ' ')
-}

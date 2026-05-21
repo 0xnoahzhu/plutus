@@ -18,6 +18,7 @@ import {
   space,
   type Theme,
 } from '../ui/layout.tsx'
+import { LocalTime } from '../ui/local-time.tsx'
 import { render } from '../utils/render.tsx'
 
 import { AdminTabs } from './admin.tsx'
@@ -315,8 +316,16 @@ function TokenRowView() {
             <span mix={css({ color: color.textDim })}>—</span>
           )}
         </Td>
-        <Td>{token.created_at.slice(0, 10)}</Td>
-        <Td>{token.last_used_at ? token.last_used_at.slice(0, 10) : p.neverUsed}</Td>
+        <Td>
+          <LocalTime value={token.created_at} format="date" />
+        </Td>
+        <Td>
+          {token.last_used_at ? (
+            <LocalTime value={token.last_used_at} format="date" />
+          ) : (
+            p.neverUsed
+          )}
+        </Td>
         <Td>
           <form
             method="post"

@@ -17,6 +17,7 @@ import {
   space,
   type Theme,
 } from '../ui/layout.tsx'
+import { LocalTime } from '../ui/local-time.tsx'
 import { render } from '../utils/render.tsx'
 
 interface AuditRow {
@@ -78,7 +79,9 @@ function AuditPage() {
                   })}
                 >
                   <Td>
-                    <span mix={css({ color: color.textMuted })}>{r.created_at}</span>
+                    <span mix={css({ color: color.textMuted })}>
+                      <LocalTime value={r.created_at} format="full" />
+                    </span>
                   </Td>
                   <Td>
                     <Badge tone={actionTone(r.action)}>{r.action}</Badge>

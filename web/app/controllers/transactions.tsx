@@ -20,6 +20,7 @@ import {
   StockBadge,
   type Theme,
 } from '../ui/layout.tsx'
+import { LocalTime } from '../ui/local-time.tsx'
 import { render } from '../utils/render.tsx'
 
 export const transactions: BuildAction<'GET', typeof routes.transactions> = {
@@ -104,7 +105,7 @@ function TransactionsPage() {
                   >
                     <Td>
                       <span mix={css({ color: color.textMuted, fontFamily: font.mono })}>
-                        {t.executed_at.slice(0, 16).replace('T', ' ')}
+                        <LocalTime value={t.executed_at} format="datetime" />
                       </span>
                     </Td>
                     <Td>

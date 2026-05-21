@@ -25,6 +25,7 @@ import {
   StockBadge,
   type Theme,
 } from '../ui/layout.tsx'
+import { LocalTime } from '../ui/local-time.tsx'
 import { render } from '../utils/render.tsx'
 
 /// GET /trade-plans — list the caller's trade plans with nested level cards.
@@ -472,7 +473,7 @@ function PlanCard() {
                   color: color.textMuted,
                 })}
               >
-                #{plan.id} · {plan.created_at.slice(0, 10)}
+                #{plan.id} · <LocalTime value={plan.created_at} format="date" />
               </div>
             </div>
           </div>

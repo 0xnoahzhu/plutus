@@ -26,6 +26,7 @@ import {
   StockBadge,
   type Theme,
 } from '../ui/layout.tsx'
+import { LocalTime } from '../ui/local-time.tsx'
 import { MarkdownToggle } from '../ui/markdown.tsx'
 import { render } from '../utils/render.tsx'
 
@@ -151,7 +152,7 @@ function WatchlistPage() {
                     <Td>{s?.asset_class ?? '—'}</Td>
                     <Td>
                       <span mix={css({ fontSize: font.sm, color: color.textMuted })}>
-                        {it.added_at.slice(0, 10)}
+                        <LocalTime value={it.added_at} format="date" />
                       </span>
                     </Td>
                     <Td>

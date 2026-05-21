@@ -17,6 +17,7 @@ import {
   space,
   type Theme,
 } from '../ui/layout.tsx'
+import { LocalTime } from '../ui/local-time.tsx'
 import { render } from '../utils/render.tsx'
 
 interface Props {
@@ -219,7 +220,9 @@ function AccountsPage() {
                         <Td>{b ? `${b.name} (${b.code})` : `#${a.broker_id}`}</Td>
                         <Td>{a.account_number ?? '—'}</Td>
                         <Td>{a.base_currency}</Td>
-                        <Td>{a.created_at.slice(0, 10)}</Td>
+                        <Td>
+                          <LocalTime value={a.created_at} format="date" />
+                        </Td>
                         <Td>
                           <form
                             method="post"
