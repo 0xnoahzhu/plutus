@@ -1094,6 +1094,94 @@ CREATE INDEX IF NOT EXISTS pending_orders_stock_idx      ON pending_orders (stoc
 CREATE INDEX IF NOT EXISTS pending_orders_status_idx     ON pending_orders (status);
 CREATE INDEX IF NOT EXISTS pending_orders_plan_level_idx ON pending_orders (trade_plan_level_id);
 
+-- ── Foreign keys ───────────────────────────────────────────────────────────
+-- Every per-user table carried a `user_id BIGINT NOT NULL DEFAULT 0` from
+-- the multi-user migration, but no FK constraint actually enforced
+-- referential integrity against `users(id)`. That let early test data
+-- accumulate with user_id ∈ {0, 1} (neither row ever existed in users),
+-- so the audit log has ~800 orphan rows, web_sessions has ~35, etc.
+--
+-- Two-step migration:
+--   1. UPDATE every per-user table to repoint orphan user_ids at
+--      user_id=4 (`0xnoahzhu`), the only real account. We pick "adopt
+--      to id=4" instead of DELETE so the historical web_sessions and
+--      audit_log entries stay attached to the user who created them.
+--   2. Add ON DELETE CASCADE FK constraints. Wrapped in a DO block
+--      that checks pg_constraint first so this is idempotent across
+--      re-runs and tolerates tables that may have been retired.
+--
+-- The internal FKs on trade_plan_levels(plan_id) and
+-- pending_orders(trade_plan_level_id) are declared in the inline
+-- CREATE TABLE DDL above but never actually materialized on the live
+-- DB (those tables were created before the FK clauses were added).
+-- Recreate them here so a delete of a trade plan cleans up its levels,
+-- and a delete of a level nulls out the order's back-reference.
+DO $migrate_user_fks$
+DECLARE
+    t TEXT;
+    per_user_tables TEXT[] := ARRAY[
+        'accounts', 'transactions', 'watchlist_items', 'watchlist_reports',
+        'catalysts', 'screener_runs', 'screener_hits',
+        'portfolio_reviews', 'recommendations', 'self_exams',
+        'correlation_runs', 'correlation_pairs', 'universe_definitions',
+        'trade_plans', 'trade_plan_levels', 'pending_orders',
+        'market_briefs', 'web_sessions', 'api_tokens', 'audit_log'
+    ];
+BEGIN
+    -- 1. Adopt orphans to user_id=4 wherever the column exists and the
+    --    row's user_id isn't in users.
+    FOREACH t IN ARRAY per_user_tables LOOP
+        IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = t AND column_name = 'user_id'
+        ) THEN
+            EXECUTE format(
+                'UPDATE %I SET user_id = 4 WHERE user_id NOT IN (SELECT id FROM users)',
+                t
+            );
+        END IF;
+    END LOOP;
+
+    -- 2. Add the FK constraints, ON DELETE CASCADE. Skip the table if
+    --    the user_id column is gone, or if the constraint already
+    --    exists from a previous run.
+    FOREACH t IN ARRAY per_user_tables LOOP
+        IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = t AND column_name = 'user_id'
+        ) AND NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = t || '_user_id_fk'
+        ) THEN
+            EXECUTE format(
+                'ALTER TABLE %I ADD CONSTRAINT %I FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE',
+                t, t || '_user_id_fk'
+            );
+        END IF;
+    END LOOP;
+END
+$migrate_user_fks$;
+
+-- Recreate the two missing internal FKs.
+DO $migrate_internal_fks$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'trade_plan_levels_plan_id_fk'
+    ) THEN
+        ALTER TABLE trade_plan_levels
+            ADD CONSTRAINT trade_plan_levels_plan_id_fk
+            FOREIGN KEY (plan_id) REFERENCES trade_plans(id) ON DELETE CASCADE;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'pending_orders_trade_plan_level_id_fk'
+    ) THEN
+        ALTER TABLE pending_orders
+            ADD CONSTRAINT pending_orders_trade_plan_level_id_fk
+            FOREIGN KEY (trade_plan_level_id) REFERENCES trade_plan_levels(id) ON DELETE SET NULL;
+    END IF;
+END
+$migrate_internal_fks$;
+
 -- ── Retired tables ─────────────────────────────────────────────────────────
 -- Cleanup pass after auditing usage. Each DROP is idempotent (IF EXISTS)
 -- so re-running migrate on a fresh database is a no-op; on a previously
