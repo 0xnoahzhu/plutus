@@ -41,11 +41,19 @@ pub async fn create(
 }
 
 /// Look up a session by cookie id. Returns `None` for missing or expired rows.
+///
+/// The Err arm is logged because the auth middleware silently treats
+/// `find_active` errors as "no session" (`if let Ok(Some(row))`), which
+/// would otherwise make a transient query failure look like a logged-out
+/// user. Without this warn there is no signal that the path failed.
 pub async fn find_active(db: &Db, id: &str) -> Result<Option<WebSession>> {
     let id = id.to_string();
     let row = db
         .with(async |d| WebSession::filter_by_id(id).first().exec(d).await)
-        .await?;
+        .await
+        .inspect_err(|e| {
+            tracing::warn!("web_sessions::find_active query failed: {e}");
+        })?;
     let Some(row) = row else { return Ok(None) };
     if row.expires_at <= jiff::Timestamp::now() {
         return Ok(None);
