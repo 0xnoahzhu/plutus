@@ -223,9 +223,21 @@ function Td() {
 
 function PnlPill() {
   return ({ value, trend }: { value: string; trend: 'up' | 'down' | 'flat' }) => {
+    let n = Number.parseFloat(value)
+    // realized_pnl_base = 0 in practice means "no sells have happened
+    // for this position yet" (you can only realize gains by selling),
+    // not "the trades broke even to the cent" — that's vanishingly
+    // rare once commissions are involved. Show `—` instead of $0.00
+    // so the column is honest about the absence of data.
+    if (!Number.isFinite(n) || n === 0) {
+      return (
+        <span mix={css({ color: color.textDim, fontVariantNumeric: 'tabular-nums' })}>
+          —
+        </span>
+      )
+    }
     let tone: BadgeTone =
       trend === 'up' ? 'success' : trend === 'down' ? 'danger' : 'neutral'
-    let n = Number.parseFloat(value)
     let sign = n > 0 ? '+' : ''
     return <Badge tone={tone}>{`${sign}${fmtMoney(value)}`}</Badge>
   }
