@@ -14,6 +14,24 @@ fn parse_ts(s: &str, field: &str) -> ApiResult<jiff::Timestamp> {
         .map_err(|e: jiff::Error| ApiError::BadRequest(format!("{field}: {e}")))
 }
 
+/// Coerce the caller-supplied region to the canonical form the storage
+/// layer and the web filters expect: uppercase ISO-ish country code
+/// (`US` / `HK` / `CN`) or the literal `global`. Case is normalized so a
+/// lowercase POST still lands as the right row; anything else is a 400
+/// — silent fallbacks would hide the agent's bug.
+fn normalize_region(raw: &str) -> ApiResult<String> {
+    let trimmed = raw.trim();
+    match trimmed.to_ascii_uppercase().as_str() {
+        "US" => Ok("US".into()),
+        "HK" => Ok("HK".into()),
+        "CN" => Ok("CN".into()),
+        "GLOBAL" => Ok("global".into()),
+        _ => Err(ApiError::BadRequest(format!(
+            "region must be one of US, HK, CN, global (got `{raw}`)"
+        ))),
+    }
+}
+
 pub async fn list(
     State(state): State<AppState>,
     Query(l): Query<LocaleQuery>,
@@ -40,6 +58,7 @@ pub async fn create(
             "content must be a JSON object keyed by locale".into(),
         ));
     }
+    let region = normalize_region(&input.region)?;
     let published_at = parse_ts(&input.published_at, "published_at")?;
     let fetched_at = match input.fetched_at.as_deref() {
         Some(s) => Some(parse_ts(s, "fetched_at")?),
@@ -61,7 +80,7 @@ pub async fn create(
             source: &input.source,
             source_kind: &input.source_kind,
             category: &input.category,
-            region: &input.region,
+            region: &region,
             published_at,
             fetched_at,
             sentiment: input.sentiment.as_deref(),

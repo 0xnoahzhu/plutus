@@ -118,7 +118,10 @@ pub struct NewsIn {
     /// `company` (default) | `sector` | `macro` | `market`.
     #[serde(default = "default_category")]
     pub category: String,
-    /// `global` (default) | `us` | `hk` | `cn`.
+    /// `global` (default) | `US` | `HK` | `CN`. Case is normalized
+    /// server-side so lowercase inputs still match, but the canonical
+    /// form is uppercase for the country codes and lowercase for
+    /// `global`. Unknown values return 400.
     #[serde(default = "default_region")]
     pub region: String,
     /// RFC 3339 UTC timestamp.
