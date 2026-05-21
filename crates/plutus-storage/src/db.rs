@@ -198,6 +198,15 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS allowed_countries TEXT NOT NULL DEFAU
 -- Toasty-managed tables: ensure user_id exists for older deployments.
 ALTER TABLE accounts          ADD COLUMN IF NOT EXISTS user_id BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE transactions      ADD COLUMN IF NOT EXISTS user_id BIGINT NOT NULL DEFAULT 0;
+-- Canonicalize `transactions.kind` to upper SCREAMING_SNAKE_CASE. Agents
+-- following an earlier version of the OpenAPI docs wrote lowercase values
+-- (`buy`, `sell`, ...) which the holdings rollup silently filtered out
+-- (the `TransactionKind` enum only matched upper-case). The handler now
+-- canonicalizes on write; this one-time UPDATE fixes already-written
+-- rows. Idempotent — repeated runs find no lower-case values left.
+UPDATE transactions
+   SET kind = UPPER(kind)
+ WHERE kind <> UPPER(kind);
 ALTER TABLE api_tokens        ADD COLUMN IF NOT EXISTS user_id BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE api_tokens        ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE;
 -- Plaintext token, kept alongside the hash so the list view can show +

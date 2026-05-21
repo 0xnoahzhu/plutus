@@ -53,19 +53,55 @@ impl fmt::Display for TransactionKind {
 
 impl FromStr for TransactionKind {
     type Err = CoreError;
+    /// Case-insensitive. Accepts both `BUY` (canonical) and `buy`
+    /// (lowercase) — agents have written both depending on which version
+    /// of the docs they followed. The canonical written form is upper
+    /// `SCREAMING_SNAKE_CASE` (matches `as_str()`); reads tolerate either.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(match s {
+        let upper = s.to_ascii_uppercase();
+        Ok(match upper.as_str() {
             "BUY" => Self::Buy,
             "SELL" => Self::Sell,
             "DIVIDEND" => Self::Dividend,
             "FEE" => Self::Fee,
             "INTEREST" => Self::Interest,
             "DEPOSIT" => Self::Deposit,
-            "WITHDRAWAL" => Self::Withdrawal,
+            // Common alias — the OpenAPI doc temporarily promised
+            // `withdraw` instead of `withdrawal`. Keep both working.
+            "WITHDRAWAL" | "WITHDRAW" => Self::Withdrawal,
             "FX" => Self::Fx,
             "CORPORATE_ACTION" => Self::CorporateAction,
-            other => return Err(CoreError::Conversion(format!("unknown TransactionKind: {other}"))),
+            _ => return Err(CoreError::Conversion(format!("unknown TransactionKind: {s}"))),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn from_str_is_case_insensitive() {
+        assert_eq!("BUY".parse::<TransactionKind>().unwrap(), TransactionKind::Buy);
+        assert_eq!("buy".parse::<TransactionKind>().unwrap(), TransactionKind::Buy);
+        assert_eq!("Buy".parse::<TransactionKind>().unwrap(), TransactionKind::Buy);
+    }
+
+    #[test]
+    fn withdraw_alias_works() {
+        assert_eq!(
+            "withdraw".parse::<TransactionKind>().unwrap(),
+            TransactionKind::Withdrawal
+        );
+        assert_eq!(
+            "WITHDRAWAL".parse::<TransactionKind>().unwrap(),
+            TransactionKind::Withdrawal
+        );
+    }
+
+    #[test]
+    fn unknown_kind_errors() {
+        assert!("foobar".parse::<TransactionKind>().is_err());
     }
 }
 

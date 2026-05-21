@@ -2,7 +2,10 @@ use axum::extract::{Path, Query, State};
 use axum::Json;
 use serde::Deserialize;
 
+use std::str::FromStr;
+
 use plutus_core::audit::Actor;
+use plutus_core::transaction::TransactionKind;
 
 use crate::dto::transaction::{TransactionIn, TransactionOut};
 use crate::error::{ApiError, ApiResult};
@@ -48,6 +51,21 @@ pub async fn create(
     Json(input): Json<TransactionIn>,
 ) -> ApiResult<Json<TransactionOut>> {
     let user_id = require_user(&actor.0)?;
+    // Validate `kind` against the canonical enum BEFORE writing — silently
+    // accepting an unknown kind would store the row but break the holdings
+    // rollup (which filters by `TransactionKind::from_str`). The parser is
+    // case-insensitive and accepts the `withdraw` alias, so most agent
+    // dialects work; anything else is rejected here with a clear 400.
+    let canonical_kind = TransactionKind::from_str(&input.kind)
+        .map_err(|_| {
+            ApiError::BadRequest(format!(
+                "kind must be one of BUY, SELL, DIVIDEND, FEE, INTEREST, \
+                 DEPOSIT, WITHDRAWAL, FX, CORPORATE_ACTION (case-insensitive); \
+                 got {:?}",
+                input.kind
+            ))
+        })?
+        .as_str();
     let executed_at: jiff::Timestamp = input
         .executed_at
         .parse()
@@ -65,7 +83,9 @@ pub async fn create(
             user_id,
             account_id: input.account_id,
             stock_id: input.stock_id,
-            kind: &input.kind,
+            // Stored in the canonical SCREAMING_SNAKE_CASE form so the
+            // database is consistent regardless of how the caller wrote it.
+            kind: canonical_kind,
             executed_at,
             quantity: input.quantity,
             price: input.price,

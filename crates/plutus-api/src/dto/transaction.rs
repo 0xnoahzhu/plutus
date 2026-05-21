@@ -23,13 +23,18 @@ pub struct TransactionOut {
     /// FK to `stocks.id`. `null` for non-stock entries (cash deposits /
     /// withdrawals, dividends paid in cash).
     pub stock_id: Option<i64>,
-    /// `buy` | `sell` | `dividend` | `deposit` | `withdraw` | `fee` |
-    /// `tax_withholding` | `transfer_in` | `transfer_out`. Free-form;
-    /// agent decides vocabulary.
+    /// Transaction type — canonical form is `SCREAMING_SNAKE_CASE`. The
+    /// API accepts these values case-insensitively: `BUY`, `SELL`,
+    /// `DIVIDEND`, `FEE`, `INTEREST`, `DEPOSIT`, `WITHDRAWAL` (alias
+    /// `WITHDRAW`), `FX`, `CORPORATE_ACTION`. Unknown values return 400.
+    /// Stored canonically in upper form regardless of input.
+    ///
+    /// Only `BUY`, `SELL`, and `CORPORATE_ACTION` move share quantities
+    /// (and roll up into `/holdings`); everything else is cash-only.
     pub kind: String,
     /// RFC 3339 UTC timestamp the trade settled / cash moved.
     pub executed_at: String,
-    /// Shares (or cash amount for `kind=deposit`/`withdraw`). Decimal so
+    /// Shares (or cash amount for `DEPOSIT`/`WITHDRAWAL`). Decimal so
     /// fractional shares survive.
     #[schema(value_type = String)]
     pub quantity: Decimal,
