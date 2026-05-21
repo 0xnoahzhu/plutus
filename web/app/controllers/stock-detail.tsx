@@ -181,7 +181,7 @@ function StockDetailPage() {
 
           <Card>
             <SectionTitle>Metadata</SectionTitle>
-            <Metadata stock={stock} />
+            <Metadata stock={stock} locale={locale} />
           </Card>
         </div>
 
@@ -620,28 +620,34 @@ function Description() {
 }
 
 function Metadata() {
-  return ({ stock }: { stock: Stock }) => (
-    <dl
-      mix={css({
-        margin: 0,
-        display: 'grid',
-        gridTemplateColumns: 'auto 1fr',
-        gap: `${space[2]} ${space[4]}`,
-        fontSize: font.sm,
-      })}
-    >
-      <Row label="Symbol" value={stock.symbol} mono />
-      <Row label="Market" value={stock.market_code} mono />
-      <Row label="Currency" value={stock.currency} mono />
-      <Row label="Asset class" value={stock.asset_class} />
-      <Row label="Lot size" value={stock.lot_size != null ? String(stock.lot_size) : '—'} />
-      <Row label="ISIN" value={stock.isin ?? '—'} mono />
-      <Row label="FIGI" value={stock.figi ?? '—'} mono />
-      <Row label="ID" value={`#${stock.id}`} mono />
-      <Row label="Created" value={stock.created_at.slice(0, 10)} />
-      <Row label="Updated" value={stock.updated_at.slice(0, 10)} />
-    </dl>
-  )
+  return ({ stock, locale }: { stock: Stock; locale: string }) => {
+    let p = messages(locale).pages.stockDetail
+    return (
+      <dl
+        mix={css({
+          margin: 0,
+          display: 'grid',
+          gridTemplateColumns: 'auto 1fr',
+          gap: `${space[2]} ${space[4]}`,
+          fontSize: font.sm,
+        })}
+      >
+        <Row label={p.labelSymbol} value={stock.symbol} mono />
+        <Row label={p.labelMarket} value={stock.market_code} mono />
+        <Row label={p.labelCurrency} value={stock.currency} mono />
+        <Row label={p.labelAssetClass} value={stock.asset_class} />
+        <Row
+          label={p.labelLotSize}
+          value={stock.lot_size != null ? String(stock.lot_size) : '—'}
+        />
+        <Row label={p.labelIsin} value={stock.isin ?? '—'} mono />
+        <Row label={p.labelFigi} value={stock.figi ?? '—'} mono />
+        <Row label={p.labelId} value={`#${stock.id}`} mono />
+        <Row label={p.labelCreated} value={stock.created_at.slice(0, 10)} />
+        <Row label={p.labelUpdated} value={stock.updated_at.slice(0, 10)} />
+      </dl>
+    )
+  }
 }
 
 function Row() {

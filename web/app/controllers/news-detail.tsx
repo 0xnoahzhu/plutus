@@ -11,6 +11,7 @@ import {
   type Sector,
   type Stock,
 } from '../api.ts'
+import { messages } from '../i18n/messages.ts'
 import type { routes } from '../routes.ts'
 import {
   Badge,
@@ -96,6 +97,7 @@ function NewsDetailPage() {
     stocks,
     sectors,
   }: NewsDetailProps) => {
+    let p = messages(locale).pages.newsDetail
     let displayTitle = n.title ?? '(untitled)'
     let missingTitle = n.title == null
 
@@ -221,7 +223,7 @@ function NewsDetailPage() {
 
           <div mix={css({ display: 'flex', flexDirection: 'column', gap: space[4] })}>
             <Card>
-              <SectionTitle>Related stocks</SectionTitle>
+              <SectionTitle>{p.sectionRelatedStocks}</SectionTitle>
               {stockLinks.length === 0 ? (
                 <Dim>none</Dim>
               ) : (
@@ -276,7 +278,7 @@ function NewsDetailPage() {
             </Card>
 
             <Card>
-              <SectionTitle>Sectors</SectionTitle>
+              <SectionTitle>{p.sectionSectors}</SectionTitle>
               {sectorLinks.length === 0 ? (
                 <Dim>none</Dim>
               ) : (
@@ -294,7 +296,7 @@ function NewsDetailPage() {
               )}
 
               <div mix={css({ marginTop: space[4] })}>
-                <SectionTitle>Macro indicators</SectionTitle>
+                <SectionTitle>{p.sectionMacroIndicators}</SectionTitle>
                 {macroLinks.length === 0 ? (
                   <Dim>none</Dim>
                 ) : (
@@ -307,7 +309,7 @@ function NewsDetailPage() {
               </div>
 
               <div mix={css({ marginTop: space[4] })}>
-                <SectionTitle>Countries</SectionTitle>
+                <SectionTitle>{p.sectionCountries}</SectionTitle>
                 {countryLinks.length === 0 ? (
                   <Dim>none</Dim>
                 ) : (
