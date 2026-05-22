@@ -97,10 +97,15 @@ pub struct StockIn {
 }
 
 /// `PATCH /stocks/{id}` body. Only `content` is mutable through this
-/// route — symbol/ISIN/etc are treated as immutable.
+/// route — symbol/ISIN/etc are treated as immutable. Every other field
+/// is optional; the request must include at least one of them or the
+/// handler returns 400.
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct StockPatch {
-    /// New full multi-locale blob, replacing whatever is currently stored
-    /// (no merge). The endpoint returns 400 if `content` is missing.
+    /// New full multi-locale blob, replacing whatever is currently
+    /// stored (no merge).
     pub content: Option<serde_json::Value>,
+    /// GICS industry group code (e.g. `"4530"` = semiconductors,
+    /// `"4510"` = software). Pass an empty string to clear it.
+    pub sector_code: Option<String>,
 }

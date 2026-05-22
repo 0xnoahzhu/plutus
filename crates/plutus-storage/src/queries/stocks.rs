@@ -302,27 +302,88 @@ pub async fn create(db: &Db, input: NewStock<'_>) -> Result<LocalizedStock> {
     get(db, "en", id).await
 }
 
-/// Patch the `content` JSONB blob in-place (full replacement). Returns the
-/// updated localized row read back through the locale projection.
+/// Patch a stock row. Each field is independently optional so callers
+/// can update just `content`, just `sector_code`, or both in one
+/// round trip. At least one Some(_) must be passed; an all-None
+/// `StockPatchInput` yields `DbError::Validation` rather than silently
+/// no-op'ing. Pass `Some("")` for sector_code to clear it (the column
+/// is nullable in the schema). Returns the updated localized row.
+pub struct StockPatchInput<'a> {
+    pub content: Option<&'a serde_json::Value>,
+    pub sector_code: Option<&'a str>,
+}
+
+pub async fn update(
+    db: &Db,
+    locale: &str,
+    id: i64,
+    input: StockPatchInput<'_>,
+) -> Result<LocalizedStock> {
+    let mut sets: Vec<String> = Vec::new();
+    let mut params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = Vec::new();
+    let now = jiff::Timestamp::now();
+    // The column-list builder uses 1-based positional placeholders.
+    // `next_pos` tracks the next free $N as we push values.
+    let mut next_pos = 1usize;
+    if let Some(content) = input.content {
+        sets.push(format!("content = ${next_pos}"));
+        params.push(content);
+        next_pos += 1;
+    }
+    // Treat empty string as "clear the field" so the agent can null
+    // out a wrongly-tagged sector without a separate API verb.
+    let sector_owned;
+    if let Some(s) = input.sector_code {
+        if s.is_empty() {
+            sets.push("sector_code = NULL".to_string());
+        } else {
+            sector_owned = s.to_string();
+            sets.push(format!("sector_code = ${next_pos}"));
+            params.push(&sector_owned);
+            next_pos += 1;
+        }
+    }
+    if sets.is_empty() {
+        return Err(DbError::Validation(
+            "PATCH body must include at least one mutable field".into(),
+        ));
+    }
+    sets.push(format!("updated_at = ${next_pos}"));
+    params.push(&now);
+    next_pos += 1;
+    let id_pos = next_pos;
+    params.push(&id);
+    let sql = format!(
+        "UPDATE stocks SET {} WHERE id = ${}",
+        sets.join(", "),
+        id_pos,
+    );
+    let client = db.raw_client().await?;
+    let affected = client.execute(&sql, &params[..]).await.map_err(DbError::from)?;
+    if affected == 0 {
+        return Err(DbError::NotFound);
+    }
+    get(db, locale, id).await
+}
+
+/// Back-compat alias for the content-only update path. New callers
+/// should use [`update`] directly.
 pub async fn update_content(
     db: &Db,
     locale: &str,
     id: i64,
     content: &serde_json::Value,
 ) -> Result<LocalizedStock> {
-    let client = db.raw_client().await?;
-    let now = jiff::Timestamp::now();
-    let affected = client
-        .execute(
-            "UPDATE stocks SET content = $1, updated_at = $2 WHERE id = $3",
-            &[content, &now, &id],
-        )
-        .await
-        .map_err(DbError::from)?;
-    if affected == 0 {
-        return Err(DbError::NotFound);
-    }
-    get(db, locale, id).await
+    update(
+        db,
+        locale,
+        id,
+        StockPatchInput {
+            content: Some(content),
+            sector_code: None,
+        },
+    )
+    .await
 }
 
 pub async fn delete(db: &Db, id: i64) -> Result<()> {

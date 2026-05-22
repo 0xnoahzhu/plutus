@@ -190,18 +190,28 @@ pub async fn update(
     Query(l): Query<LocaleQuery>,
     Json(patch): Json<StockPatch>,
 ) -> ApiResult<Json<StockOut>> {
-    let Some(content) = patch.content else {
+    if patch.content.is_none() && patch.sector_code.is_none() {
         return Err(ApiError::BadRequest(
-            "PATCH body must include `content` (full multi-locale blob)".into(),
-        ));
-    };
-    if !content.is_object() {
-        return Err(ApiError::BadRequest(
-            "content must be a JSON object keyed by locale".into(),
+            "PATCH body must include at least one of: content, sector_code".into(),
         ));
     }
-    let row =
-        plutus_storage::queries::stocks::update_content(&state.db, &l.locale, id, &content).await?;
+    if let Some(ref c) = patch.content {
+        if !c.is_object() {
+            return Err(ApiError::BadRequest(
+                "content must be a JSON object keyed by locale".into(),
+            ));
+        }
+    }
+    let row = plutus_storage::queries::stocks::update(
+        &state.db,
+        &l.locale,
+        id,
+        plutus_storage::queries::stocks::StockPatchInput {
+            content: patch.content.as_ref(),
+            sector_code: patch.sector_code.as_deref(),
+        },
+    )
+    .await?;
     Ok(Json(row.into()))
 }
 
