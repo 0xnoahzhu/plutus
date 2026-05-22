@@ -98,7 +98,17 @@ export const orderCreate: BuildAction<'POST', typeof routes.orderCreate> = {
   async handler({ request }) {
     let form = await request.formData()
     let account_id = Number(form.get('account_id') ?? 0)
-    let stock_id = Number(form.get('stock_id') ?? 0)
+    // Forms now post a typed ticker symbol; resolve to a stock_id so
+    // the downstream API contract is unchanged. `?symbol=` is exact
+    // (case-insensitive) on the backend.
+    let stock_symbol = String(form.get('stock_symbol') ?? '').trim()
+    let resolvedStock = stock_symbol
+      ? await api.stockBySymbol(stock_symbol).catch(() => null)
+      : null
+    if (stock_symbol && !resolvedStock) {
+      return Response.redirect(new URL('/orders?error=bad-symbol', request.url), 303)
+    }
+    let stock_id = resolvedStock ? resolvedStock.id : 0
     let side = String(form.get('side') ?? '').trim()
     let order_type = String(form.get('order_type') ?? '').trim()
     // Empty strings become null so the Rust side doesn't try to parse "".
@@ -326,15 +336,28 @@ function CreateForm() {
 
         <label mix={css(labelWrap)}>
           <span mix={css(labelText)}>{p.stockLabel}</span>
-          <select name="stock_id" required mix={css(fieldStyle)}>
-            <option value="">{p.stockPlaceholder}</option>
+          {/* Symbol input + datalist. Beats a <select> at >200
+              stocks: native autocomplete narrows as the user types,
+              the dropdown isn't capped at 200 OS-level options, and
+              users who know their ticker can just type it. The
+              datalist still includes only the first 500 stocks for
+              suggestions; anything beyond that the user types
+              manually and the server-side `?symbol=` lookup resolves. */}
+          <input
+            type="text"
+            name="stock_symbol"
+            list="orders-stock-symbols"
+            placeholder={p.stockPlaceholder}
+            autocomplete="off"
+            spellcheck={false}
+            required
+            mix={css({ ...fieldStyle, textTransform: 'uppercase' })}
+          />
+          <datalist id="orders-stock-symbols">
             {stocks.map((s) => (
-              <option value={s.id}>
-                {s.symbol}
-                {s.name ? ` — ${s.name}` : ''}
-              </option>
+              <option value={s.symbol} label={s.name ?? ''} />
             ))}
-          </select>
+          </datalist>
         </label>
 
         <label mix={css(labelWrap)}>

@@ -88,11 +88,21 @@ export const tradePlans: BuildAction<'GET', typeof routes.tradePlans> = {
 export const tradePlanCreate: BuildAction<'POST', typeof routes.tradePlanCreate> = {
   async handler({ request }) {
     let form = await request.formData()
-    let stock_id = Number(form.get('stock_id') ?? 0)
+    // Form posts a typed ticker symbol; resolve to stock_id server-side
+    // so the downstream API contract is unchanged.
+    let stock_symbol = String(form.get('stock_symbol') ?? '').trim()
     let rationale = String(form.get('rationale') ?? '').trim() || null
-    if (!stock_id) {
+    if (!stock_symbol) {
       return Response.redirect(new URL('/trade-plans?error=missing', request.url), 303)
     }
+    let resolved = await api.stockBySymbol(stock_symbol).catch(() => null)
+    if (!resolved) {
+      return Response.redirect(
+        new URL('/trade-plans?error=bad-symbol', request.url),
+        303,
+      )
+    }
+    let stock_id = resolved.id
     let cookie = request.headers.get('cookie')
     let upstream = await api.createTradePlanRaw(cookie, { stock_id, rationale })
     if (!upstream.ok) {
@@ -356,15 +366,27 @@ function TradePlansPage() {
             >
               <label mix={css(labelWrap)}>
                 <span mix={css(labelText)}>{p.stockLabel}</span>
-                <select name="stock_id" required mix={css(fieldStyle)}>
-                  <option value="">{p.stockPlaceholder}</option>
+                {/* Symbol input + datalist. Beats a <select> when
+                    the catalog is in the thousands — the browser's
+                    native autocomplete narrows as the user types,
+                    and any ticker (even past the 500-row suggestion
+                    pool) can be typed manually; the server resolves
+                    via `?symbol=`. */}
+                <input
+                  type="text"
+                  name="stock_symbol"
+                  list="trade-plans-stock-symbols"
+                  placeholder={p.stockPlaceholder}
+                  autocomplete="off"
+                  spellcheck={false}
+                  required
+                  mix={css({ ...fieldStyle, textTransform: 'uppercase' })}
+                />
+                <datalist id="trade-plans-stock-symbols">
                   {allStocks.map((s) => (
-                    <option value={s.id}>
-                      {s.symbol}
-                      {s.name ? ` — ${s.name}` : ''}
-                    </option>
+                    <option value={s.symbol} label={s.name ?? ''} />
                   ))}
-                </select>
+                </datalist>
               </label>
               <label mix={css(labelWrap)}>
                 <span mix={css(labelText)}>{p.rationaleLabel}</span>
