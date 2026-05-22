@@ -646,10 +646,66 @@ export const api = {
     let suffix = q.toString() ? `?${q.toString()}` : ''
     return get<Holding[]>(`/holdings${suffix}`)
   },
+  /// Paginated holdings. Body is the page slice; total comes from
+  /// `X-Total-Count` so the caller can render page count.
+  holdingsPage: async (params: {
+    method?: string
+    country?: string
+    page?: number
+    perPage?: number
+    q?: string
+  }) => {
+    let qs = new URLSearchParams({
+      page: String(params.page ?? 1),
+      per_page: String(params.perPage ?? 15),
+    })
+    if (params.method) qs.set('method', params.method)
+    if (params.country) qs.set('country', params.country)
+    if (params.q) qs.set('q', params.q)
+    let { body, response } = await getWithHeaders<Holding[]>(`/holdings?${qs.toString()}`)
+    let total = Number(response.headers.get('X-Total-Count') ?? body.length)
+    return { items: body, total, page: params.page ?? 1, perPage: params.perPage ?? 15 }
+  },
   transactions: () => get<Transaction[]>('/transactions'),
+  transactionsPage: async (params: {
+    country?: string
+    page?: number
+    perPage?: number
+    q?: string
+  }) => {
+    let qs = new URLSearchParams({
+      page: String(params.page ?? 1),
+      per_page: String(params.perPage ?? 15),
+    })
+    if (params.country) qs.set('country', params.country)
+    if (params.q) qs.set('q', params.q)
+    let { body, response } = await getWithHeaders<Transaction[]>(
+      `/transactions?${qs.toString()}`,
+    )
+    let total = Number(response.headers.get('X-Total-Count') ?? body.length)
+    return { items: body, total, page: params.page ?? 1, perPage: params.perPage ?? 15 }
+  },
   watchlistItems: (country?: string) => {
     let suffix = country ? `?country=${country}` : ''
     return get<WatchlistItem[]>(`/watchlist/items${suffix}`)
+  },
+  watchlistItemsPage: async (params: {
+    country?: string
+    page?: number
+    perPage?: number
+    q?: string
+  }) => {
+    let qs = new URLSearchParams({
+      page: String(params.page ?? 1),
+      per_page: String(params.perPage ?? 15),
+    })
+    if (params.country) qs.set('country', params.country)
+    if (params.q) qs.set('q', params.q)
+    let { body, response } = await getWithHeaders<WatchlistItem[]>(
+      `/watchlist/items?${qs.toString()}`,
+    )
+    let total = Number(response.headers.get('X-Total-Count') ?? body.length)
+    return { items: body, total, page: params.page ?? 1, perPage: params.perPage ?? 15 }
   },
   news: (locale?: string) => get<NewsItem[]>(withLocale('/news', locale)),
   newsItem: (id: number, locale?: string) =>

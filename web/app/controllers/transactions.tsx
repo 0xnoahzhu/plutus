@@ -22,7 +22,10 @@ import {
 } from '../ui/layout.tsx'
 import { fmtMoney } from '../ui/format.ts'
 import { LocalTime } from '../ui/local-time.tsx'
+import { Pagination, SearchBar } from '../ui/pagination.tsx'
 import { render } from '../utils/render.tsx'
+
+const PER_PAGE = 15
 
 export const transactions: BuildAction<'GET', typeof routes.transactions> = {
   async handler({ request }) {
@@ -30,22 +33,45 @@ export const transactions: BuildAction<'GET', typeof routes.transactions> = {
     let country = parseCountry(url.searchParams)
     let locale = resolveLocale(request, url.searchParams)
     let theme = resolveTheme(request, url.searchParams)
-    let txs = await api.transactions().catch(() => [])
-    // Resolve symbols by id list — the catalog can be >5000 stocks
-    // and /stocks (default endpoint) caps at 200, so transactions
-    // touching stock_ids past that cap would render as `#<id>`. Some
-    // transactions have stock_id=null (cash movements); filter those
-    // out of the lookup set.
-    let stockIds = txs
+    let q = (url.searchParams.get('q') ?? '').trim()
+    let pageParam = Number(url.searchParams.get('page') ?? '1')
+    let page = Number.isFinite(pageParam) && pageParam > 0 ? Math.floor(pageParam) : 1
+
+    // Backend handles country + q + pagination; we only need to
+    // resolve stock symbols for the page slice so the table can
+    // render market_code / symbol.
+    let result = await api
+      .transactionsPage({
+        country: country || undefined,
+        page,
+        perPage: PER_PAGE,
+        q: q || undefined,
+      })
+      .catch(() => ({
+        items: [] as Transaction[],
+        total: 0,
+        page,
+        perPage: PER_PAGE,
+      }))
+
+    let stockIds = result.items
       .map((t) => t.stock_id)
       .filter((id): id is number => id != null)
     let stocks = await api.stocksByIds(stockIds, locale).catch(() => [] as Stock[])
     let stockMap = new Map<number, Stock>(stocks.map((s) => [s.id, s]))
-    let filtered = filterByCountry(txs, country, (t) =>
-      t.stock_id != null ? stockMap.get(t.stock_id)?.market_code : undefined,
-    )
+
     return render(
-      <TransactionsPage rows={filtered} stocks={stockMap} country={country} locale={locale} theme={theme} />,
+      <TransactionsPage
+        rows={result.items}
+        total={result.total}
+        page={page}
+        perPage={PER_PAGE}
+        query={q}
+        stocks={stockMap}
+        country={country}
+        locale={locale}
+        theme={theme}
+      />,
       request,
       { locale, theme },
     )
@@ -54,6 +80,10 @@ export const transactions: BuildAction<'GET', typeof routes.transactions> = {
 
 interface TxnProps {
   rows: Transaction[]
+  total: number
+  page: number
+  perPage: number
+  query: string
   stocks: Map<number, Stock>
   country: string
   locale: string
@@ -61,16 +91,37 @@ interface TxnProps {
 }
 
 function TransactionsPage() {
-  return ({ rows, stocks, country, locale, theme }: TxnProps) => {
+  return ({
+    rows,
+    total,
+    page,
+    perPage,
+    query,
+    stocks,
+    country,
+    locale,
+    theme,
+  }: TxnProps) => {
     let p = messages(locale).pages.transactions
+    let totalPages = Math.max(1, Math.ceil(total / perPage))
     return (
     <Layout
       title={p.title}
-      subtitle={p.subtitle(rows.length, country)}
+      subtitle={p.subtitle(total, country)}
       country={country}
       locale={locale}
       theme={theme}
     >
+      <Card>
+        <SearchBar
+          action="/transactions"
+          locale={locale}
+          query={query}
+          placeholder="Symbol"
+          extraParams={{ country }}
+        />
+      </Card>
+      <div mix={css({ marginTop: space[4] })}>
       {rows.length === 0 ? (
         <Card>
           <EmptyState title={p.emptyTitle} hint={p.emptyHint} />
@@ -163,6 +214,19 @@ function TransactionsPage() {
             </tbody>
           </table>
         </Card>
+      )}
+      </div>
+      {totalPages > 1 && (
+        <Pagination
+          action="/transactions"
+          locale={locale}
+          page={page}
+          totalPages={totalPages}
+          total={total}
+          perPage={perPage}
+          query={query}
+          extraParams={{ country }}
+        />
       )}
     </Layout>
     )

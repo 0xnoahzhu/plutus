@@ -10,7 +10,6 @@ import {
   Card,
   color,
   EmptyState,
-  filterByCountry,
   font,
   Layout,
   parseCountry,
@@ -21,7 +20,10 @@ import {
   type Theme,
 } from '../ui/layout.tsx'
 import { fmtMoney } from '../ui/format.ts'
+import { Pagination, SearchBar } from '../ui/pagination.tsx'
 import { render } from '../utils/render.tsx'
+
+const PER_PAGE = 15
 
 export const holdings: BuildAction<'GET', typeof routes.holdings> = {
   async handler({ request }) {
@@ -30,16 +32,36 @@ export const holdings: BuildAction<'GET', typeof routes.holdings> = {
     let locale = resolveLocale(request, url.searchParams)
     let theme = resolveTheme(request, url.searchParams)
     let method = url.searchParams.get('method') ?? 'fifo'
+    let q = (url.searchParams.get('q') ?? '').trim()
+    let pageParam = Number(url.searchParams.get('page') ?? '1')
+    let page = Number.isFinite(pageParam) && pageParam > 0 ? Math.floor(pageParam) : 1
 
-    // Holdings carry inlined symbol/market_code/currency from the API,
-    // so there's no second round trip needed. Sort order and
-    // unrealized P&L are also computed server-side.
-    let holdingsList = await api.holdings({ method }).catch(() => [])
-    let filtered = filterByCountry(holdingsList, country, (h) => h.market_code ?? undefined)
+    // Backend now handles country filter + q + pagination in one shot,
+    // returning the page slice + X-Total-Count header. Each holding
+    // carries inlined symbol/market_code/currency so no second round
+    // trip needed.
+    let result = await api
+      .holdingsPage({
+        method,
+        country: country || undefined,
+        page,
+        perPage: PER_PAGE,
+        q: q || undefined,
+      })
+      .catch(() => ({
+        items: [] as Holding[],
+        total: 0,
+        page,
+        perPage: PER_PAGE,
+      }))
 
     return render(
       <HoldingsPage
-        rows={filtered}
+        rows={result.items}
+        total={result.total}
+        page={page}
+        perPage={PER_PAGE}
+        query={q}
         country={country}
         locale={locale}
         theme={theme}
@@ -53,6 +75,10 @@ export const holdings: BuildAction<'GET', typeof routes.holdings> = {
 
 interface HoldingsProps {
   rows: Holding[]
+  total: number
+  page: number
+  perPage: number
+  query: string
   country: string
   locale: string
   theme: Theme
@@ -60,8 +86,19 @@ interface HoldingsProps {
 }
 
 function HoldingsPage() {
-  return ({ rows, country, locale, theme, method }: HoldingsProps) => {
+  return ({
+    rows,
+    total,
+    page,
+    perPage,
+    query,
+    country,
+    locale,
+    theme,
+    method,
+  }: HoldingsProps) => {
     let p = messages(locale).pages.holdings
+    let totalPages = Math.max(1, Math.ceil(total / perPage))
     return (
     <Layout
       title={p.title}
@@ -70,6 +107,16 @@ function HoldingsPage() {
       locale={locale}
       theme={theme}
     >
+      <Card>
+        <SearchBar
+          action="/holdings"
+          locale={locale}
+          query={query}
+          placeholder={p.columnSymbol}
+          extraParams={{ country, method }}
+        />
+      </Card>
+      <div mix={css({ marginTop: space[4] })}>
       {rows.length === 0 ? (
         <Card>
           <EmptyState title={p.emptyTitle} hint={p.emptyHint} />
@@ -173,6 +220,19 @@ function HoldingsPage() {
             </tbody>
           </table>
         </Card>
+      )}
+      </div>
+      {totalPages > 1 && (
+        <Pagination
+          action="/holdings"
+          locale={locale}
+          page={page}
+          totalPages={totalPages}
+          total={total}
+          perPage={perPage}
+          query={query}
+          extraParams={{ country, method }}
+        />
       )}
     </Layout>
     )

@@ -640,6 +640,22 @@ const en = {
         'Controls which translation gets rendered on every agent-output row. The base columns stay English; zh-CN is layered on via the `translations` JSON field on each record.',
     },
   },
+
+  /// Shared chrome for paginated/searchable lists. Used by /stocks,
+  /// /holdings, /watchlists, /transactions, and any other index page
+  /// that needs server-side pagination with a search box.
+  common: {
+    searchSubmit: 'Search',
+    searchClear: 'Clear',
+    paginationPrev: '← Prev',
+    paginationNext: 'Next →',
+    paginationGo: 'Go',
+    paginationPageOfTotal: (current: number, total: number) =>
+      `Page ${current} of ${total}`,
+    paginationShowing: (start: number, end: number, total: number) =>
+      `Showing ${start}–${end} of ${total}`,
+    paginationEmpty: 'No matching results',
+  },
 }
 
 /// Inferred from the English table — used to constrain other locales so
@@ -1261,6 +1277,19 @@ const zhCN: Messages = {
       description:
         '控制所有 agent 输出行的翻译展示。基础列保持英文，zh-CN 通过每条记录的 `translations` JSON 字段覆盖。',
     },
+  },
+
+  common: {
+    searchSubmit: '搜索',
+    searchClear: '清除',
+    paginationPrev: '← 上一页',
+    paginationNext: '下一页 →',
+    paginationGo: '跳转',
+    paginationPageOfTotal: (current: number, total: number) =>
+      `第 ${current} 页 / 共 ${total} 页`,
+    paginationShowing: (start: number, end: number, total: number) =>
+      `第 ${start}–${end} 条 / 共 ${total} 条`,
+    paginationEmpty: '暂无匹配结果',
   },
 }
 

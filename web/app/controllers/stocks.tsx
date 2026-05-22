@@ -11,16 +11,16 @@ import {
   EmptyState,
   font,
   Layout,
-  radius,
   resolveLocale,
   resolveTheme,
   space,
   StockBadge,
   type Theme,
 } from '../ui/layout.tsx'
+import { Pagination, SearchBar } from '../ui/pagination.tsx'
 import { render } from '../utils/render.tsx'
 
-const PER_PAGE = 20
+const PER_PAGE = 15
 
 export const stocks: BuildAction<'GET', typeof routes.stocks> = {
   async handler({ request }) {
@@ -64,17 +64,24 @@ function StocksPage() {
   return ({ rows, total, page, perPage, query, locale, theme }: StocksProps) => {
     let p = messages(locale).pages.stocks
     let totalPages = Math.max(1, Math.ceil(total / perPage))
-    let start = total === 0 ? 0 : (page - 1) * perPage + 1
-    let end = Math.min(page * perPage, total)
     return (
       <Layout
         title={p.title}
-        subtitle={p.paginationCount(start, end, total)}
+        subtitle={messages(locale).common.paginationShowing(
+          total === 0 ? 0 : (page - 1) * perPage + 1,
+          Math.min(page * perPage, total),
+          total,
+        )}
         locale={locale}
         theme={theme}
       >
         <Card>
-          <SearchBar locale={locale} query={query} />
+          <SearchBar
+            action="/stocks"
+            locale={locale}
+            query={query}
+            placeholder={p.searchPlaceholder}
+          />
         </Card>
         <div mix={css({ marginTop: space[4] })}>
           {rows.length === 0 ? (
@@ -146,166 +153,16 @@ function StocksPage() {
         </div>
         {totalPages > 1 && (
           <Pagination
+            action="/stocks"
             locale={locale}
             page={page}
             totalPages={totalPages}
+            total={total}
+            perPage={perPage}
             query={query}
           />
         )}
       </Layout>
-    )
-  }
-}
-
-/// GET form (no JS needed) that submits `?q=` and resets `?page` to 1.
-/// Pressing Enter inside the input naturally triggers form submission;
-/// the explicit Search button is the alternative for users who prefer
-/// clicking.
-function SearchBar() {
-  return ({ locale, query }: { locale: string; query: string }) => {
-    let p = messages(locale).pages.stocks
-    return (
-      <form
-        method="get"
-        action="/stocks"
-        mix={css({
-          display: 'flex',
-          gap: space[2],
-          alignItems: 'center',
-          margin: 0,
-        })}
-      >
-        <input
-          type="text"
-          name="q"
-          value={query}
-          placeholder={p.searchPlaceholder}
-          autocomplete="off"
-          mix={css({
-            flex: 1,
-            padding: `${space[2]} ${space[3]}`,
-            fontSize: font.base,
-            fontFamily: font.sans,
-            color: color.text,
-            background: color.bg,
-            border: `1px solid ${color.border}`,
-            borderRadius: radius.md,
-            outline: 'none',
-            '&:focus': { borderColor: color.brand },
-            '&::placeholder': { color: color.textDim },
-          })}
-        />
-        <button
-          type="submit"
-          mix={css({
-            padding: `${space[2]} ${space[4]}`,
-            fontSize: font.sm,
-            fontWeight: 600,
-            color: color.textOnBrand,
-            background: color.brand,
-            border: 'none',
-            borderRadius: radius.md,
-            cursor: 'pointer',
-            transition: 'background 120ms ease',
-            '&:hover': { background: color.brandHover },
-          })}
-        >
-          {p.searchSubmit}
-        </button>
-        {query !== '' && (
-          <a
-            href="/stocks"
-            mix={css({
-              fontSize: font.sm,
-              color: color.textMuted,
-              textDecoration: 'none',
-              padding: `${space[2]} ${space[3]}`,
-              '&:hover': { color: color.text },
-            })}
-          >
-            {p.searchClear}
-          </a>
-        )}
-      </form>
-    )
-  }
-}
-
-function Pagination() {
-  return ({
-    locale,
-    page,
-    totalPages,
-    query,
-  }: {
-    locale: string
-    page: number
-    totalPages: number
-    query: string
-  }) => {
-    let p = messages(locale).pages.stocks
-    let qs = (n: number) => {
-      let params = new URLSearchParams({ page: String(n) })
-      if (query) params.set('q', query)
-      return `/stocks?${params.toString()}`
-    }
-    let pillBase = css({
-      display: 'inline-flex',
-      alignItems: 'center',
-      padding: `${space[2]} ${space[4]}`,
-      fontSize: font.sm,
-      fontWeight: 600,
-      borderRadius: radius.md,
-      border: `1px solid ${color.border}`,
-      background: color.surface,
-      color: color.text,
-      textDecoration: 'none',
-      transition: 'background 120ms ease',
-      '&:hover': { background: color.bg },
-    })
-    let pillDisabled = css({
-      display: 'inline-flex',
-      alignItems: 'center',
-      padding: `${space[2]} ${space[4]}`,
-      fontSize: font.sm,
-      fontWeight: 600,
-      borderRadius: radius.md,
-      border: `1px solid ${color.borderSoft}`,
-      background: 'transparent',
-      color: color.textDim,
-      cursor: 'not-allowed',
-    })
-    return (
-      <div
-        mix={css({
-          marginTop: space[4],
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: space[3],
-          flexWrap: 'wrap',
-        })}
-      >
-        <span mix={css({ fontSize: font.sm, color: color.textMuted })}>
-          {p.paginationPage(page, totalPages)}
-        </span>
-        <div mix={css({ display: 'inline-flex', gap: space[2] })}>
-          {page > 1 ? (
-            <a href={qs(page - 1)} mix={pillBase}>
-              {p.paginationPrev}
-            </a>
-          ) : (
-            <span mix={pillDisabled}>{p.paginationPrev}</span>
-          )}
-          {page < totalPages ? (
-            <a href={qs(page + 1)} mix={pillBase}>
-              {p.paginationNext}
-            </a>
-          ) : (
-            <span mix={pillDisabled}>{p.paginationNext}</span>
-          )}
-        </div>
-      </div>
     )
   }
 }

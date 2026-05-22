@@ -1,6 +1,9 @@
 use axum::extract::{Path, Query, State};
+use axum::http::{HeaderMap, HeaderValue};
+use axum::response::IntoResponse;
 use axum::Json;
 use serde::Deserialize;
+use std::collections::HashMap;
 
 use std::str::FromStr;
 
@@ -12,17 +15,27 @@ use crate::error::{ApiError, ApiResult};
 use crate::handlers::access::require_user;
 use crate::state::AppState;
 
+const DEFAULT_PER_PAGE: i64 = 15;
+const MAX_PER_PAGE: i64 = 500;
+
 #[derive(Deserialize)]
 pub struct ListFilter {
     pub account_id: Option<i64>,
     pub stock_id: Option<i64>,
+    /// ISO country (US/HK/CN). Filters by the joined stock's market.
+    pub country: Option<String>,
+    /// Case-insensitive substring match on the joined stock symbol.
+    pub q: Option<String>,
+    /// 1-indexed page. When set, response carries X-Total-Count.
+    pub page: Option<i64>,
+    pub per_page: Option<i64>,
 }
 
 pub async fn list(
     State(state): State<AppState>,
     actor: axum::extract::Extension<Actor>,
     Query(f): Query<ListFilter>,
-) -> ApiResult<Json<Vec<TransactionOut>>> {
+) -> ApiResult<axum::response::Response> {
     let user_id = require_user(&actor.0)?;
     let rows = if let Some(account_id) = f.account_id {
         plutus_storage::queries::transactions::list_for_account(&state.db, user_id, account_id)
@@ -32,7 +45,103 @@ pub async fn list(
     } else {
         plutus_storage::queries::transactions::list(&state.db, user_id).await?
     };
-    Ok(Json(rows.into_iter().map(Into::into).collect()))
+
+    // Resolve symbol + market_code per touched stock_id for the q
+    // and country filters. Cash-movement transactions (stock_id=null)
+    // pass through the q filter only when q is unset.
+    let q_upper = f
+        .q
+        .as_deref()
+        .map(|s| s.trim().to_ascii_uppercase())
+        .filter(|s| !s.is_empty());
+    let market_codes: Option<std::collections::HashSet<String>> =
+        if let Some(country) = f.country.as_deref() {
+            Some(
+                plutus_storage::queries::markets::list_codes_by_country(&state.db, country)
+                    .await?
+                    .into_iter()
+                    .collect(),
+            )
+        } else {
+            None
+        };
+    let stock_ids: Vec<i64> = rows.iter().filter_map(|r| r.stock_id).collect();
+    let meta_map: HashMap<i64, (String, String)> = if !stock_ids.is_empty() {
+        plutus_storage::queries::stocks::list(
+            &state.db,
+            "en",
+            plutus_storage::queries::stocks::ListFilter {
+                symbol: None,
+                q: None,
+                ids: Some(&stock_ids),
+                limit: None,
+                offset: None,
+            },
+        )
+        .await?
+        .into_iter()
+        .map(|s| (s.id, (s.symbol, s.market_code)))
+        .collect()
+    } else {
+        HashMap::new()
+    };
+
+    let filtered: Vec<_> = rows
+        .into_iter()
+        .filter(|r| {
+            // q-filter: rows without a stock can never match a symbol
+            // query, so they drop out when q is set.
+            if let Some(ref q) = q_upper {
+                let Some(stock_id) = r.stock_id else { return false };
+                if !meta_map
+                    .get(&stock_id)
+                    .map(|(sym, _)| sym.to_ascii_uppercase().contains(q))
+                    .unwrap_or(false)
+                {
+                    return false;
+                }
+            }
+            // country filter: cash-movement rows pass through (no
+            // market to filter by); stock rows must match the country.
+            if let Some(ref codes) = market_codes {
+                let Some(stock_id) = r.stock_id else { return true };
+                let Some((_, market_code)) = meta_map.get(&stock_id) else {
+                    return false;
+                };
+                if !codes.contains(market_code) {
+                    return false;
+                }
+            }
+            true
+        })
+        .collect();
+
+    let total = filtered.len() as i64;
+    let paginating = f.page.is_some();
+    let page_slice: Vec<_> = if paginating {
+        let per_page = f
+            .per_page
+            .unwrap_or(DEFAULT_PER_PAGE)
+            .clamp(1, MAX_PER_PAGE);
+        let page = f.page.unwrap_or(1).max(1);
+        let offset = ((page - 1) * per_page) as usize;
+        filtered
+            .into_iter()
+            .skip(offset)
+            .take(per_page as usize)
+            .collect()
+    } else {
+        filtered
+    };
+
+    let mut headers = HeaderMap::new();
+    if paginating {
+        if let Ok(v) = HeaderValue::from_str(&total.to_string()) {
+            headers.insert("X-Total-Count", v);
+        }
+    }
+    let out: Vec<TransactionOut> = page_slice.into_iter().map(Into::into).collect();
+    Ok((headers, Json(out)).into_response())
 }
 
 pub async fn get(

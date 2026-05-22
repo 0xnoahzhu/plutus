@@ -28,7 +28,10 @@ import {
 } from '../ui/layout.tsx'
 import { LocalTime } from '../ui/local-time.tsx'
 import { MarkdownToggle } from '../ui/markdown.tsx'
+import { Pagination, SearchBar } from '../ui/pagination.tsx'
 import { render } from '../utils/render.tsx'
+
+const PER_PAGE = 15
 
 /// `/watchlists` is split into three top-level tabs (`?tab=...`) so
 /// the items table and the agent reports each get the full page
@@ -43,29 +46,37 @@ export const watchlists: BuildAction<'GET', typeof routes.watchlists> = {
     let locale = resolveLocale(request, url.searchParams)
     let theme = resolveTheme(request, url.searchParams)
     let tab = resolveTab(url.searchParams.get('tab'))
+    let q = (url.searchParams.get('q') ?? '').trim()
+    let pageParam = Number(url.searchParams.get('page') ?? '1')
+    let page = Number.isFinite(pageParam) && pageParam > 0 ? Math.floor(pageParam) : 1
 
-    // Fetch items + reports in parallel; then resolve stock metadata
-    // by id (the catalog can be >5000, the user's watchlist is small —
-    // /stocks?ids=... bypasses the global LIMIT cap).
-    let [items, dailyReports, weeklyReports] = await Promise.all([
-      api.watchlistItems().catch(() => [] as WatchlistItem[]),
+    // Items page is paginated/searchable; reports come back in full.
+    // Search and pagination only apply when the items tab is active —
+    // for the reports tabs we skip the params (page=N would still
+    // shift the URL but the items endpoint just ignores it for the
+    // hidden tab).
+    let [itemsResult, dailyReports, weeklyReports] = await Promise.all([
+      api
+        .watchlistItemsPage({ page, perPage: PER_PAGE, q: q || undefined })
+        .catch(() => ({ items: [] as WatchlistItem[], total: 0, page, perPage: PER_PAGE })),
       api.watchlistReports({ kind: 'daily', locale }).catch(() => [] as WatchlistReport[]),
       api.watchlistReports({ kind: 'weekly', locale }).catch(() => [] as WatchlistReport[]),
     ])
     let allStocks = await api
       .stocksByIds(
-        items.map((it) => it.stock_id),
+        itemsResult.items.map((it) => it.stock_id),
         locale,
       )
       .catch(() => [] as Stock[])
     let stockMap = new Map<number, Stock>(allStocks.map((s) => [s.id, s]))
-    // Items and reports are both ordered server-side now (items by
-    // added_at desc, reports by period_start desc + kind asc); no
-    // client-side re-sort needed.
 
     return render(
       <WatchlistPage
-        items={items}
+        items={itemsResult.items}
+        itemsTotal={itemsResult.total}
+        page={page}
+        perPage={PER_PAGE}
+        query={q}
         stocks={stockMap}
         dailyReports={dailyReports}
         weeklyReports={weeklyReports}
@@ -86,6 +97,10 @@ function resolveTab(raw: string | null): Tab {
 
 interface WatchlistPageProps {
   items: WatchlistItem[]
+  itemsTotal: number
+  page: number
+  perPage: number
+  query: string
   stocks: Map<number, Stock>
   dailyReports: WatchlistReport[]
   weeklyReports: WatchlistReport[]
@@ -97,6 +112,10 @@ interface WatchlistPageProps {
 function WatchlistPage() {
   return ({
     items,
+    itemsTotal,
+    page,
+    perPage,
+    query,
     stocks,
     dailyReports,
     weeklyReports,
@@ -107,7 +126,7 @@ function WatchlistPage() {
     let p = messages(locale).pages.watchlist
     let subtitle =
       tab === 'items'
-        ? p.subtitleStocks(items.length)
+        ? p.subtitleStocks(itemsTotal)
         : tab === 'daily'
           ? p.subtitleReports(dailyReports.length)
           : p.subtitleReports(weeklyReports.length)
@@ -117,7 +136,17 @@ function WatchlistPage() {
           <TabStrip active={tab} locale={locale} />
         </div>
 
-        {tab === 'items' && <ItemsView items={items} stocks={stocks} locale={locale} />}
+        {tab === 'items' && (
+          <ItemsView
+            items={items}
+            total={itemsTotal}
+            page={page}
+            perPage={perPage}
+            query={query}
+            stocks={stocks}
+            locale={locale}
+          />
+        )}
         {tab === 'daily' && (
           <ReportsView reports={dailyReports} kind="daily" locale={locale} />
         )}
@@ -161,22 +190,40 @@ function TabStrip() {
 function ItemsView() {
   return ({
     items,
+    total,
+    page,
+    perPage,
+    query,
     stocks,
     locale,
   }: {
     items: WatchlistItem[]
+    total: number
+    page: number
+    perPage: number
+    query: string
     stocks: Map<number, Stock>
     locale: string
   }) => {
     let p = messages(locale).pages.watchlist
-    if (items.length === 0) {
-      return (
-        <Card>
-          <EmptyState title={p.emptyTitle} hint={p.emptyHint} />
-        </Card>
-      )
-    }
+    let totalPages = Math.max(1, Math.ceil(total / perPage))
     return (
+      <>
+        <Card>
+          <SearchBar
+            action="/watchlists"
+            locale={locale}
+            query={query}
+            placeholder={p.columnSymbol}
+            extraParams={{ tab: 'items' }}
+          />
+        </Card>
+        <div mix={css({ marginTop: space[4] })}>
+        {items.length === 0 ? (
+          <Card>
+            <EmptyState title={p.emptyTitle} hint={p.emptyHint} />
+          </Card>
+        ) : (
       <Card padding="0">
         <table
           mix={css({
@@ -248,6 +295,21 @@ function ItemsView() {
           </tbody>
         </table>
       </Card>
+        )}
+        </div>
+        {totalPages > 1 && (
+          <Pagination
+            action="/watchlists"
+            locale={locale}
+            page={page}
+            totalPages={totalPages}
+            total={total}
+            perPage={perPage}
+            query={query}
+            extraParams={{ tab: 'items' }}
+          />
+        )}
+      </>
     )
   }
 }
