@@ -105,22 +105,19 @@ function CatalystsPage() {
     return (
     <Layout
       title={p.title}
-      subtitle={`Forward-looking catalysts for ${country}`}
+      subtitle={p.subtitle(country)}
       country={country}
       locale={locale}
       theme={theme}
     >
-      <SectionTitle hint={`from ${today}`}>Upcoming</SectionTitle>
+      <SectionTitle hint={messages(locale).pages.macroEvents.hintFrom(today)}>
+        {p.sectionUpcoming}
+      </SectionTitle>
       {upcoming.length === 0 ? (
         <Card>
           <EmptyState
-            title={`No upcoming catalysts on file for ${country}`}
-            hint={
-              <>
-                Agent writes via <code>POST /api/v1/catalysts</code>. Each
-                catalyst can target a stock, a sector, or a whole country.
-              </>
-            }
+            title={p.noUpcomingTitle(country)}
+            hint={<code>POST /api/v1/catalysts</code>}
           />
         </Card>
       ) : (
@@ -128,11 +125,13 @@ function CatalystsPage() {
       )}
 
       <div mix={css({ marginTop: space[6] })}>
-        <SectionTitle hint={`before ${today}`}>Past</SectionTitle>
+        <SectionTitle hint={messages(locale).pages.macroEvents.hintBefore(today)}>
+          {p.sectionPast}
+        </SectionTitle>
       </div>
       {past.length === 0 ? (
         <Card>
-          <EmptyState title="No past catalysts recorded" />
+          <EmptyState title={p.noPastTitle} />
         </Card>
       ) : (
         <DayList groups={past} />

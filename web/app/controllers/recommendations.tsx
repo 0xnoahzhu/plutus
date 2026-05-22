@@ -71,24 +71,15 @@ function RecommendationsPage() {
   return ({ open, closed, stocks, locale, theme }: RecommendationsProps) => {
     let p = messages(locale).pages.recommendations
     return (
-    <Layout
-      title={p.title}
-      subtitle="Standalone buy / sell / reduce / hold calls the agent tracks from issue until close-out with PnL."
-      locale={locale}
-      theme={theme}
-    >
+    <Layout title={p.title} subtitle={p.subtitle} locale={locale} theme={theme}>
       <div mix={css({ display: 'flex', flexDirection: 'column', gap: space[6] })}>
         <div>
-          <SectionTitle hint={`${open.length}`}>Open</SectionTitle>
+          <SectionTitle hint={`${open.length}`}>{p.sectionOpen}</SectionTitle>
           {open.length === 0 ? (
             <Card>
               <EmptyState
-                title="No open recommendations"
-                hint={
-                  <>
-                    Agent writes via <code>POST /api/v1/recommendations</code>.
-                  </>
-                }
+                title={p.noOpenTitle}
+                hint={<code>POST /api/v1/recommendations</code>}
               />
             </Card>
           ) : (
@@ -97,10 +88,10 @@ function RecommendationsPage() {
         </div>
 
         <div>
-          <SectionTitle hint={`${closed.length}`}>Closed</SectionTitle>
+          <SectionTitle hint={`${closed.length}`}>{p.sectionClosed}</SectionTitle>
           {closed.length === 0 ? (
             <Card>
-              <EmptyState title="No closed recommendations recorded yet" />
+              <EmptyState title={p.noClosedTitle} />
             </Card>
           ) : (
             <RecsList recs={closed} stocks={stocks} kind="closed" />

@@ -66,17 +66,14 @@ function TransactionsPage() {
     return (
     <Layout
       title={p.title}
-      subtitle={`${rows.length} in ${country}`}
+      subtitle={p.subtitle(rows.length, country)}
       country={country}
       locale={locale}
       theme={theme}
     >
       {rows.length === 0 ? (
         <Card>
-          <EmptyState
-            title="No transactions"
-            hint="Import a broker statement or add transactions via the API."
-          />
+          <EmptyState title={p.emptyTitle} hint={p.emptyHint} />
         </Card>
       ) : (
         <Card padding="0">

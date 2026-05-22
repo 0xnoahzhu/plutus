@@ -120,6 +120,7 @@ function StockDetailPage() {
     accountMap,
     stockMap,
   }: StockDetailProps) => {
+    let p = messages(locale).pages.stockDetail
     let displayName = stock.name ?? stock.symbol
     return (
       <Layout title={displayName} subtitle={`${stock.symbol} · ${stock.market_code}`} locale={locale} theme={theme}>
@@ -157,8 +158,8 @@ function StockDetailPage() {
                 </div>
                 <div mix={css({ fontSize: font.sm, color: color.textMuted })}>
                   {stock.name
-                    ? `${locale} · updated ${stock.updated_at.slice(0, 10)}`
-                    : 'no name for this locale'}
+                    ? `${locale} · ${p.labelUpdated} ${stock.updated_at.slice(0, 10)}`
+                    : p.noName}
                 </div>
               </div>
             </div>
@@ -167,7 +168,7 @@ function StockDetailPage() {
               <Description text={stock.description_md} />
             ) : (
               <EmptyState
-                title="No description for this locale"
+                title={p.noDescriptionTitle}
                 hint={
                   <>
                     Update via{' '}
@@ -197,12 +198,10 @@ function StockDetailPage() {
             >
               <SectionTitle
                 hint={
-                  plans.length === 0
-                    ? 'none yet'
-                    : `${plans.length} plan${plans.length === 1 ? '' : 's'}`
+                  plans.length === 0 ? p.hintNoneYet : p.hintPlans(plans.length)
                 }
               >
-                Trade plans
+                {p.sectionTradePlans}
               </SectionTitle>
               <a
                 href="/trade-plans"
@@ -214,10 +213,10 @@ function StockDetailPage() {
                   '&:hover': { textDecoration: 'underline' },
                 })}
               >
-                manage →
+                {p.manageLink}
               </a>
             </div>
-            <TradePlansSection plans={plans} stock={stock} />
+            <TradePlansSection plans={plans} stock={stock} locale={locale} />
           </Card>
         </div>
 
@@ -235,11 +234,11 @@ function StockDetailPage() {
               <SectionTitle
                 hint={
                   openOrders.length === 0
-                    ? 'none open'
-                    : `${openOrders.length} open`
+                    ? p.hintNoneOpen
+                    : p.hintOpen(openOrders.length)
                 }
               >
-                Open orders
+                {p.sectionOpenOrders}
               </SectionTitle>
               <a
                 href="/orders"
@@ -251,7 +250,7 @@ function StockDetailPage() {
                   '&:hover': { textDecoration: 'underline' },
                 })}
               >
-                manage →
+                {p.manageLink}
               </a>
             </div>
             {openOrders.length === 0 ? (
@@ -259,7 +258,7 @@ function StockDetailPage() {
                 title={messages(locale).orders.stockDetailEmpty}
                 hint={
                   <>
-                    Record an order on the{' '}
+                    {p.recordOrderHintPrefix}
                     <a
                       href="/orders"
                       mix={css({
@@ -268,9 +267,9 @@ function StockDetailPage() {
                         '&:hover': { textDecoration: 'underline' },
                       })}
                     >
-                      Open orders
-                    </a>{' '}
-                    page after placing it with your broker.
+                      {p.recordOrderHintLink}
+                    </a>
+                    {p.recordOrderHintSuffix}
                   </>
                 }
               />
@@ -289,10 +288,10 @@ function StockDetailPage() {
 
         <div mix={css({ marginTop: space[4] })}>
           <Card>
-            <SectionTitle hint={`${recentNews.length} of ${totalNews} shown`}>
-              Recent news
+            <SectionTitle hint={p.hintNewsShown(recentNews.length, totalNews)}>
+              {p.sectionRecentNews}
             </SectionTitle>
-            <NewsList items={recentNews} />
+            <NewsList items={recentNews} locale={locale} />
           </Card>
         </div>
       </Layout>
@@ -307,17 +306,20 @@ function TradePlansSection() {
   return ({
     plans,
     stock,
+    locale,
   }: {
     plans: Array<{ plan: TradePlan; levels: TradePlanLevel[] }>
     stock: Stock
+    locale: string
   }) => {
+    let p = messages(locale).pages.stockDetail
     if (plans.length === 0) {
       return (
         <EmptyState
-          title="No trade plans for this stock yet"
+          title={p.noTradesTitle}
           hint={
             <>
-              Define entry / stop-loss / take-profit price points on the{' '}
+              {p.noTradesHintPrefix}
               <a
                 href="/trade-plans"
                 mix={css({
@@ -326,9 +328,9 @@ function TradePlansSection() {
                   '&:hover': { textDecoration: 'underline' },
                 })}
               >
-                Trade plans
-              </a>{' '}
-              page. They'll show up here once you create them.
+                {p.noTradesHintLink}
+              </a>
+              {p.noTradesHintSuffix}
             </>
           }
         />
@@ -337,7 +339,7 @@ function TradePlansSection() {
     return (
       <div mix={css({ display: 'flex', flexDirection: 'column', gap: space[3] })}>
         {plans.map(({ plan, levels }) => (
-          <TradePlanCard plan={plan} levels={levels} stock={stock} />
+          <TradePlanCard plan={plan} levels={levels} stock={stock} locale={locale} />
         ))}
       </div>
     )
@@ -349,11 +351,14 @@ function TradePlanCard() {
     plan,
     levels,
     stock,
+    locale,
   }: {
     plan: TradePlan
     levels: TradePlanLevel[]
     stock: Stock
+    locale: string
   }) => {
+    let p = messages(locale).pages.stockDetail
     let activeLevels = levels.filter((l) => l.status === 'active')
     let activeLevelsSorted = [...activeLevels].sort((a, b) => {
       let ap = Number(a.price)
@@ -391,12 +396,11 @@ function TradePlanCard() {
               {plan.status}
             </Badge>
             <span mix={css({ fontSize: font.sm, color: color.textMuted })}>
-              {levels.length} level{levels.length === 1 ? '' : 's'} ·{' '}
-              {activeLevels.length} active
+              {p.levelsSummary(levels.length, activeLevels.length)}
             </span>
           </div>
           <span mix={css({ fontSize: font.xs, color: color.textDim })}>
-            since {plan.created_at.slice(0, 10)}
+            {p.planSince(plan.created_at.slice(0, 10))}
           </span>
         </div>
 
@@ -416,7 +420,7 @@ function TradePlanCard() {
 
         {activeLevelsSorted.length === 0 ? (
           <div mix={css({ fontSize: font.sm, color: color.textDim })}>
-            No active levels (all triggered or cancelled). Use{' '}
+            {p.noActiveLevelsPrefix}
             <a
               href="/trade-plans"
               mix={css({
@@ -425,9 +429,9 @@ function TradePlanCard() {
                 '&:hover': { textDecoration: 'underline' },
               })}
             >
-              Trade plans
-            </a>{' '}
-            to add more.
+              {p.noActiveLevelsLink}
+            </a>
+            {p.noActiveLevelsSuffix}
           </div>
         ) : (
           <table
@@ -540,16 +544,20 @@ function Breadcrumb() {
 function NewsList() {
   return ({
     items,
+    locale,
   }: {
     items: Array<{ link: NewsStockLink; item: NewsItem }>
+    locale: string
   }) => {
+    let p = messages(locale).pages.stockDetail
     if (items.length === 0) {
       return (
         <EmptyState
-          title="No news linked"
+          title={p.noNewsTitle}
           hint={
             <>
-              Agent can attach via <code>POST /api/v1/news/:id/stock-links</code>.
+              {p.noNewsHintPrefix}
+              <code>POST /api/v1/news/:id/stock-links</code>
             </>
           }
         />

@@ -61,21 +61,14 @@ function NewsListPage() {
     return (
     <Layout
       title={p.title}
-      subtitle={`${rows.length} of ${totalRaw} items · region ${country} or global`}
+      subtitle={p.subtitle(rows.length, totalRaw, country)}
       country={country}
       locale={locale}
       theme={theme}
     >
       {rows.length === 0 ? (
         <Card>
-          <EmptyState
-            title="No news yet"
-            hint={
-              <>
-                Push items via <code>POST /api/v1/news</code>.
-              </>
-            }
-          />
+          <EmptyState title={p.emptyTitle} hint={p.emptyHint} />
         </Card>
       ) : (
         <div mix={css({ display: 'flex', flexDirection: 'column', gap: space[2] })}>

@@ -102,26 +102,30 @@ function EarningsPage() {
     return (
     <Layout
       title={p.title}
-      subtitle={`Calendar for ${country}`}
+      subtitle={p.subtitle(country)}
       country={country}
       locale={locale}
       theme={theme}
     >
-      <SectionTitle hint={`from ${today}`}>Upcoming</SectionTitle>
+      <SectionTitle hint={messages(locale).pages.macroEvents.hintFrom(today)}>
+        {p.sectionUpcoming}
+      </SectionTitle>
       {upcoming.length === 0 ? (
         <Card>
-          <EmptyState title="No upcoming earnings" />
+          <EmptyState title={p.noUpcomingTitle} />
         </Card>
       ) : (
         <DayList groups={upcoming} />
       )}
 
       <div mix={css({ marginTop: space[6] })}>
-        <SectionTitle hint={`before ${today}`}>Past</SectionTitle>
+        <SectionTitle hint={messages(locale).pages.macroEvents.hintBefore(today)}>
+          {p.sectionPast}
+        </SectionTitle>
       </div>
       {past.length === 0 ? (
         <Card>
-          <EmptyState title="No past earnings recorded" />
+          <EmptyState title={p.noPastTitle} />
         </Card>
       ) : (
         <DayList groups={past} />

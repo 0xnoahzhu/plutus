@@ -100,16 +100,15 @@ function MacroEventsPage() {
       locale={locale}
       theme={theme}
     >
-      <SectionTitle hint={`from ${today}`}>Upcoming</SectionTitle>
+      <SectionTitle hint={p.hintFrom(today)}>{p.sectionUpcoming}</SectionTitle>
       {upcoming.length === 0 ? (
         <Card>
           <EmptyState
-            title="No upcoming events"
+            title={p.noUpcomingTitle}
             hint={
               <>
-                Agent writes via <code>POST /api/v1/macro/events</code>. Daily
-                continuous series (yields, effective rates) live in{' '}
-                <code>/api/v1/macro/observations</code>.
+                <code>POST /api/v1/macro/events</code> ·{' '}
+                <code>/api/v1/macro/observations</code>
               </>
             }
           />
@@ -119,11 +118,11 @@ function MacroEventsPage() {
       )}
 
       <div mix={css({ marginTop: space[6] })}>
-        <SectionTitle hint={`before ${today}`}>Past</SectionTitle>
+        <SectionTitle hint={p.hintBefore(today)}>{p.sectionPast}</SectionTitle>
       </div>
       {past.length === 0 ? (
         <Card>
-          <EmptyState title="No past events recorded" />
+          <EmptyState title={p.noPastTitle} />
         </Card>
       ) : (
         <DayList groups={past} indicators={indicators} />

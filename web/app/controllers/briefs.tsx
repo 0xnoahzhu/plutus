@@ -73,21 +73,14 @@ function BriefsPage() {
     return (
     <Layout
       title={p.title}
-      subtitle={`Daily pre/post-market analysis for ${country}`}
+      subtitle={p.subtitle(country)}
       country={country}
       locale={locale}
       theme={theme}
     >
       {days.length === 0 ? (
         <Card>
-          <EmptyState
-            title="No briefs yet"
-            hint={
-              <>
-                Push one with <code>POST /api/v1/market-briefs</code>.
-              </>
-            }
-          />
+          <EmptyState title={p.emptyTitle} hint={p.emptyHint} />
         </Card>
       ) : (
         <div mix={css({ display: 'flex', flexDirection: 'column', gap: space[5] })}>

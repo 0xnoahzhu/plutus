@@ -101,35 +101,16 @@ function CorrelationsPage() {
     return (
     <Layout
       title={p.title}
-      subtitle={latest ? `Latest run ${latest.run_date}` : 'No runs yet'}
+      subtitle={latest ? `${p.sectionLatestRun} ${latest.run_date}` : p.noRunsYetSubtitle}
       locale={locale}
       theme={theme}
     >
-      <p
-        mix={css({
-          fontSize: font.sm,
-          color: color.textMuted,
-          marginTop: 0,
-          marginBottom: space[5],
-          lineHeight: 1.55,
-        })}
-      >
-        Recurring correlation runs over user-defined universes. Define a universe
-        with <code>POST /api/v1/universes</code>, kick off a run with{' '}
-        <code>POST /api/v1/correlation-runs</code>, and push the pairwise
-        correlations to <code>/correlation-runs/:id/pairs</code>.
-      </p>
-
-      <SectionTitle hint={`${universes.length}`}>Universes</SectionTitle>
+      <SectionTitle hint={`${universes.length}`}>{p.sectionUniverses}</SectionTitle>
       {universes.length === 0 ? (
         <Card>
           <EmptyState
-            title="No universes defined yet"
-            hint={
-              <>
-                Define one with <code>POST /api/v1/universes</code>.
-              </>
-            }
+            title={p.noUniversesTitle}
+            hint={<code>POST /api/v1/universes</code>}
           />
         </Card>
       ) : (
@@ -137,17 +118,15 @@ function CorrelationsPage() {
       )}
 
       <div mix={css({ marginTop: space[6] })}>
-        <SectionTitle hint={latest ? latest.run_date : 'none'}>Latest run</SectionTitle>
+        <SectionTitle hint={latest ? latest.run_date : '—'}>
+          {p.sectionLatestRun}
+        </SectionTitle>
       </div>
       {!latest ? (
         <Card>
           <EmptyState
-            title="No correlation runs yet"
-            hint={
-              <>
-                Kick off a run with <code>POST /api/v1/correlation-runs</code>.
-              </>
-            }
+            title={p.noRunsTitle}
+            hint={<code>POST /api/v1/correlation-runs</code>}
           />
         </Card>
       ) : (
@@ -165,7 +144,7 @@ function CorrelationsPage() {
 
       {runs.length > 1 && (
         <div mix={css({ marginTop: space[6] })}>
-          <SectionTitle hint={`${runs.length - 1}`}>Earlier runs</SectionTitle>
+          <SectionTitle hint={`${runs.length - 1}`}>{p.sectionEarlierRuns}</SectionTitle>
           <div mix={css({ display: 'flex', flexDirection: 'column', gap: space[2] })}>
             {runs.slice(1).map((r) => (
               <RunRow run={r} universe={universeMap.get(r.universe_id)} />
