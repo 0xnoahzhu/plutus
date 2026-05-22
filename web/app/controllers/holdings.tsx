@@ -1,7 +1,7 @@
 import type { BuildAction } from 'remix/fetch-router'
 import { css, type RemixNode } from 'remix/ui'
 
-import { api, type Holding, type Stock } from '../api.ts'
+import { api, type Holding } from '../api.ts'
 import { messages } from '../i18n/messages.ts'
 import type { routes } from '../routes.ts'
 import {
@@ -31,26 +31,15 @@ export const holdings: BuildAction<'GET', typeof routes.holdings> = {
     let theme = resolveTheme(request, url.searchParams)
     let method = url.searchParams.get('method') ?? 'fifo'
 
-    // Holdings come first; then resolve symbols/market codes by id so
-    // the lookup isn't capped by the global /stocks LIMIT (the catalog
-    // can be >5000 stocks; the user only holds a handful).
+    // Holdings carry inlined symbol/market_code/currency from the API,
+    // so there's no second round trip needed. Sort order and
+    // unrealized P&L are also computed server-side.
     let holdingsList = await api.holdings({ method }).catch(() => [])
-    let stocks = await api
-      .stocksByIds(
-        holdingsList.map((h) => h.stock_id),
-        locale,
-      )
-      .catch(() => [] as Stock[])
-    let stockMap = new Map<number, Stock>(stocks.map((s) => [s.id, s]))
-    // Order is set server-side by ticker; we just country-filter here.
-    let filtered = filterByCountry(holdingsList, country, (h) =>
-      stockMap.get(h.stock_id)?.market_code,
-    )
+    let filtered = filterByCountry(holdingsList, country, (h) => h.market_code ?? undefined)
 
     return render(
       <HoldingsPage
         rows={filtered}
-        stocks={stockMap}
         country={country}
         locale={locale}
         theme={theme}
@@ -64,7 +53,6 @@ export const holdings: BuildAction<'GET', typeof routes.holdings> = {
 
 interface HoldingsProps {
   rows: Holding[]
-  stocks: Map<number, Stock>
   country: string
   locale: string
   theme: Theme
@@ -72,7 +60,7 @@ interface HoldingsProps {
 }
 
 function HoldingsPage() {
-  return ({ rows, stocks, country, locale, theme, method }: HoldingsProps) => {
+  return ({ rows, country, locale, theme, method }: HoldingsProps) => {
     let p = messages(locale).pages.holdings
     return (
     <Layout
@@ -109,7 +97,6 @@ function HoldingsPage() {
             </thead>
             <tbody>
               {rows.map((h) => {
-                let s = stocks.get(h.stock_id)
                 let realized = Number.parseFloat(h.realized_pnl_base)
                 let realizedTrend: 'up' | 'down' | 'flat' =
                   realized > 0 ? 'up' : realized < 0 ? 'down' : 'flat'
@@ -133,9 +120,9 @@ function HoldingsPage() {
                     })}
                   >
                     <Td>
-                      {s ? (
+                      {h.symbol ? (
                         <a
-                          href={`/stocks/${s.id}`}
+                          href={`/stocks/${h.stock_id}`}
                           mix={css({
                             display: 'inline-flex',
                             alignItems: 'center',
@@ -145,14 +132,14 @@ function HoldingsPage() {
                             '&:hover': { color: color.brandHover },
                           })}
                         >
-                          <StockBadge symbol={s.symbol} />
+                          <StockBadge symbol={h.symbol} />
                           <span
                             mix={css({
                               fontFamily: font.mono,
                               fontWeight: 600,
                             })}
                           >
-                            {s.symbol}
+                            {h.symbol}
                           </span>
                         </a>
                       ) : (
@@ -160,9 +147,9 @@ function HoldingsPage() {
                       )}
                     </Td>
                     <Td>
-                      <Badge tone="neutral">{s?.market_code ?? '?'}</Badge>
+                      <Badge tone="neutral">{h.market_code ?? '?'}</Badge>
                     </Td>
-                    <Td>{s?.currency ?? '?'}</Td>
+                    <Td>{h.currency ?? '?'}</Td>
                     <Td align="right" mono>
                       {h.quantity}
                     </Td>

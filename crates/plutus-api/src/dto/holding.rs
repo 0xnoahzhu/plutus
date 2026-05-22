@@ -45,13 +45,37 @@ pub struct HoldingOut {
     /// `market_value_base` is null. Sign tracks gain/loss.
     #[schema(value_type = Option<String>)]
     pub unrealized_pnl_base: Option<Decimal>,
+
+    /// Stock ticker. Inlined from `stocks` so the UI doesn't need a
+    /// second round trip just to resolve symbols. `null` if the stock
+    /// row was deleted (rare; reference data is shared, not user data).
+    pub symbol: Option<String>,
+    /// Market code (MIC). Inlined from `stocks`.
+    pub market_code: Option<String>,
+    /// Trade currency. Inlined from `stocks`.
+    pub currency: Option<String>,
+}
+
+/// Subset of stock metadata the holdings handler joins onto each row.
+/// Owned strings so the closure doesn't borrow from the outer map.
+#[derive(Debug, Clone)]
+pub struct HoldingStockMeta {
+    pub symbol: String,
+    pub market_code: String,
+    pub currency: String,
 }
 
 impl HoldingOut {
-    /// Build a row, layering on the latest-close-derived fields. Pass
-    /// `latest_close = None` when no OHLCV bar is on file for the
-    /// stock — market_value / unrealized then surface as `null`.
-    pub fn from_holding(h: Holding, latest_close: Option<Decimal>) -> Self {
+    /// Build a row, layering on the latest-close-derived fields and
+    /// the inlined stock metadata. Pass `latest_close = None` when no
+    /// OHLCV bar is on file (market_value / unrealized then surface
+    /// as `null`); pass `stock = None` when the stock row is gone
+    /// (symbol / market / currency surface as `null`).
+    pub fn from_holding(
+        h: Holding,
+        latest_close: Option<Decimal>,
+        stock: Option<HoldingStockMeta>,
+    ) -> Self {
         let market_value_base = latest_close.map(|c| h.position.quantity * c);
         let unrealized_pnl_base = market_value_base.map(|mv| mv - h.position.cost_base);
         Self {
@@ -63,6 +87,9 @@ impl HoldingOut {
             realized_pnl_base: h.position.realized_pnl_base,
             market_value_base,
             unrealized_pnl_base,
+            symbol: stock.as_ref().map(|s| s.symbol.clone()),
+            market_code: stock.as_ref().map(|s| s.market_code.clone()),
+            currency: stock.map(|s| s.currency),
         }
     }
 }

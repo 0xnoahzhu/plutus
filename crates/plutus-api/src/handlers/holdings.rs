@@ -7,7 +7,7 @@ use serde::Deserialize;
 use plutus_core::audit::Actor;
 use plutus_core::cost_basis::CostBasisMethod;
 
-use crate::dto::holding::HoldingOut;
+use crate::dto::holding::{HoldingOut, HoldingStockMeta};
 use crate::error::{ApiError, ApiResult};
 use crate::handlers::access::require_user;
 use crate::state::AppState;
@@ -40,48 +40,61 @@ pub async fn list(
     } else {
         plutus_storage::queries::holdings::compute_all(&state.db, user_id, method).await?
     };
-    // Sort by stock symbol so the response is stable across refreshes.
-    // Holdings aren't a real table — they're computed by aggregating
-    // transactions — so we can't ORDER BY in SQL. Doing it here keeps
-    // the sort on the backend, which matters for future pagination.
-    // For an unknown stock_id (deleted reference data, race condition)
-    // we fall back to a string that sorts after real tickers.
-    let symbols: HashMap<i64, String> = plutus_storage::queries::stocks::list(
+    // Fetch ONLY the held stocks (not the full catalog). With a 5k+
+    // catalog the old "fetch all then build a symbol map" pattern
+    // was O(N catalog) instead of O(N positions). The id-filter
+    // SQL bypasses the LIMIT cap on stocks::list automatically.
+    let stock_ids: Vec<i64> = rows.iter().map(|h| h.stock_id).collect();
+    let stock_meta: HashMap<i64, HoldingStockMeta> = plutus_storage::queries::stocks::list(
         &state.db,
         "en",
         plutus_storage::queries::stocks::ListFilter {
             symbol: None,
             q: None,
-            ids: None,
+            ids: Some(&stock_ids),
             limit: None,
+            offset: None,
         },
     )
     .await?
     .into_iter()
-    .map(|s| (s.id, s.symbol))
+    .map(|s| {
+        (
+            s.id,
+            HoldingStockMeta {
+                symbol: s.symbol,
+                market_code: s.market_code,
+                currency: s.currency,
+            },
+        )
+    })
     .collect();
+    // Stable sort by symbol. Holdings aren't a real table (computed
+    // from transactions), so the sort happens here, not in SQL. An
+    // unknown stock_id falls back to a string that sorts after real
+    // tickers so orphans cluster predictably at the end.
     rows.sort_by(|a, b| {
-        let sa = symbols
+        let sa = stock_meta
             .get(&a.stock_id)
-            .map(String::as_str)
+            .map(|m| m.symbol.as_str())
             .unwrap_or("\u{FFFF}");
-        let sb = symbols
+        let sb = stock_meta
             .get(&b.stock_id)
-            .map(String::as_str)
+            .map(|m| m.symbol.as_str())
             .unwrap_or("\u{FFFF}");
         sa.cmp(sb).then_with(|| a.stock_id.cmp(&b.stock_id))
     });
     // One OHLCV query for every held stock so we can fill in market
     // value and unrealized P&L. Stocks with no bar yet get None, which
     // serializes to null and surfaces as `—` in the UI.
-    let stock_ids: Vec<i64> = rows.iter().map(|h| h.stock_id).collect();
     let latest_closes =
         plutus_storage::queries::ohlcv::latest_closes(&state.db, &stock_ids).await?;
     let out: Vec<HoldingOut> = rows
         .into_iter()
         .map(|h| {
             let close = latest_closes.get(&h.stock_id).copied();
-            HoldingOut::from_holding(h, close)
+            let meta = stock_meta.get(&h.stock_id).cloned();
+            HoldingOut::from_holding(h, close, meta)
         })
         .collect();
     Ok(Json(out))

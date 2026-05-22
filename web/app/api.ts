@@ -127,6 +127,12 @@ export interface Holding {
   /// Unrealized P&L = `market_value_base - cost_base`. `null` when
   /// `market_value_base` is null.
   unrealized_pnl_base: string | null
+  /// Stock metadata joined server-side so the holdings page doesn't
+  /// need a second `/stocks` round trip. `null` when the stock row
+  /// has been deleted (rare).
+  symbol: string | null
+  market_code: string | null
+  currency: string | null
 }
 
 export interface Ohlcv {
@@ -172,6 +178,16 @@ function withLocale(path: string, locale?: string): string {
 }
 
 async function get<T>(path: string, cookie?: string | null): Promise<T> {
+  let { body } = await getWithHeaders<T>(path, cookie)
+  return body
+}
+
+/// Like `get` but also returns the raw `Response` for callers that
+/// need response headers (e.g. pagination's `X-Total-Count`).
+async function getWithHeaders<T>(
+  path: string,
+  cookie?: string | null,
+): Promise<{ body: T; response: Response }> {
   let effective = cookie ?? ambientCookie()
   let headers: Record<string, string> = { accept: 'application/json' }
   if (effective) headers.cookie = effective
@@ -179,7 +195,8 @@ async function get<T>(path: string, cookie?: string | null): Promise<T> {
   if (!res.ok) {
     throw new Error(`plutus api ${path} failed: ${res.status}`)
   }
-  return (await res.json()) as T
+  let body = (await res.json()) as T
+  return { body, response: res }
 }
 
 async function post<T>(path: string, body: unknown, cookie?: string | null): Promise<T> {
@@ -567,14 +584,12 @@ export const api = {
   accounts: () => get<Account[]>('/accounts'),
   /// Fetch the stock catalog for building a `stockId → Stock` lookup map.
   /// All UI pages (watchlist, holdings, transactions, …) use this and
-  /// Default listing — backend caps at MAX_LIMIT=200. Use this only
-  /// for pages that genuinely browse the catalog (the /stocks index
-  /// itself). For pages that need to resolve `stock_id → symbol` for
-  /// a known set of rows (holdings, watchlists, transactions, orders),
-  /// call `stocksByIds(ids)` instead so you're not capped at 200 rows
-  /// out of a 5000+ stock catalog.
-  stocks: (locale?: string) =>
-    get<Stock[]>(withLocale('/stocks?limit=200', locale)),
+  /// Default listing — backend caps at MAX_LIMIT=500. Use this for
+  /// the dashboard count and for form datalists that need a wide
+  /// suggestion pool. For id-resolution use `stocksByIds(ids)`;
+  /// for the /stocks browse page use `stocksPage({...})`.
+  stocks: (locale?: string, limit = 500) =>
+    get<Stock[]>(withLocale(`/stocks?limit=${limit}`, locale)),
   /// Precise fetch by id list. Bypasses the global LIMIT cap on the
   /// backend — the result set is bounded by the caller-supplied ids.
   /// Returns `[]` when the input is empty (no round-trip).
@@ -585,8 +600,36 @@ export const api = {
     let uniq = Array.from(new Set(ids)).join(',')
     return get<Stock[]>(withLocale(`/stocks?ids=${uniq}`, locale))
   },
+  /// Paginated browse for the /stocks index page. Returns the items
+  /// for the requested page plus the total matching row count (from
+  /// the `X-Total-Count` header) so the caller can render pagination.
+  /// `q` does a case-insensitive substring match on symbol AND name.
+  stocksPage: async (
+    params: { page?: number; perPage?: number; q?: string; locale?: string } = {},
+  ) => {
+    let page = params.page ?? 1
+    let perPage = params.perPage ?? 20
+    let qs = new URLSearchParams({ page: String(page), per_page: String(perPage) })
+    if (params.q) qs.set('q', params.q)
+    if (params.locale) qs.set('locale', params.locale)
+    let { body, response } = await getWithHeaders<Stock[]>(`/stocks?${qs.toString()}`)
+    let totalHeader = response.headers.get('X-Total-Count')
+    let total = totalHeader ? Number(totalHeader) : body.length
+    return { items: body, total, page, perPage }
+  },
   stock: (id: number, locale?: string) =>
     get<Stock>(withLocale(`/stocks/${id}`, locale)),
+  /// Exact ticker lookup (case-insensitive on the backend). Returns
+  /// the first match or `null` when no stock has that symbol. Used by
+  /// form handlers to resolve a typed symbol into a stock_id.
+  stockBySymbol: async (symbol: string, locale?: string) => {
+    let s = symbol.trim()
+    if (!s) return null
+    let rows = await get<Stock[]>(
+      withLocale(`/stocks?symbol=${encodeURIComponent(s)}`, locale),
+    ).catch(() => [] as Stock[])
+    return rows[0] ?? null
+  },
   createStock: (input: {
     market_code: string
     symbol: string
