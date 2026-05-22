@@ -114,8 +114,10 @@ function HoldingsPage() {
                         : 'flat'
                 return (
                   <tr
+                    data-row-href={`/stocks/${h.stock_id}`}
                     mix={css({
                       borderTop: `1px solid ${color.borderSoft}`,
+                      cursor: 'pointer',
                       '&:hover td': { background: color.bg },
                     })}
                   >

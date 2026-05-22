@@ -328,6 +328,41 @@ const CONFIRM_SUBMIT_JS = `
       }
     });
 
+    // Whole-row navigation. Any element carrying \`data-row-href\` is
+    // navigated when clicked, so the user doesn't have to aim at the
+    // tiny anchor inside one cell — the entire <tr> becomes a target.
+    //
+    //   * Only fires on plain left-click. Right-click / middle-click
+    //     fall through to the browser (context menu, open in new tab).
+    //   * Cmd/Ctrl/Shift + click opens the destination in a new tab,
+    //     matching the modifier-click behavior the user expects from
+    //     a real <a>.
+    //   * Clicks landing on a real interactive descendant (link,
+    //     button, form control, label) skip the row handler so the
+    //     inner element's own action wins.
+    //   * Active text selection inside the row also skips navigation —
+    //     mouseup on a selection drag fires a click we don't want.
+    document.addEventListener('click', function(e) {
+      if (e.button !== undefined && e.button !== 0) return;
+      if (e.defaultPrevented) return;
+      var t = e.target;
+      if (!t || !t.closest) return;
+      if (t.closest('a, button, input, textarea, select, label, [data-copy], [data-md-toggle]')) return;
+      var row = t.closest('[data-row-href]');
+      if (!row) return;
+      var href = row.getAttribute('data-row-href');
+      if (!href) return;
+      // Skip if the user is dragging a selection across the row.
+      var sel = window.getSelection && window.getSelection();
+      if (sel && sel.toString().length > 0) return;
+      e.preventDefault();
+      if (e.metaKey || e.ctrlKey || e.shiftKey) {
+        window.open(href, '_blank');
+      } else {
+        window.location.href = href;
+      }
+    });
+
     // Localize <time datetime="..."> elements. The server emits UTC
     // strings; we replace textContent with the user-locale-formatted
     // time. The data-fmt attribute picks the shape (date / datetime /

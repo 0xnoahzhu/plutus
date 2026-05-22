@@ -200,8 +200,10 @@ function ItemsView() {
               let s = stocks.get(it.stock_id)
               return (
                 <tr
+                  data-row-href={`/stocks/${it.stock_id}`}
                   mix={css({
                     borderTop: `1px solid ${color.borderSoft}`,
+                    cursor: 'pointer',
                     '&:hover td': { background: color.bg },
                   })}
                 >

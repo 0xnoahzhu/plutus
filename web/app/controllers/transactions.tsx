@@ -102,8 +102,10 @@ function TransactionsPage() {
                 let s = t.stock_id != null ? stocks.get(t.stock_id) : null
                 return (
                   <tr
+                    data-row-href={t.stock_id != null ? `/stocks/${t.stock_id}` : undefined}
                     mix={css({
                       borderTop: `1px solid ${color.borderSoft}`,
+                      cursor: t.stock_id != null ? 'pointer' : 'default',
                       '&:hover td': { background: color.bg },
                     })}
                   >

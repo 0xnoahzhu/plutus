@@ -102,6 +102,7 @@ function StocksPage() {
                 <tbody>
                   {rows.map((s) => (
                     <tr
+                      data-row-href={`/stocks/${s.id}`}
                       mix={css({
                         borderTop: `1px solid ${color.borderSoft}`,
                         cursor: 'pointer',
