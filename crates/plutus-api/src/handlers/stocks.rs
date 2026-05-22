@@ -166,6 +166,7 @@ pub async fn create(
             "content must be a JSON object keyed by locale".into(),
         ));
     }
+    ensure_sector_known(&state, input.sector_code.as_deref()).await?;
     let row = plutus_storage::queries::stocks::create(
         &state.db,
         plutus_storage::queries::stocks::NewStock {
@@ -202,6 +203,7 @@ pub async fn update(
             ));
         }
     }
+    ensure_sector_known(&state, patch.sector_code.as_deref()).await?;
     let row = plutus_storage::queries::stocks::update(
         &state.db,
         &l.locale,
@@ -221,4 +223,32 @@ pub async fn delete(
 ) -> ApiResult<axum::http::StatusCode> {
     plutus_storage::queries::stocks::delete(&state.db, id).await?;
     Ok(axum::http::StatusCode::NO_CONTENT)
+}
+
+/// App-level FK check on `stock.sector_code`. The model comment
+/// claims "FK into sectors.code; enforced at app layer" but until
+/// now nothing actually enforced it — that's how the live DB ended
+/// up with values like "Healthcare", "Energy", "communication_services"
+/// instead of the GICS codes (`35`, `10`, `50`). Run this on every
+/// create / update so future writes can't repeat the same mistake.
+///
+/// Behaviour:
+///   - `None` (field omitted in body) → no check, no change.
+///   - `Some("")` (explicit clear) → no check; storage maps to SQL NULL.
+///   - `Some(non-empty)` → must exist in `sectors`, else 400 with a
+///     helpful message pointing at the existing taxonomy.
+async fn ensure_sector_known(state: &AppState, code: Option<&str>) -> ApiResult<()> {
+    let Some(c) = code else { return Ok(()) };
+    if c.is_empty() {
+        return Ok(());
+    }
+    let sectors = plutus_storage::queries::sectors::list(&state.db).await?;
+    if sectors.iter().any(|s| s.code == c) {
+        return Ok(());
+    }
+    Err(ApiError::BadRequest(format!(
+        "unknown sector_code {c:?}. Pick from the GICS taxonomy in /api/v1/sectors \
+         (e.g. \"45\" Information Technology, \"4530\" Semiconductors) or register a \
+         new code via POST /api/v1/sectors first."
+    )))
 }
