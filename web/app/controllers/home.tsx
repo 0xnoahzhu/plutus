@@ -92,6 +92,17 @@ export const home: BuildAction<'GET', typeof routes.home> = {
     ])
 
     let stockMap = new Map<number, Stock>(stocks.map((s) => [s.id, s]))
+    // Top up the map with any held stocks not present in the default
+    // /stocks listing (which is capped at 200). Without this, Top
+    // Movers shows the stock_id placeholder for any holding whose
+    // stock sorts past the catalog's first 200 tickers.
+    let missingStockIds = holdings
+      .map((h) => h.stock_id)
+      .filter((id) => !stockMap.has(id))
+    if (missingStockIds.length > 0) {
+      let extras = await api.stocksByIds(missingStockIds).catch(() => [] as Stock[])
+      for (let s of extras) stockMap.set(s.id, s)
+    }
 
     // Second wave — OHLCV for every held stock, in parallel. Each call
     // returns the full history; we only need the last two bars so we

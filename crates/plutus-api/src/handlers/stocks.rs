@@ -23,7 +23,15 @@ pub struct StocksListFilter {
     /// JSONB. Case-insensitive ILIKE. Designed for the "agent received a
     /// ticker-ish string, find the matching stock" workflow.
     pub q: Option<String>,
+    /// Comma-separated list of stock ids for a precise fetch (e.g.
+    /// `?ids=1,42,99`). When set, the limit cap is bypassed because
+    /// the result set is bounded by the caller-supplied list. Used by
+    /// pages that have already fetched user data (holdings, watchlist
+    /// items, transactions) and need to join symbols/market codes
+    /// without hitting the global LIMIT.
+    pub ids: Option<String>,
     /// Result cap. Defaults to DEFAULT_LIMIT, clamped to MAX_LIMIT.
+    /// Ignored when `ids` is set.
     pub limit: Option<i64>,
 }
 
@@ -32,19 +40,32 @@ pub async fn list(
     Query(filter): Query<StocksListFilter>,
     Query(l): Query<LocaleQuery>,
 ) -> ApiResult<Json<Vec<StockOut>>> {
-    // Validate + clamp limit. We always pass a limit to the DB so a
-    // caller can't bypass the cap by omitting the param.
-    let limit = match filter.limit {
-        Some(n) if n <= 0 => {
-            return Err(ApiError::BadRequest("limit must be > 0".into()));
-        }
-        Some(n) if n > MAX_LIMIT => {
-            return Err(ApiError::BadRequest(format!(
-                "limit must be ≤ {MAX_LIMIT}"
-            )));
-        }
-        Some(n) => n,
-        None => DEFAULT_LIMIT,
+    // Parse the optional id list. Empty / all-bad-numbers yields an
+    // empty slice, which the storage layer handles by producing an
+    // empty result set rather than a SQL error.
+    let ids_owned: Option<Vec<i64>> = filter.ids.as_deref().map(|raw| {
+        raw.split(',')
+            .filter_map(|s| s.trim().parse::<i64>().ok())
+            .collect()
+    });
+    // When the caller targets a specific id list we skip the cap; the
+    // SQL only returns those rows anyway. Otherwise validate + clamp.
+    let effective_limit = if ids_owned.is_some() {
+        None
+    } else {
+        let n = match filter.limit {
+            Some(n) if n <= 0 => {
+                return Err(ApiError::BadRequest("limit must be > 0".into()));
+            }
+            Some(n) if n > MAX_LIMIT => {
+                return Err(ApiError::BadRequest(format!(
+                    "limit must be ≤ {MAX_LIMIT}"
+                )));
+            }
+            Some(n) => n,
+            None => DEFAULT_LIMIT,
+        };
+        Some(n)
     };
     let rows = plutus_storage::queries::stocks::list(
         &state.db,
@@ -52,7 +73,8 @@ pub async fn list(
         plutus_storage::queries::stocks::ListFilter {
             symbol: filter.symbol.as_deref(),
             q: filter.q.as_deref(),
-            limit: Some(limit),
+            ids: ids_owned.as_deref(),
+            limit: effective_limit,
         },
     )
     .await?;

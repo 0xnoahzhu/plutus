@@ -31,10 +31,16 @@ export const holdings: BuildAction<'GET', typeof routes.holdings> = {
     let theme = resolveTheme(request, url.searchParams)
     let method = url.searchParams.get('method') ?? 'fifo'
 
-    let [holdingsList, stocks] = await Promise.all([
-      api.holdings({ method }).catch(() => []),
-      api.stocks().catch(() => []),
-    ])
+    // Holdings come first; then resolve symbols/market codes by id so
+    // the lookup isn't capped by the global /stocks LIMIT (the catalog
+    // can be >5000 stocks; the user only holds a handful).
+    let holdingsList = await api.holdings({ method }).catch(() => [])
+    let stocks = await api
+      .stocksByIds(
+        holdingsList.map((h) => h.stock_id),
+        locale,
+      )
+      .catch(() => [] as Stock[])
     let stockMap = new Map<number, Stock>(stocks.map((s) => [s.id, s]))
     // Order is set server-side by ticker; we just country-filter here.
     let filtered = filterByCountry(holdingsList, country, (h) =>

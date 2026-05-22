@@ -35,10 +35,10 @@ export const earnings: BuildAction<'GET', typeof routes.earnings> = {
     let locale = resolveLocale(request, url.searchParams)
     let theme = resolveTheme(request, url.searchParams)
 
-    let [events, stocks] = await Promise.all([
-      api.earnings(country).catch(() => []),
-      api.stocks().catch(() => []),
-    ])
+    let events = await api.earnings(country).catch(() => [])
+    let stocks = await api
+      .stocksByIds(events.map((e) => e.stock_id), locale)
+      .catch(() => [] as Stock[])
     let stockMap = new Map<number, Stock>(stocks.map((s) => [s.id, s]))
 
     let today = new Date().toISOString().slice(0, 10)

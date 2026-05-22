@@ -44,12 +44,20 @@ export const watchlists: BuildAction<'GET', typeof routes.watchlists> = {
     let theme = resolveTheme(request, url.searchParams)
     let tab = resolveTab(url.searchParams.get('tab'))
 
-    let [items, allStocks, dailyReports, weeklyReports] = await Promise.all([
+    // Fetch items + reports in parallel; then resolve stock metadata
+    // by id (the catalog can be >5000, the user's watchlist is small —
+    // /stocks?ids=... bypasses the global LIMIT cap).
+    let [items, dailyReports, weeklyReports] = await Promise.all([
       api.watchlistItems().catch(() => [] as WatchlistItem[]),
-      api.stocks().catch(() => []),
       api.watchlistReports({ kind: 'daily', locale }).catch(() => [] as WatchlistReport[]),
       api.watchlistReports({ kind: 'weekly', locale }).catch(() => [] as WatchlistReport[]),
     ])
+    let allStocks = await api
+      .stocksByIds(
+        items.map((it) => it.stock_id),
+        locale,
+      )
+      .catch(() => [] as Stock[])
     let stockMap = new Map<number, Stock>(allStocks.map((s) => [s.id, s]))
     // Items and reports are both ordered server-side now (items by
     // added_at desc, reports by period_start desc + kind asc); no

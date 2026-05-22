@@ -35,12 +35,10 @@ export const correlations: BuildAction<'GET', typeof routes.correlations> = {
     let url = new URL(request.url)
     let locale = resolveLocale(request, url.searchParams)
     let theme = resolveTheme(request, url.searchParams)
-    let [runs, universes, stocks] = await Promise.all([
+    let [runs, universes] = await Promise.all([
       api.correlationRuns(locale).catch(() => []),
       api.universes().catch(() => []),
-      api.stocks().catch(() => []),
     ])
-    let stockMap = new Map<number, Stock>(stocks.map((s) => [s.id, s]))
     let universeMap = new Map<number, UniverseDefinition>(universes.map((u) => [u.id, u]))
 
     let latest = runs[0]
@@ -50,6 +48,12 @@ export const correlations: BuildAction<'GET', typeof routes.correlations> = {
       ? await api.correlationPairs(latest.id).catch(() => [])
       : []
     let topPairs = pairs.slice(0, TOP_PAIRS)
+    // Resolve symbols only for the stocks referenced in the top pairs
+    // (each pair touches two stocks). Avoids the 200-row /stocks cap
+    // for users with catalogs in the thousands.
+    let pairStockIds = topPairs.flatMap((p) => [p.stock_a_id, p.stock_b_id])
+    let stocks = await api.stocksByIds(pairStockIds, locale).catch(() => [] as Stock[])
+    let stockMap = new Map<number, Stock>(stocks.map((s) => [s.id, s]))
 
     return render(
       <CorrelationsPage

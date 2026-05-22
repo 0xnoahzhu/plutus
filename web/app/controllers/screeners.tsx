@@ -28,11 +28,7 @@ export const screeners: BuildAction<'GET', typeof routes.screeners> = {
     let url = new URL(request.url)
     let locale = resolveLocale(request, url.searchParams)
     let theme = resolveTheme(request, url.searchParams)
-    let [runs, stocks] = await Promise.all([
-      api.screenerRuns(locale).catch(() => []),
-      api.stocks().catch(() => []),
-    ])
-    let stockMap = new Map<number, Stock>(stocks.map((s) => [s.id, s]))
+    let runs = await api.screenerRuns(locale).catch(() => [])
 
     // The most-recent run gets its hits loaded inline. Older runs render as
     // cards with a link to drill into.
@@ -41,6 +37,12 @@ export const screeners: BuildAction<'GET', typeof routes.screeners> = {
       ? await api.screenerHits(latest.id, locale).catch(() => [])
       : []
     hits.sort((a, b) => (a.rank ?? 9999) - (b.rank ?? 9999))
+    // Resolve symbols only for hits we actually render — avoids the
+    // /stocks 200-row cap for catalogs in the thousands.
+    let stocks = await api
+      .stocksByIds(hits.map((h) => h.stock_id), locale)
+      .catch(() => [] as Stock[])
+    let stockMap = new Map<number, Stock>(stocks.map((s) => [s.id, s]))
 
     return render(
       <ScreenersPage

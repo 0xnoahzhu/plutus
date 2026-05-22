@@ -30,10 +30,16 @@ export const recommendations: BuildAction<'GET', typeof routes.recommendations> 
     let url = new URL(request.url)
     let locale = resolveLocale(request, url.searchParams)
     let theme = resolveTheme(request, url.searchParams)
-    let [recs, stocks] = await Promise.all([
-      api.recommendations({ locale }).catch(() => []),
-      api.stocks().catch(() => []),
-    ])
+    let recs = await api.recommendations({ locale }).catch(() => [])
+    // Resolve symbols only for stocks the rec list touches — the
+    // default /stocks endpoint is capped at 200, which silently drops
+    // recommendations on tickers past that cap.
+    let stocks = await api
+      .stocksByIds(
+        recs.map((r) => r.stock_id).filter((id): id is number => id != null),
+        locale,
+      )
+      .catch(() => [] as Stock[])
     let stockMap = new Map<number, Stock>(stocks.map((s) => [s.id, s]))
 
     let open = recs.filter((r) => r.status === 'open')

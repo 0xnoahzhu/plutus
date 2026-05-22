@@ -36,10 +36,13 @@ export const catalysts: BuildAction<'GET', typeof routes.catalysts> = {
     let locale = resolveLocale(request, url.searchParams)
     let theme = resolveTheme(request, url.searchParams)
 
-    let [all, stocks] = await Promise.all([
-      api.catalysts({ country, locale }).catch(() => []),
-      api.stocks().catch(() => []),
-    ])
+    let all = await api.catalysts({ country, locale }).catch(() => [])
+    // Catalysts can be sector-wide (stock_id=null) or tied to a stock.
+    // Only fetch the stocks we actually need to render.
+    let stockIds = all
+      .map((c) => c.stock_id)
+      .filter((id): id is number => id != null)
+    let stocks = await api.stocksByIds(stockIds, locale).catch(() => [] as Stock[])
     let stockMap = new Map<number, Stock>(stocks.map((s) => [s.id, s]))
 
     let today = new Date().toISOString().slice(0, 10)

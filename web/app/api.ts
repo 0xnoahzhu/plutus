@@ -567,13 +567,24 @@ export const api = {
   accounts: () => get<Account[]>('/accounts'),
   /// Fetch the stock catalog for building a `stockId → Stock` lookup map.
   /// All UI pages (watchlist, holdings, transactions, …) use this and
-  /// expect the full universe back. The backend's `?symbol=` / `?q=`
-  /// search mode caps results at `MAX_LIMIT=200` so we explicitly ask for
-  /// the max here; otherwise we'd silently get the default page (50) and
-  /// lose rows with `stock_id > 50`. A `?limit=200` is well under the
-  /// payload-size threshold for the current catalog (~76 stocks).
+  /// Default listing — backend caps at MAX_LIMIT=200. Use this only
+  /// for pages that genuinely browse the catalog (the /stocks index
+  /// itself). For pages that need to resolve `stock_id → symbol` for
+  /// a known set of rows (holdings, watchlists, transactions, orders),
+  /// call `stocksByIds(ids)` instead so you're not capped at 200 rows
+  /// out of a 5000+ stock catalog.
   stocks: (locale?: string) =>
     get<Stock[]>(withLocale('/stocks?limit=200', locale)),
+  /// Precise fetch by id list. Bypasses the global LIMIT cap on the
+  /// backend — the result set is bounded by the caller-supplied ids.
+  /// Returns `[]` when the input is empty (no round-trip).
+  stocksByIds: (ids: number[], locale?: string) => {
+    if (ids.length === 0) return Promise.resolve([] as Stock[])
+    // Dedup to keep the URL short and avoid asking the DB for the
+    // same row twice. Order doesn't matter — callers build a Map.
+    let uniq = Array.from(new Set(ids)).join(',')
+    return get<Stock[]>(withLocale(`/stocks?ids=${uniq}`, locale))
+  },
   stock: (id: number, locale?: string) =>
     get<Stock>(withLocale(`/stocks/${id}`, locale)),
   createStock: (input: {

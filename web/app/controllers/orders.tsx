@@ -51,14 +51,29 @@ export const orders: BuildAction<'GET', typeof routes.orders> = {
     let flash = url.searchParams.get('flash')
     let error = url.searchParams.get('error')
 
-    let [list, accounts, stocks] = await Promise.all([
+    let [list, accounts, dropdownStocks] = await Promise.all([
       api.pendingOrders().catch(() => [] as PendingOrder[]),
       api.accounts().catch(() => [] as Account[]),
+      // The "new order" form dropdown still uses the default listing
+      // (capped at 200 by the backend). When the catalog grows past
+      // 200 the user only sees the first 200 tickers in the picker;
+      // a future change should swap this for a search/combobox.
       api.stocks(locale).catch(() => [] as Stock[]),
     ])
-
+    // Resolve symbols for the EXISTING orders by id so a stock_id past
+    // the 200-row cap still renders correctly in the table. Merge with
+    // the dropdown set so we don't duplicate-fetch.
+    let extraStocks = await api
+      .stocksByIds(
+        list.map((o) => o.stock_id),
+        locale,
+      )
+      .catch(() => [] as Stock[])
     let accountMap = new Map<number, Account>(accounts.map((a) => [a.id, a]))
-    let stockMap = new Map<number, Stock>(stocks.map((s) => [s.id, s]))
+    let stockMap = new Map<number, Stock>()
+    for (let s of dropdownStocks) stockMap.set(s.id, s)
+    for (let s of extraStocks) stockMap.set(s.id, s)
+    let stocks = dropdownStocks
 
     return render(
       <OrdersPage

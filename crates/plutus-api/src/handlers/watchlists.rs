@@ -42,6 +42,7 @@ pub async fn list_items(
             plutus_storage::queries::stocks::ListFilter {
                 symbol: None,
                 q: None,
+                ids: None,
                 limit: None,
             },
         )

@@ -81,6 +81,12 @@ fn row_to_localized(row: &tokio_postgres::Row) -> LocalizedStock {
 pub struct ListFilter<'a> {
     pub symbol: Option<&'a str>,
     pub q: Option<&'a str>,
+    /// Optional precise-fetch list. When set, returns exactly the rows
+    /// whose id is in this slice; `limit` is ignored. Used by consumer
+    /// pages (holdings / watchlists / orders / transactions) that
+    /// already know which stocks they need to display and would
+    /// otherwise be capped by the global LIMIT.
+    pub ids: Option<&'a [i64]>,
     pub limit: Option<i64>,
 }
 
@@ -100,6 +106,9 @@ pub async fn list(
     let symbol_owned;
     let q_pattern_owned;
     let limit_owned;
+    // Hoist the id slice to function scope so `params.push(&ids_owned)`
+    // inside the if-let below has a borrow that outlives `params` itself.
+    let ids_owned: &[i64] = filter.ids.unwrap_or(&[]);
     let mut params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = vec![&locale];
 
     if let Some(sym) = filter.symbol {
@@ -119,13 +128,27 @@ pub async fn list(
         ));
         next_pos += 1;
     }
+    if filter.ids.is_some() {
+        // `id = ANY($N)` with a BIGINT[] parameter. Empty slice still
+        // produces a valid (always-false) clause so callers don't need
+        // to special-case `&[]`.
+        params.push(&ids_owned);
+        wheres.push(format!("id = ANY(${next_pos})"));
+        next_pos += 1;
+    }
     let where_clause = if wheres.is_empty() {
         String::new()
     } else {
         format!(" WHERE {}", wheres.join(" AND "))
     };
 
-    let limit_clause = if let Some(n) = filter.limit {
+    // When the caller supplied an explicit id list, ignore the limit:
+    // the result set is already bounded by the ids vector. Without
+    // this, a holdings page with >limit positions would silently lose
+    // rows past the cap.
+    let limit_clause = if filter.ids.is_some() {
+        String::new()
+    } else if let Some(n) = filter.limit {
         limit_owned = n;
         params.push(&limit_owned);
         format!(" LIMIT ${next_pos}")

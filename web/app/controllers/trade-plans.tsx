@@ -38,8 +38,12 @@ export const tradePlans: BuildAction<'GET', typeof routes.tradePlans> = {
     let flash = url.searchParams.get('flash')
     let error = url.searchParams.get('error')
 
-    let [plans, allStocks] = await Promise.all([
+    let [plans, dropdownStocks] = await Promise.all([
       api.tradePlans().catch(() => [] as TradePlan[]),
+      // The "new plan" form dropdown still uses the default listing
+      // (capped at 200 by the backend). When the catalog grows past
+      // 200 the user only sees the first 200 tickers in the picker;
+      // a future change should swap this for a search/combobox.
       api.stocks(locale).catch(() => [] as Stock[]),
     ])
     // Plans -> per-plan levels in parallel. Empty fallback so the page
@@ -52,7 +56,15 @@ export const tradePlans: BuildAction<'GET', typeof routes.tradePlans> = {
     let levelsByPlan = new Map<number, TradePlanLevel[]>()
     plans.forEach((p, i) => levelsByPlan.set(p.id, levelLists[i]))
 
-    let stockMap = new Map<number, Stock>(allStocks.map((s) => [s.id, s]))
+    // Resolve symbols for the EXISTING plans by id so a plan whose
+    // stock_id is past the 200-row cap still renders correctly.
+    let extraStocks = await api
+      .stocksByIds(plans.map((p) => p.stock_id), locale)
+      .catch(() => [] as Stock[])
+    let allStocks = dropdownStocks
+    let stockMap = new Map<number, Stock>()
+    for (let s of dropdownStocks) stockMap.set(s.id, s)
+    for (let s of extraStocks) stockMap.set(s.id, s)
     // Plans come pre-sorted from the API: status asc (active before
     // closed alphabetically), then created_at desc.
     return render(

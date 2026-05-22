@@ -30,10 +30,16 @@ export const transactions: BuildAction<'GET', typeof routes.transactions> = {
     let country = parseCountry(url.searchParams)
     let locale = resolveLocale(request, url.searchParams)
     let theme = resolveTheme(request, url.searchParams)
-    let [txs, stocks] = await Promise.all([
-      api.transactions().catch(() => []),
-      api.stocks().catch(() => []),
-    ])
+    let txs = await api.transactions().catch(() => [])
+    // Resolve symbols by id list — the catalog can be >5000 stocks
+    // and /stocks (default endpoint) caps at 200, so transactions
+    // touching stock_ids past that cap would render as `#<id>`. Some
+    // transactions have stock_id=null (cash movements); filter those
+    // out of the lookup set.
+    let stockIds = txs
+      .map((t) => t.stock_id)
+      .filter((id): id is number => id != null)
+    let stocks = await api.stocksByIds(stockIds, locale).catch(() => [] as Stock[])
     let stockMap = new Map<number, Stock>(stocks.map((s) => [s.id, s]))
     let filtered = filterByCountry(txs, country, (t) =>
       t.stock_id != null ? stockMap.get(t.stock_id)?.market_code : undefined,

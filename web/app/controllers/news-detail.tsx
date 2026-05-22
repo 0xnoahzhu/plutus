@@ -40,18 +40,22 @@ export const newsDetail: BuildAction<'GET', typeof routes.newsDetail> = {
     let locale = resolveLocale(request, url.searchParams)
     let theme = resolveTheme(request, url.searchParams)
 
-    let [item, stockLinks, sectorLinks, macroLinks, countryLinks, stocks, sectors] =
+    let [item, stockLinks, sectorLinks, macroLinks, countryLinks, sectors] =
       await Promise.all([
         api.newsItem(id, locale).catch(() => null),
         api.newsStockLinks(id).catch(() => [] as NewsStockLink[]),
         api.newsSectorLinks(id).catch(() => [] as NewsSectorLink[]),
         api.newsMacroLinks(id).catch(() => [] as NewsMacroLink[]),
         api.newsCountryLinks(id).catch(() => [] as NewsCountryLink[]),
-        api.stocks(locale).catch(() => [] as Stock[]),
         api.sectors().catch(() => [] as Sector[]),
       ])
     if (!item) return new Response('News not found', { status: 404 })
 
+    // Resolve only the stocks this news item references (avoids the
+    // 200-row /stocks cap for users with thousands of tickers).
+    let stocks = await api
+      .stocksByIds(stockLinks.map((l) => l.stock_id), locale)
+      .catch(() => [] as Stock[])
     let stockMap = new Map<number, Stock>(stocks.map((s) => [s.id, s]))
     let sectorMap = new Map<string, Sector>(sectors.map((s) => [s.code, s]))
 
