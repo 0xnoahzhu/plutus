@@ -1,17 +1,34 @@
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
+use axum::response::IntoResponse;
 use axum::Json;
 
 use crate::dto::ohlcv::{OhlcvBatchIn, OhlcvBatchOut, OhlcvIn, OhlcvOut};
 use crate::error::{ApiError, ApiResult};
 use crate::handlers::batch::validate_batch_size;
+use crate::handlers::pagination::{
+    clamp_limit, clamp_offset, paginated_response_headers, PaginationFilter,
+};
 use crate::state::AppState;
 
 pub async fn list_for_stock(
     State(state): State<AppState>,
     Path(stock_id): Path<i64>,
-) -> ApiResult<Json<Vec<OhlcvOut>>> {
-    let rows = plutus_storage::queries::ohlcv::list_for_stock(&state.db, stock_id).await?;
-    Ok(Json(rows.into_iter().map(Into::into).collect()))
+    Query(p): Query<PaginationFilter>,
+) -> ApiResult<axum::response::Response> {
+    let limit = clamp_limit(p.limit)?;
+    let offset = clamp_offset(p.offset)?;
+    let rows = plutus_storage::queries::ohlcv::list_for_stock(
+        &state.db, stock_id, limit, offset,
+    )
+    .await?;
+    let body: Vec<OhlcvOut> = rows.into_iter().map(Into::into).collect();
+    if p.is_paginating() {
+        let total =
+            plutus_storage::queries::ohlcv::count_for_stock(&state.db, stock_id).await?;
+        Ok((paginated_response_headers(total), Json(body)).into_response())
+    } else {
+        Ok(Json(body).into_response())
+    }
 }
 
 pub async fn insert_one(

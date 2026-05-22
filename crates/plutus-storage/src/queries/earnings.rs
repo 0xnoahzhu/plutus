@@ -53,15 +53,46 @@ pub async fn list(db: &Db, filter: ListFilter<'_>) -> Result<Vec<EarningsEvent>>
         .collect())
 }
 
-pub async fn list_for_stock(db: &Db, stock_id: i64) -> Result<Vec<EarningsEvent>> {
+pub async fn list_for_stock(
+    db: &Db,
+    stock_id: i64,
+    limit: Option<usize>,
+    offset: Option<usize>,
+) -> Result<Vec<EarningsEvent>> {
+    // Toasty's `.limit()` / `.offset()` always emit LIMIT/OFFSET in
+    // the generated SQL — no way to conditionally skip them when the
+    // caller wants "no cap". Pass `i32::MAX` as the sentinel when
+    // `limit` is None (well under i64::MAX so Postgres accepts it
+    // without overflow). Offset defaults to 0 (a no-op).
+    let l = limit.unwrap_or(i32::MAX as usize);
+    let o = offset.unwrap_or(0);
     db.with(async |d| {
         EarningsEvent::all()
             .filter(EarningsEvent::fields().stock_id().eq(stock_id))
+            .order_by((
+                EarningsEvent::fields().announce_date().desc(),
+                EarningsEvent::fields().id().desc(),
+            ))
+            .limit(l)
+            .offset(o)
             .exec(d)
             .await
     })
     .await
     .map_err(Into::into)
+}
+
+/// Cheap COUNT for X-Total-Count headers on the paginated handler.
+pub async fn count_for_stock(db: &Db, stock_id: i64) -> Result<i64> {
+    let client = db.raw_client().await?;
+    let row = client
+        .query_one(
+            "SELECT COUNT(*) FROM earnings_events WHERE stock_id = $1",
+            &[&stock_id],
+        )
+        .await
+        .map_err(DbError::from)?;
+    Ok(row.get::<_, i64>(0))
 }
 
 pub async fn get(db: &Db, id: i64) -> Result<EarningsEvent> {

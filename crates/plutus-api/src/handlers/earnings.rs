@@ -1,4 +1,5 @@
 use axum::extract::{Path, Query, State};
+use axum::response::IntoResponse;
 use axum::Json;
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
@@ -6,6 +7,9 @@ use std::collections::{HashMap, HashSet};
 use crate::dto::earnings::{EarningsBatchIn, EarningsBatchOut, EarningsIn, EarningsOut};
 use crate::error::{ApiError, ApiResult};
 use crate::handlers::batch::validate_batch_size;
+use crate::handlers::pagination::{
+    clamp_limit, paginated_response_headers, PaginationFilter,
+};
 use crate::state::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -77,9 +81,22 @@ pub async fn list(
 pub async fn list_for_stock(
     State(state): State<AppState>,
     Path(stock_id): Path<i64>,
-) -> ApiResult<Json<Vec<EarningsOut>>> {
-    let rows = plutus_storage::queries::earnings::list_for_stock(&state.db, stock_id).await?;
-    Ok(Json(rows.into_iter().map(Into::into).collect()))
+    Query(p): Query<PaginationFilter>,
+) -> ApiResult<axum::response::Response> {
+    let limit = clamp_limit(p.limit)?;
+    let offset = crate::handlers::pagination::clamp_offset(p.offset)?;
+    let rows = plutus_storage::queries::earnings::list_for_stock(
+        &state.db, stock_id, limit, offset,
+    )
+    .await?;
+    let body: Vec<EarningsOut> = rows.into_iter().map(Into::into).collect();
+    if p.is_paginating() {
+        let total =
+            plutus_storage::queries::earnings::count_for_stock(&state.db, stock_id).await?;
+        Ok((paginated_response_headers(total), Json(body)).into_response())
+    } else {
+        Ok(Json(body).into_response())
+    }
 }
 
 pub async fn get(

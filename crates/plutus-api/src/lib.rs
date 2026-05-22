@@ -369,8 +369,24 @@ pub fn build_router(state: AppState) -> Router {
             post(handlers::analyst::insert_estimate),
         )
         .route(
+            "/analyst/estimates/batch",
+            post(handlers::analyst::batch_estimates),
+        )
+        .route(
+            "/analyst/estimates/:id",
+            delete(handlers::analyst::delete_estimate),
+        )
+        .route(
             "/analyst/ratings",
             post(handlers::analyst::insert_rating),
+        )
+        .route(
+            "/analyst/ratings/batch",
+            post(handlers::analyst::batch_ratings),
+        )
+        .route(
+            "/analyst/ratings/:id",
+            delete(handlers::analyst::delete_rating),
         )
         .route(
             "/stocks/:id/analyst/estimates",
@@ -384,6 +400,14 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/insider/transactions",
             post(handlers::insider::insert),
+        )
+        .route(
+            "/insider/transactions/batch",
+            post(handlers::insider::batch_insert),
+        )
+        .route(
+            "/insider/transactions/:id",
+            delete(handlers::insider::delete),
         )
         .route(
             "/stocks/:id/insider",

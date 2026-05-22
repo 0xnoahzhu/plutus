@@ -16,7 +16,11 @@ use utoipa::OpenApi;
 
 use crate::dto::{
     account::{AccountIn, AccountOut},
-    analyst::{AnalystEstimateIn, AnalystEstimateOut, AnalystRatingIn, AnalystRatingOut},
+    analyst::{
+        AnalystEstimateBatchIn, AnalystEstimateBatchOut, AnalystEstimateIn,
+        AnalystEstimateOut, AnalystRatingBatchIn, AnalystRatingBatchOut,
+        AnalystRatingIn, AnalystRatingOut,
+    },
     broker::BrokerOut,
     catalyst::{CatalystBatchIn, CatalystBatchOut, CatalystIn, CatalystOut},
     connect::{ConnectFlowIn, ConnectFlowOut, ConnectHoldingsIn, ConnectHoldingsOut},
@@ -30,7 +34,7 @@ use crate::dto::{
     fx::{FxIn, FxOut},
     holding::HoldingOut,
     portfolio::DailyValueOut,
-    insider::{InsiderTxnIn, InsiderTxnOut},
+    insider::{InsiderTxnBatchIn, InsiderTxnBatchOut, InsiderTxnIn, InsiderTxnOut},
     macro_event::{MacroEventBatchIn, MacroEventBatchOut, MacroEventIn, MacroEventOut},
     macros::{MacroIndicatorIn, MacroIndicatorOut, MacroObservationIn, MacroObservationOut},
     market::MarketOut,
@@ -68,8 +72,8 @@ use crate::handlers::admin::brokers::{AdminCreateBrokerIn, AdminUpdateBrokerIn};
 #[openapi(components(schemas(
     AccountIn, AccountOut,
     AdminCreateBrokerIn, AdminUpdateBrokerIn,
-    AnalystEstimateIn, AnalystEstimateOut,
-    AnalystRatingIn, AnalystRatingOut,
+    AnalystEstimateIn, AnalystEstimateOut, AnalystEstimateBatchIn, AnalystEstimateBatchOut,
+    AnalystRatingIn, AnalystRatingOut, AnalystRatingBatchIn, AnalystRatingBatchOut,
     BrokerOut,
     CatalystIn, CatalystOut, CatalystBatchIn, CatalystBatchOut,
     ConnectFlowIn, ConnectFlowOut,
@@ -83,7 +87,7 @@ use crate::handlers::admin::brokers::{AdminCreateBrokerIn, AdminUpdateBrokerIn};
     FxIn, FxOut,
     HoldingOut,
     DailyValueOut,
-    InsiderTxnIn, InsiderTxnOut,
+    InsiderTxnIn, InsiderTxnOut, InsiderTxnBatchIn, InsiderTxnBatchOut,
     MacroEventIn, MacroEventOut, MacroEventBatchIn, MacroEventBatchOut,
     MacroIndicatorIn, MacroIndicatorOut,
     MacroObservationIn, MacroObservationOut,
@@ -1002,6 +1006,18 @@ fn paths() -> Value {
             "AnalystEstimateOut"
         )
     }));
+    paths.insert("/analyst/estimates/batch".into(), json!({
+        "post": post_op(
+            "analyst",
+            "Bulk insert analyst estimates. All-or-nothing transaction; max 1000 items.",
+            "AnalystEstimateBatchIn",
+            "AnalystEstimateBatchOut"
+        )
+    }));
+    paths.insert("/analyst/estimates/{id}".into(), json!({
+        "parameters": [id_param()],
+        "delete": delete_op("analyst", "Delete an analyst estimate.")
+    }));
     paths.insert("/analyst/ratings".into(), json!({
         "post": post_op(
             "analyst",
@@ -1010,6 +1026,18 @@ fn paths() -> Value {
             "AnalystRatingOut"
         )
     }));
+    paths.insert("/analyst/ratings/batch".into(), json!({
+        "post": post_op(
+            "analyst",
+            "Bulk insert analyst ratings. All-or-nothing transaction; max 1000 items.",
+            "AnalystRatingBatchIn",
+            "AnalystRatingBatchOut"
+        )
+    }));
+    paths.insert("/analyst/ratings/{id}".into(), json!({
+        "parameters": [id_param()],
+        "delete": delete_op("analyst", "Delete an analyst rating.")
+    }));
     paths.insert("/insider/transactions".into(), json!({
         "post": post_op(
             "insider",
@@ -1017,6 +1045,18 @@ fn paths() -> Value {
             "InsiderTxnIn",
             "InsiderTxnOut"
         )
+    }));
+    paths.insert("/insider/transactions/batch".into(), json!({
+        "post": post_op(
+            "insider",
+            "Bulk insert insider transactions. All-or-nothing transaction; max 1000 items.",
+            "InsiderTxnBatchIn",
+            "InsiderTxnBatchOut"
+        )
+    }));
+    paths.insert("/insider/transactions/{id}".into(), json!({
+        "parameters": [id_param()],
+        "delete": delete_op("insider", "Delete an insider transaction.")
     }));
     paths.insert("/filings".into(), json!({
         "post": post_op("filings", "Create a filing entry.", "FilingIn", "FilingOut")

@@ -77,3 +77,17 @@ pub struct InsiderTxnIn {
 }
 
 fn default_source() -> String { "agent".into() }
+
+/// `POST /insider/transactions/batch` body. Caps at 1000 items;
+/// all-or-nothing transaction.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct InsiderTxnBatchIn {
+    pub items: Vec<InsiderTxnIn>,
+}
+
+/// `POST /insider/transactions/batch` response.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct InsiderTxnBatchOut {
+    pub count: usize,
+    pub items: Vec<InsiderTxnOut>,
+}

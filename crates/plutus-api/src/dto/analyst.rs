@@ -151,3 +151,34 @@ pub struct AnalystRatingIn {
 }
 
 fn default_source() -> String { "agent".into() }
+
+/// `POST /analyst/estimates/batch` body. Caps at 1000 items;
+/// all-or-nothing transaction. Designed for the agent's nightly
+/// consensus refresh sweeps.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct AnalystEstimateBatchIn {
+    pub items: Vec<AnalystEstimateIn>,
+}
+
+/// `POST /analyst/estimates/batch` response.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct AnalystEstimateBatchOut {
+    /// Number persisted (`== items.len()`).
+    pub count: usize,
+    /// Rows in input order.
+    pub items: Vec<AnalystEstimateOut>,
+}
+
+/// `POST /analyst/ratings/batch` body. Same shape as the estimates
+/// batch.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct AnalystRatingBatchIn {
+    pub items: Vec<AnalystRatingIn>,
+}
+
+/// `POST /analyst/ratings/batch` response.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct AnalystRatingBatchOut {
+    pub count: usize,
+    pub items: Vec<AnalystRatingOut>,
+}

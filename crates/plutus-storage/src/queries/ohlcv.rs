@@ -34,15 +34,40 @@ pub async fn latest_closes(db: &Db, stock_ids: &[i64]) -> Result<HashMap<i64, De
         .collect())
 }
 
-pub async fn list_for_stock(db: &Db, stock_id: i64) -> Result<Vec<OhlcvDaily>> {
+pub async fn list_for_stock(
+    db: &Db,
+    stock_id: i64,
+    limit: Option<usize>,
+    offset: Option<usize>,
+) -> Result<Vec<OhlcvDaily>> {
+    let l = limit.unwrap_or(i32::MAX as usize);
+    let o = offset.unwrap_or(0);
     db.with(async |d| {
         OhlcvDaily::all()
             .filter(OhlcvDaily::fields().stock_id().eq(stock_id))
+            .order_by((
+                OhlcvDaily::fields().trade_date().desc(),
+                OhlcvDaily::fields().id().desc(),
+            ))
+            .limit(l)
+            .offset(o)
             .exec(d)
             .await
     })
     .await
     .map_err(Into::into)
+}
+
+pub async fn count_for_stock(db: &Db, stock_id: i64) -> Result<i64> {
+    let client = db.raw_client().await?;
+    let row = client
+        .query_one(
+            "SELECT COUNT(*) FROM ohlcv_daily WHERE stock_id = $1",
+            &[&stock_id],
+        )
+        .await
+        .map_err(DbError::from)?;
+    Ok(row.get::<_, i64>(0))
 }
 
 pub struct NewOhlcv<'a> {
