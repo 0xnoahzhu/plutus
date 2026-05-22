@@ -137,7 +137,12 @@ function CorrelationsPage() {
             totalPairs={totalPairs}
           />
           <div mix={css({ marginTop: space[3] })}>
-            <PairTable pairs={topPairs} stocks={stocks} totalPairs={totalPairs} />
+            <PairTable
+              pairs={topPairs}
+              stocks={stocks}
+              totalPairs={totalPairs}
+              locale={locale}
+            />
           </div>
         </>
       )}
@@ -266,22 +271,20 @@ function PairTable() {
     pairs,
     stocks,
     totalPairs,
+    locale,
   }: {
     pairs: CorrelationPair[]
     stocks: Map<number, Stock>
     totalPairs: number
+    locale: string
   }) => {
+    let p = messages(locale).pages.correlations
     if (pairs.length === 0) {
       return (
         <Card>
           <EmptyState
-            title="No pairs recorded for this run yet"
-            hint={
-              <>
-                Push pairwise correlations to{' '}
-                <code>/correlation-runs/:id/pairs</code>.
-              </>
-            }
+            title={p.noPairsTitle}
+            hint={<code>POST /correlation-runs/:id/pairs</code>}
           />
         </Card>
       )

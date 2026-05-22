@@ -67,12 +67,8 @@ function SelfExamsPage() {
       {exams.length === 0 ? (
         <Card>
           <EmptyState
-            title="No self-exams recorded yet"
-            hint={
-              <>
-                Agent writes via <code>POST /api/v1/self-exams</code>.
-              </>
-            }
+            title={p.emptyTitle}
+            hint={<code>POST /api/v1/self-exams</code>}
           />
         </Card>
       ) : (

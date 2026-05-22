@@ -234,7 +234,15 @@ const en = {
       noUpcomingTitle: (country: string) => `No upcoming catalysts on file for ${country}`,
       noPastTitle: 'No past catalysts recorded',
     },
-    screeners: { title: 'Screeners' },
+    screeners: {
+      title: 'Screeners',
+      subtitle:
+        'Recurring screener runs — weekly value/quality/momentum scans, IPO watchlists, and ad-hoc filters.',
+      sectionLatestRun: 'Latest run',
+      sectionEarlierRuns: 'Earlier runs',
+      noRunsTitle: 'No screener runs yet',
+      noHitsTitle: 'No hits recorded for this run yet',
+    },
     recommendations: {
       title: 'Recommendations',
       subtitle:
@@ -244,7 +252,10 @@ const en = {
       sectionOpen: 'Open',
       sectionClosed: 'Closed',
     },
-    portfolioReviews: { title: 'Portfolio reviews' },
+    portfolioReviews: {
+      title: 'Portfolio reviews',
+      emptyTitle: 'No reviews recorded yet',
+    },
     correlations: {
       title: 'Correlation map',
       noRunsYetSubtitle: 'No runs yet',
@@ -253,8 +264,12 @@ const en = {
       sectionEarlierRuns: 'Earlier runs',
       noUniversesTitle: 'No universes defined yet',
       noRunsTitle: 'No correlation runs yet',
+      noPairsTitle: 'No pairs recorded for this run yet',
     },
-    selfExams: { title: 'Self-exam' },
+    selfExams: {
+      title: 'Self-exam',
+      emptyTitle: 'No self-exams recorded yet',
+    },
     audit: {
       title: 'Audit log',
       subtitle: 'Server-side write log',
@@ -856,7 +871,14 @@ const zhCN: Messages = {
       noUpcomingTitle: (country: string) => `${country} 暂无即将发生的催化剂`,
       noPastTitle: '暂无历史催化剂记录',
     },
-    screeners: { title: '选股' },
+    screeners: {
+      title: '选股',
+      subtitle: '定期选股运行 — 每周价值/质量/动量扫描、IPO 关注列表、临时筛选。',
+      sectionLatestRun: '最新一次运行',
+      sectionEarlierRuns: '历史运行',
+      noRunsTitle: '尚无选股运行结果',
+      noHitsTitle: '该次运行暂无结果',
+    },
     recommendations: {
       title: '投资建议',
       subtitle:
@@ -866,7 +888,10 @@ const zhCN: Messages = {
       sectionOpen: '未平仓',
       sectionClosed: '已平仓',
     },
-    portfolioReviews: { title: '组合复盘' },
+    portfolioReviews: {
+      title: '组合复盘',
+      emptyTitle: '暂无复盘记录',
+    },
     correlations: {
       title: '相关性矩阵',
       noRunsYetSubtitle: '暂无相关性结果',
@@ -875,8 +900,12 @@ const zhCN: Messages = {
       sectionEarlierRuns: '历史计算',
       noUniversesTitle: '尚未定义股票池',
       noRunsTitle: '尚无相关性计算结果',
+      noPairsTitle: '该次计算暂无相关性对结果',
     },
-    selfExams: { title: '自我复盘' },
+    selfExams: {
+      title: '自我复盘',
+      emptyTitle: '暂无自我复盘记录',
+    },
     audit: {
       title: '审计日志',
       subtitle: '服务端写入日志',

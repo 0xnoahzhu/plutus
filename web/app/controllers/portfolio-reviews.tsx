@@ -71,12 +71,8 @@ function PortfolioReviewsPage() {
       {reviews.length === 0 ? (
         <Card>
           <EmptyState
-            title="No reviews recorded yet"
-            hint={
-              <>
-                Agent writes via <code>POST /api/v1/portfolio-reviews</code>.
-              </>
-            }
+            title={p.emptyTitle}
+            hint={<code>POST /api/v1/portfolio-reviews</code>}
           />
         </Card>
       ) : (

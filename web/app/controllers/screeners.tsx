@@ -72,36 +72,27 @@ function ScreenersPage() {
   return ({ runs, latest, hits, stocks, locale, theme }: ScreenersProps) => {
     let p = messages(locale).pages.screeners
     return (
-    <Layout
-      title={p.title}
-      subtitle="Recurring screener runs — weekly value/quality/momentum scans, IPO watchlists, and ad-hoc filters."
-      locale={locale}
-      theme={theme}
-    >
+    <Layout title={p.title} subtitle={p.subtitle} locale={locale} theme={theme}>
       {!latest ? (
         <Card>
           <EmptyState
-            title="No screener runs yet"
-            hint={
-              <>
-                Push one with <code>POST /api/v1/screener-runs</code>.
-              </>
-            }
+            title={p.noRunsTitle}
+            hint={<code>POST /api/v1/screener-runs</code>}
           />
         </Card>
       ) : (
         <div mix={css({ display: 'flex', flexDirection: 'column', gap: space[6] })}>
           <div>
-            <SectionTitle hint={latest.run_date}>Latest run</SectionTitle>
-            <RunCard run={latest} hits={hits} stocks={stocks} expanded />
+            <SectionTitle hint={latest.run_date}>{p.sectionLatestRun}</SectionTitle>
+            <RunCard run={latest} hits={hits} stocks={stocks} expanded locale={locale} />
           </div>
 
           {runs.length > 1 && (
             <div>
-              <SectionTitle hint={`${runs.length - 1}`}>Earlier runs</SectionTitle>
+              <SectionTitle hint={`${runs.length - 1}`}>{p.sectionEarlierRuns}</SectionTitle>
               <div mix={css({ display: 'flex', flexDirection: 'column', gap: space[2] })}>
                 {runs.slice(1).map((r) => (
-                  <RunCard run={r} hits={[]} stocks={stocks} expanded={false} />
+                  <RunCard run={r} hits={[]} stocks={stocks} expanded={false} locale={locale} />
                 ))}
               </div>
             </div>
@@ -119,11 +110,13 @@ function RunCard() {
     hits,
     stocks,
     expanded,
+    locale,
   }: {
     run: ScreenerRun
     hits: ScreenerHit[]
     stocks: Map<number, Stock>
     expanded: boolean
+    locale: string
   }) => (
     <Card padding="0">
       <div mix={css({ padding: `${space[4]} ${space[5]}` })}>
@@ -189,7 +182,7 @@ function RunCard() {
       {expanded && (
         <div mix={css({ borderTop: `1px solid ${color.border}` })}>
           {hits.length === 0 ? (
-            <EmptyState title="No hits recorded for this run yet" />
+            <EmptyState title={messages(locale).pages.screeners.noHitsTitle} />
           ) : (
             <table
               mix={css({
