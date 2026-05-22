@@ -50,6 +50,7 @@ pub async fn list(
                 q: None,
                 ids: None,
                 limit: None,
+                offset: None,
             },
         )
         .await?;

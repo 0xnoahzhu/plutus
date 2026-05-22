@@ -82,12 +82,49 @@ pub struct ListFilter<'a> {
     pub symbol: Option<&'a str>,
     pub q: Option<&'a str>,
     /// Optional precise-fetch list. When set, returns exactly the rows
-    /// whose id is in this slice; `limit` is ignored. Used by consumer
-    /// pages (holdings / watchlists / orders / transactions) that
-    /// already know which stocks they need to display and would
-    /// otherwise be capped by the global LIMIT.
+    /// whose id is in this slice; `limit` and `offset` are ignored.
+    /// Used by consumer pages (holdings / watchlists / orders /
+    /// transactions) that already know which stocks they need to
+    /// display and would otherwise be capped by the global LIMIT.
     pub ids: Option<&'a [i64]>,
     pub limit: Option<i64>,
+    /// Page offset for paginated listings. Ignored when `ids` is set
+    /// (id-list mode bypasses pagination entirely).
+    pub offset: Option<i64>,
+}
+
+/// Total count of stocks matching `symbol`/`q` (no `ids` or `offset`).
+/// Cheap COUNT(*) for the pagination control on the /stocks page.
+pub async fn count(db: &Db, filter: &ListFilter<'_>) -> Result<i64> {
+    let client = db.raw_client().await?;
+    let mut wheres: Vec<String> = Vec::new();
+    let mut next_pos = 1usize;
+    let symbol_owned;
+    let q_pattern_owned;
+    let mut params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = Vec::new();
+    if let Some(sym) = filter.symbol {
+        symbol_owned = sym.to_string();
+        params.push(&symbol_owned);
+        wheres.push(format!("UPPER(symbol) = UPPER(${next_pos})"));
+        next_pos += 1;
+    }
+    if let Some(q) = filter.q {
+        q_pattern_owned = format!("%{}%", q);
+        params.push(&q_pattern_owned);
+        wheres.push(format!(
+            "(symbol ILIKE ${pos} OR COALESCE(content -> 'en' ->> 'name', '') ILIKE ${pos})",
+            pos = next_pos,
+        ));
+        // next_pos += 1;  // unused; no further params
+    }
+    let where_clause = if wheres.is_empty() {
+        String::new()
+    } else {
+        format!(" WHERE {}", wheres.join(" AND "))
+    };
+    let sql = format!("SELECT COUNT(*) FROM stocks{where_clause}");
+    let row = client.query_one(&sql, &params[..]).await.map_err(DbError::from)?;
+    Ok(row.get::<_, i64>(0))
 }
 
 pub async fn list(
@@ -142,22 +179,34 @@ pub async fn list(
         format!(" WHERE {}", wheres.join(" AND "))
     };
 
-    // When the caller supplied an explicit id list, ignore the limit:
-    // the result set is already bounded by the ids vector. Without
-    // this, a holdings page with >limit positions would silently lose
-    // rows past the cap.
+    // When the caller supplied an explicit id list, ignore the limit
+    // and offset — the result set is already bounded by the ids
+    // vector. Otherwise LIMIT/OFFSET are independent: a paginated
+    // listing passes both, a "just give me N" call passes only limit.
+    let offset_owned;
     let limit_clause = if filter.ids.is_some() {
         String::new()
     } else if let Some(n) = filter.limit {
         limit_owned = n;
         params.push(&limit_owned);
-        format!(" LIMIT ${next_pos}")
+        let l = format!(" LIMIT ${next_pos}");
+        next_pos += 1;
+        l
+    } else {
+        String::new()
+    };
+    let offset_clause = if filter.ids.is_some() {
+        String::new()
+    } else if let Some(n) = filter.offset {
+        offset_owned = n;
+        params.push(&offset_owned);
+        format!(" OFFSET ${next_pos}")
     } else {
         String::new()
     };
 
     let sql = format!(
-        "SELECT {projection} FROM stocks{where_clause} ORDER BY market_code ASC, symbol ASC{limit_clause}",
+        "SELECT {projection} FROM stocks{where_clause} ORDER BY market_code ASC, symbol ASC{limit_clause}{offset_clause}",
         projection = PROJECTION,
     );
     let rows = client.query(&sql, &params[..]).await.map_err(DbError::from)?;

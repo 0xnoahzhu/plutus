@@ -44,6 +44,7 @@ pub async fn list_items(
                 q: None,
                 ids: None,
                 limit: None,
+                offset: None,
             },
         )
         .await?;

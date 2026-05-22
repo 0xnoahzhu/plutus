@@ -104,6 +104,16 @@ const en = {
       columnCurrency: 'Currency',
       columnAssetClass: 'Asset class',
       columnId: 'ID',
+      searchPlaceholder: 'Search by symbol or name',
+      searchSubmit: 'Search',
+      searchClear: 'Clear',
+      emptyTitle: 'No matching stocks',
+      emptyHint: 'Adjust the search or import more tickers.',
+      paginationPrev: '← Prev',
+      paginationNext: 'Next →',
+      paginationPage: (current: number, total: number) => `Page ${current} of ${total}`,
+      paginationCount: (start: number, end: number, total: number) =>
+        `Showing ${start}–${end} of ${total}`,
     },
     transactions: {
       title: 'Transactions',
@@ -638,6 +648,16 @@ const zhCN: Messages = {
       columnCurrency: '货币',
       columnAssetClass: '资产类别',
       columnId: 'ID',
+      searchPlaceholder: '按代码或名称搜索',
+      searchSubmit: '搜索',
+      searchClear: '清除',
+      emptyTitle: '没有匹配的股票',
+      emptyHint: '调整搜索条件，或者导入更多代码。',
+      paginationPrev: '← 上一页',
+      paginationNext: '下一页 →',
+      paginationPage: (current: number, total: number) => `第 ${current} 页 / 共 ${total} 页`,
+      paginationCount: (start: number, end: number, total: number) =>
+        `第 ${start}–${end} 条 / 共 ${total} 条`,
     },
     transactions: {
       title: '交易',
