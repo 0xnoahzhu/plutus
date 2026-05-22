@@ -111,8 +111,21 @@ pub async fn count(db: &Db, filter: &ListFilter<'_>) -> Result<i64> {
     if let Some(q) = filter.q {
         q_pattern_owned = format!("%{}%", q);
         params.push(&q_pattern_owned);
+        // Search across symbol AND every locale's name + description_md
+        // in the `content` JSONB. `jsonb_each` expands `content` into
+        // (locale, body) pairs; the EXISTS short-circuits on the first
+        // match, so an `?q=Apple` hits both `en.name = "Apple Inc."`
+        // and `zh-CN.name = "苹果公司"` without the caller picking a
+        // locale up front.
         wheres.push(format!(
-            "(symbol ILIKE ${pos} OR COALESCE(content -> 'en' ->> 'name', '') ILIKE ${pos})",
+            "(\
+                symbol ILIKE ${pos} \
+                OR EXISTS ( \
+                    SELECT 1 FROM jsonb_each(content) AS loc(_locale, body) \
+                    WHERE body->>'name' ILIKE ${pos} \
+                       OR body->>'description_md' ILIKE ${pos} \
+                )\
+            )",
             pos = next_pos,
         ));
         // next_pos += 1;  // unused; no further params
@@ -155,12 +168,25 @@ pub async fn list(
         next_pos += 1;
     }
     if let Some(q) = filter.q {
-        // ILIKE pattern: `%foo%`. Search symbol OR localized name (with
-        // `en` fallback) so `?q=apple` hits AAPL via the name match.
+        // ILIKE pattern: `%foo%`. Searches symbol AND the textual
+        // content (name + description_md) across every locale in the
+        // `content` JSONB. `jsonb_each` expands each row's content
+        // into (locale, body) pairs; the EXISTS short-circuits so a
+        // single query matches an English ticker, an English company
+        // name, and a Chinese company name without the caller having
+        // to pick a locale up front. Mirrors the same expression
+        // used in `count()` so total + page slice stay consistent.
         q_pattern_owned = format!("%{}%", q);
         params.push(&q_pattern_owned);
         wheres.push(format!(
-            "(symbol ILIKE ${pos} OR COALESCE(content -> $1 ->> 'name', content -> 'en' ->> 'name') ILIKE ${pos})",
+            "(\
+                symbol ILIKE ${pos} \
+                OR EXISTS ( \
+                    SELECT 1 FROM jsonb_each(content) AS loc(_locale, body) \
+                    WHERE body->>'name' ILIKE ${pos} \
+                       OR body->>'description_md' ILIKE ${pos} \
+                )\
+            )",
             pos = next_pos,
         ));
         next_pos += 1;
