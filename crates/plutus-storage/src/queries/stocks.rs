@@ -297,7 +297,23 @@ pub async fn create(db: &Db, input: NewStock<'_>) -> Result<LocalizedStock> {
             ],
         )
         .await
-        .map_err(DbError::from)?;
+        .map_err(|e| {
+            // Race fallback: the pre-check above is best-effort and a
+            // concurrent caller could slip an insert between our
+            // find_by_market_symbol and our INSERT. The DB's UNIQUE
+            // INDEX on (market_code, symbol) catches that case; map
+            // the resulting unique_violation back to Conflict so the
+            // racing caller gets the same friendly 409 the pre-check
+            // would have produced.
+            if e.code() == Some(&tokio_postgres::error::SqlState::UNIQUE_VIOLATION) {
+                DbError::Conflict(format!(
+                    "stock {}:{} already exists",
+                    input.market_code, input.symbol,
+                ))
+            } else {
+                DbError::from(e)
+            }
+        })?;
     let id: i64 = row.get(0);
     get(db, "en", id).await
 }

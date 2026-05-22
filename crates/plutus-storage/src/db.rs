@@ -321,6 +321,17 @@ ALTER TABLE stocks DROP COLUMN IF EXISTS name;
 ALTER TABLE stocks DROP COLUMN IF EXISTS description_md;
 DROP TABLE IF EXISTS stock_translations;
 
+-- Natural-key uniqueness on (market_code, symbol). The model comment
+-- says this is "enforced at the application layer" because toasty 0.6
+-- doesn't model multi-column unique constraints in the derive — but
+-- the pre-check + INSERT pattern in stocks::create has a race window
+-- (two concurrent POSTs can both see "not exists" and both insert).
+-- A DB-level UNIQUE INDEX closes the window; the create handler now
+-- also maps Postgres's unique_violation back to DbError::Conflict so
+-- the racing caller still gets a clean 409.
+CREATE UNIQUE INDEX IF NOT EXISTS stocks_market_symbol_uniq
+    ON stocks (market_code, symbol);
+
 -- news_items: translatable content (title, summary, content_md,
 -- agent_summary_md) folded from the legacy base columns plus every row in
 -- news_translations. The source-language key comes from the `language`
