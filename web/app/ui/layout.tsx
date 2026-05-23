@@ -326,14 +326,15 @@ export function Layout() {
             // the header's background can reach the full viewport edge
             // when pinned.
             //
-            // 1800px cap (was 1400px): the previous bound left an empty
-            // strip on the right of common 2K monitors and made
-            // detail-page side cards feel under-fed. List rows and
-            // tables benefit most from the extra room; long-form text
-            // gets a row max-width of its own where it matters.
+            // No `maxWidth`: previously capped at 1400/1800px, which
+            // left an empty strip on the right of wide monitors. Main
+            // now fills the full space to the right of the sidebar.
+            // Long-form text inside still reads fine because detail
+            // pages use a 2:1 grid that pulls the markdown column to
+            // ~⅔ of the available width.
             padding: `0 ${space[10]}`,
-            maxWidth: '1800px',
             width: '100%',
+            minWidth: 0,
             '@media (max-width: 1100px)': {
               padding: `0 ${space[6]}`,
             },
