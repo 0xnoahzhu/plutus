@@ -12,6 +12,7 @@ import {
   EmptyState,
   font,
   Layout,
+  PageIntro,
   radius,
   resolveLocale,
   resolveTheme,
@@ -72,7 +73,8 @@ function ScreenersPage() {
   return ({ runs, latest, hits, stocks, locale, theme }: ScreenersProps) => {
     let p = messages(locale).pages.screeners
     return (
-    <Layout title={p.title} subtitle={p.subtitle} locale={locale} theme={theme}>
+    <Layout title={p.title} locale={locale} theme={theme}>
+      <PageIntro>{p.subtitle}</PageIntro>
       {!latest ? (
         <Card>
           <EmptyState

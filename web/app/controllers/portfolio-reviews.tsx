@@ -12,6 +12,7 @@ import {
   EmptyState,
   font,
   Layout,
+  PageIntro,
   radius,
   resolveLocale,
   resolveTheme,
@@ -53,21 +54,13 @@ function PortfolioReviewsPage() {
       locale={locale}
       theme={theme}
     >
-      <p
-        mix={css({
-          fontSize: font.sm,
-          color: color.textMuted,
-          marginTop: 0,
-          marginBottom: space[4],
-          lineHeight: 1.55,
-        })}
-      >
+      <PageIntro>
         Weekly and monthly portfolio reviews from the agent. Each review covers
         a period (week or month) and includes a headline, summary, full content,
         and explicit decisions. Agent writes via{' '}
         <code>POST /api/v1/portfolio-reviews</code> — upsert by (kind,
         period_start).
-      </p>
+      </PageIntro>
       {reviews.length === 0 ? (
         <Card>
           <EmptyState

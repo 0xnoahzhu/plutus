@@ -10,6 +10,7 @@ import {
   EmptyState,
   font,
   Layout,
+  PageIntro,
   radius,
   resolveLocale,
   resolveTheme,
@@ -117,12 +118,8 @@ function ApiKeysPage() {
     let p = m.apiKeys
     let pageTitle = m.pages.apiKeys
     return (
-      <Layout
-        title={pageTitle.title}
-        subtitle={pageTitle.subtitle}
-        locale={locale}
-        theme={theme}
-      >
+      <Layout title={pageTitle.title} locale={locale} theme={theme}>
+        <PageIntro>{pageTitle.subtitle}</PageIntro>
         {(error || flash) && (
           <div mix={css({ marginBottom: space[4] })}>
             <Banner error={error} flash={flash} locale={locale} />

@@ -27,6 +27,7 @@ import {
   EmptyState,
   font,
   Layout,
+  PageIntro,
   radius,
   resolveLocale,
   resolveTheme,
@@ -257,12 +258,8 @@ function OrdersPage() {
     let canCreate = accounts.length > 0 && stocks.length > 0
 
     return (
-      <Layout
-        title={title.title}
-        subtitle={title.subtitle}
-        locale={locale}
-        theme={theme}
-      >
+      <Layout title={title.title} locale={locale} theme={theme}>
+        <PageIntro>{title.subtitle}</PageIntro>
         {(error || flash) && (
           <div mix={css({ marginBottom: space[4] })}>
             <Banner error={error} flash={flash} locale={locale} />

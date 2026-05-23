@@ -12,6 +12,7 @@ import {
   EmptyState,
   font,
   Layout,
+  PageIntro,
   radius,
   resolveLocale,
   resolveTheme,
@@ -71,7 +72,8 @@ function RecommendationsPage() {
   return ({ open, closed, stocks, locale, theme }: RecommendationsProps) => {
     let p = messages(locale).pages.recommendations
     return (
-    <Layout title={p.title} subtitle={p.subtitle} locale={locale} theme={theme}>
+    <Layout title={p.title} locale={locale} theme={theme}>
+      <PageIntro>{p.subtitle}</PageIntro>
       <div mix={css({ display: 'flex', flexDirection: 'column', gap: space[6] })}>
         <div>
           <SectionTitle hint={`${open.length}`}>{p.sectionOpen}</SectionTitle>
