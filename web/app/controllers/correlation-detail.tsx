@@ -59,25 +59,25 @@ export const correlationDetail: BuildAction<
         }
         sections={[{ label: 'Summary', markdown: item.summary_md }]}
         side={
-          <>
-            <MetaList
-              items={[
-                ['Run date', item.run_date],
-                ['Kind', item.kind],
-                ['Method', item.method],
-                ['Lookback', `${item.lookback_days} days`],
-                ['Universe id', String(item.universe_id)],
-                ['Metrics', item.metrics],
-                ['Source', item.source],
-              ]}
-            />
-            <PairsCard
-              pairs={topPairs}
-              totalPairs={pairs.length}
-              stocks={stockMap}
-              locale={locale}
-            />
-          </>
+          <MetaList
+            items={[
+              ['Run date', item.run_date],
+              ['Kind', item.kind],
+              ['Method', item.method],
+              ['Lookback', `${item.lookback_days} days`],
+              ['Universe id', String(item.universe_id)],
+              ['Metrics', item.metrics],
+              ['Source', item.source],
+            ]}
+          />
+        }
+        below={
+          <PairsCard
+            pairs={topPairs}
+            totalPairs={pairs.length}
+            stocks={stockMap}
+            locale={locale}
+          />
         }
         locale={locale}
         theme={theme}

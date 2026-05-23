@@ -47,8 +47,14 @@ export interface EntityDetailProps {
   /// values; the component skips empty ones automatically.
   sections?: EntityDetailSection[]
   /// Optional side card content (related items, key/value tables, …).
-  /// When omitted the hero card spans the full content width.
+  /// When omitted the hero card spans the full content width. Keep
+  /// content here narrow — anything tabular or markdown-heavy belongs in
+  /// `below` instead, where it gets the full page width.
   side?: RemixNode
+  /// Optional full-width section rendered under the hero+side grid. Use
+  /// for child collections that need horizontal room (screener hits with
+  /// markdown rationales, correlation pair tables, etc.).
+  below?: RemixNode
   /// Resolved locale for Layout's `lang` attribute.
   locale: string
   /// Resolved theme for Layout's `data-theme`.
@@ -65,6 +71,7 @@ export function EntityDetailPage() {
     meta,
     sections,
     side,
+    below,
     locale,
     theme,
   }: EntityDetailProps) => (
@@ -149,6 +156,9 @@ export function EntityDetailPage() {
           </div>
         )}
       </div>
+      {below && (
+        <div mix={css({ marginTop: space[4] })}>{below}</div>
+      )}
     </Layout>
   )
 }

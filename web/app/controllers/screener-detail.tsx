@@ -61,25 +61,23 @@ export const screenerDetail: BuildAction<
           { label: 'Summary', markdown: item.summary_md },
         ]}
         side={
-          <>
-            <MetaList
-              items={[
-                ['Name', item.name],
-                ['Kind', item.kind],
-                ['Run date', item.run_date],
-                ['Universe', item.universe],
-                [
-                  'Universe size',
-                  item.universe_size != null ? String(item.universe_size) : null,
-                ],
-                ['Criteria', item.criteria],
-                ['Sentiment', item.sentiment],
-                ['Source', item.source],
-              ]}
-            />
-            <HitsCard hits={hits} stocks={stockMap} locale={locale} />
-          </>
+          <MetaList
+            items={[
+              ['Name', item.name],
+              ['Kind', item.kind],
+              ['Run date', item.run_date],
+              ['Universe', item.universe],
+              [
+                'Universe size',
+                item.universe_size != null ? String(item.universe_size) : null,
+              ],
+              ['Criteria', item.criteria],
+              ['Sentiment', item.sentiment],
+              ['Source', item.source],
+            ]}
+          />
         }
+        below={<HitsCard hits={hits} stocks={stockMap} locale={locale} />}
         locale={locale}
         theme={theme}
       />,
@@ -111,7 +109,7 @@ function HitsCard() {
       <Card padding="0">
         <div
           mix={css({
-            padding: `${space[2]} ${space[4]}`,
+            padding: `${space[3]} ${space[5]}`,
             background: color.bg,
             borderBottom: `1px solid ${color.border}`,
             fontSize: font.xs,
@@ -125,45 +123,45 @@ function HitsCard() {
         >
           Hits ({hits.length})
         </div>
-        <table
-          mix={css({
-            width: '100%',
-            borderCollapse: 'collapse',
-            fontSize: font.base,
-          })}
-        >
-          <tbody>
-            {hits.map((h) => (
-              <HitRow hit={h} stock={stocks.get(h.stock_id)} />
-            ))}
-          </tbody>
-        </table>
+        <div>
+          {hits.map((h) => (
+            <HitRow hit={h} stock={stocks.get(h.stock_id)} />
+          ))}
+        </div>
       </Card>
     )
   }
 }
 
 function HitRow() {
-  let cellBase = {
-    padding: `${space[3]} ${space[4]}`,
-    fontVariantNumeric: 'tabular-nums',
-    color: color.text,
-    verticalAlign: 'top',
-  } as const
   return ({ hit, stock }: { hit: ScreenerHit; stock: Stock | undefined }) => (
-    <tr mix={css({ borderTop: `1px solid ${color.borderSoft}` })}>
-      <td
+    <div
+      mix={css({
+        padding: `${space[4]} ${space[5]}`,
+        borderTop: `1px solid ${color.borderSoft}`,
+        '&:first-child': { borderTop: 'none' },
+      })}
+    >
+      <div
         mix={css({
-          ...cellBase,
-          width: '64px',
-          fontFamily: font.mono,
-          fontSize: font.sm,
-          color: color.textMuted,
+          display: 'flex',
+          alignItems: 'center',
+          gap: space[3],
+          marginBottom: hit.rationale_md ? space[2] : 0,
+          flexWrap: 'wrap',
         })}
       >
-        {hit.rank != null ? `#${hit.rank}` : ''}
-      </td>
-      <td mix={css({ ...cellBase, width: '40%' })}>
+        <span
+          mix={css({
+            fontFamily: font.mono,
+            fontSize: font.sm,
+            fontWeight: 600,
+            color: color.textMuted,
+            minWidth: '36px',
+          })}
+        >
+          {hit.rank != null ? `#${hit.rank}` : '—'}
+        </span>
         {stock ? (
           <a
             href={`/stocks/${stock.id}`}
@@ -176,8 +174,14 @@ function HitRow() {
               '&:hover': { color: color.brandHover },
             })}
           >
-            <StockBadge symbol={stock.symbol} size={22} />
-            <span mix={css({ fontFamily: font.mono, fontWeight: 600 })}>
+            <StockBadge symbol={stock.symbol} size={24} />
+            <span
+              mix={css({
+                fontFamily: font.mono,
+                fontWeight: 600,
+                fontSize: font.base,
+              })}
+            >
               {stock.symbol}
             </span>
             <span mix={css({ fontSize: font.xs, color: color.textDim })}>
@@ -187,21 +191,33 @@ function HitRow() {
         ) : (
           <span mix={css({ color: color.textMuted })}>#{hit.stock_id}</span>
         )}
-      </td>
-      <td
-        mix={css({
-          ...cellBase,
-          width: '90px',
-          fontFamily: font.mono,
-          fontSize: font.sm,
-          textAlign: 'right',
-        })}
-      >
-        {hit.score ?? ''}
-      </td>
-      <td mix={css({ ...cellBase, fontSize: font.sm, color: color.textMuted })}>
-        {hit.rationale_md ? renderMarkdown(hit.rationale_md) : ''}
-      </td>
-    </tr>
+        {hit.score != null && (
+          <span
+            mix={css({
+              marginLeft: 'auto',
+              fontFamily: font.mono,
+              fontSize: font.sm,
+              fontWeight: 600,
+              color: color.text,
+              fontVariantNumeric: 'tabular-nums',
+            })}
+          >
+            score {hit.score}
+          </span>
+        )}
+      </div>
+      {hit.rationale_md && (
+        <div
+          mix={css({
+            fontSize: font.sm,
+            color: color.textMuted,
+            lineHeight: 1.6,
+            paddingLeft: `calc(36px + ${space[3]})`,
+          })}
+        >
+          {renderMarkdown(hit.rationale_md)}
+        </div>
+      )}
+    </div>
   )
 }
