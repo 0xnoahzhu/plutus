@@ -1232,6 +1232,26 @@ BEGIN
 END
 $migrate_internal_fks$;
 
+-- ── Unread state ───────────────────────────────────────────────────────────
+-- One row per (user, entity_type, entity_id) the user has read. Absence of
+-- a row means unread. New entity rows are unread by default with zero
+-- writes. Per-table read columns were rejected because shared entities
+-- (news_items, macro_events, earnings_events) don't carry user_id.
+--
+-- `entity_type` is a free-form TEXT to keep the table schema-stable as new
+-- entity kinds get wired up; the canonical set lives in
+-- `queries::unread::EntityKind`. CASCADE on user delete so a removed
+-- account doesn't leave dangling read pointers.
+CREATE TABLE IF NOT EXISTS user_reads (
+    user_id     BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    entity_type TEXT   NOT NULL,
+    entity_id   BIGINT NOT NULL,
+    read_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, entity_type, entity_id)
+);
+CREATE INDEX IF NOT EXISTS user_reads_user_type_idx
+    ON user_reads (user_id, entity_type);
+
 -- ── Retired tables ─────────────────────────────────────────────────────────
 -- Cleanup pass after auditing usage. Each DROP is idempotent (IF EXISTS)
 -- so re-running migrate on a fresh database is a no-op; on a previously

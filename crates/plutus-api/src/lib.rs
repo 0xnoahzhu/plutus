@@ -426,6 +426,10 @@ pub fn build_router(state: AppState) -> Router {
             "/stocks/:id/connect/holdings",
             get(handlers::connect::list_holdings_for_stock),
         )
+        // Per-user unread state. Individual items get marked read as a
+        // side effect of each entity's detail GET (see those handlers).
+        .route("/unread/counts", get(handlers::unread::counts))
+        .route("/reads/:kind/:id", delete(handlers::unread::unmark))
         .with_state(state.clone());
 
     // Layer ordering note: layers execute in reverse order they're
