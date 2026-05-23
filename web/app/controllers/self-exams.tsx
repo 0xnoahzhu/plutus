@@ -16,6 +16,7 @@ import {
   resolveTheme,
   space,
   type Theme,
+  UnreadDot,
 } from '../ui/layout.tsx'
 import { MarkdownToggle } from '../ui/markdown.tsx'
 import { render } from '../utils/render.tsx'
@@ -105,12 +106,13 @@ function ExamCard() {
         <div
           mix={css({
             display: 'flex',
-            alignItems: 'baseline',
+            alignItems: 'center',
             gap: space[2],
             marginBottom: space[2],
             flexWrap: 'wrap',
           })}
         >
+          <UnreadDot readAt={exam.read_at} />
           <Badge tone="brand">{exam.kind}</Badge>
           <span
             mix={css({
@@ -136,17 +138,21 @@ function ExamCard() {
             {exam.source}
           </span>
         </div>
-        <div
+        <a
+          href={`/self-exams/${exam.id}`}
           mix={css({
+            display: 'block',
             fontSize: font.md,
             fontWeight: 600,
             color: color.text,
             marginBottom: space[2],
             lineHeight: 1.4,
+            textDecoration: 'none',
+            '&:hover': { color: color.brandHover },
           })}
         >
           {exam.headline ?? '(untitled)'}
-        </div>
+        </a>
         {exam.content_md && <MarkdownToggle source={exam.content_md} />}
         {exam.notes && (
           <div

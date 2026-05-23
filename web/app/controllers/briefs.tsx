@@ -18,6 +18,7 @@ import {
   resolveTheme,
   space,
   type Theme,
+  UnreadDot,
 } from '../ui/layout.tsx'
 import { MarkdownToggle } from '../ui/markdown.tsx'
 import { render } from '../utils/render.tsx'
@@ -189,12 +190,13 @@ function BriefCard() {
         <div
           mix={css({
             display: 'flex',
-            alignItems: 'baseline',
+            alignItems: 'center',
             gap: space[2],
             marginBottom: space[2],
             flexWrap: 'wrap',
           })}
         >
+          <UnreadDot readAt={brief.read_at} />
           <span
             mix={css({
               fontSize: font.xs,
@@ -219,17 +221,21 @@ function BriefCard() {
             {brief.source}
           </span>
         </div>
-        <div
+        <a
+          href={`/briefs/${brief.id}`}
           mix={css({
+            display: 'block',
             fontSize: font.md,
             fontWeight: 600,
             color: color.text,
             marginBottom: space[2],
             lineHeight: 1.4,
+            textDecoration: 'none',
+            '&:hover': { color: color.brandHover },
           })}
         >
           {brief.headline ?? '(untitled)'}
-        </div>
+        </a>
         {brief.content_md && <MarkdownToggle source={brief.content_md} />}
       </div>
     )

@@ -20,6 +20,7 @@ import {
   space,
   StockBadge,
   type Theme,
+  UnreadDot,
 } from '../ui/layout.tsx'
 import { MarkdownToggle, renderMarkdown } from '../ui/markdown.tsx'
 import { render } from '../utils/render.tsx'
@@ -125,12 +126,13 @@ function RunCard() {
         <div
           mix={css({
             display: 'flex',
-            alignItems: 'baseline',
+            alignItems: 'center',
             gap: space[2],
             marginBottom: space[2],
             flexWrap: 'wrap',
           })}
         >
+          <UnreadDot readAt={run.read_at} />
           <span
             mix={css({
               fontFamily: font.mono,
@@ -165,15 +167,19 @@ function RunCard() {
             {run.source}
           </span>
         </div>
-        <div
+        <a
+          href={`/screeners/${run.id}`}
           mix={css({
+            display: 'block',
             fontSize: font.md,
             fontWeight: 600,
             color: color.text,
+            textDecoration: 'none',
+            '&:hover': { color: color.brandHover },
           })}
         >
           {run.name}
-        </div>
+        </a>
         {run.summary_md && (
           <div mix={css({ marginTop: space[2] })}>
             <MarkdownToggle source={run.summary_md} />

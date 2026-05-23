@@ -19,6 +19,7 @@ import {
   SectionTitle,
   space,
   type Theme,
+  UnreadDot,
 } from '../ui/layout.tsx'
 import { MarkdownToggle } from '../ui/markdown.tsx'
 import { render } from '../utils/render.tsx'
@@ -187,6 +188,7 @@ function EventRow() {
             flexWrap: 'wrap',
           })}
         >
+          <UnreadDot readAt={event.read_at} />
           <code
             mix={css({
               fontSize: font.xs,
@@ -216,17 +218,21 @@ function EventRow() {
             {event.source}
           </span>
         </div>
-        <div
+        <a
+          href={`/macro-events/${event.id}`}
           mix={css({
+            display: 'block',
             fontSize: font.base,
             fontWeight: 600,
             color: color.text,
             marginBottom: space[1],
             lineHeight: 1.4,
+            textDecoration: 'none',
+            '&:hover': { color: color.brandHover },
           })}
         >
           {event.title ?? '(untitled)'}
-        </div>
+        </a>
         {isReleased && (
           <div
             mix={css({

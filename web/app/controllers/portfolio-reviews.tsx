@@ -18,6 +18,7 @@ import {
   resolveTheme,
   space,
   type Theme,
+  UnreadDot,
 } from '../ui/layout.tsx'
 import { MarkdownToggle } from '../ui/markdown.tsx'
 import { render } from '../utils/render.tsx'
@@ -94,12 +95,13 @@ function ReviewCard() {
       <div
         mix={css({
           display: 'flex',
-          alignItems: 'baseline',
+          alignItems: 'center',
           gap: space[2],
           marginBottom: space[2],
           flexWrap: 'wrap',
         })}
       >
+        <UnreadDot readAt={review.read_at} />
         <Badge tone="brand">{review.kind}</Badge>
         <span
           mix={css({
@@ -123,17 +125,21 @@ function ReviewCard() {
           {review.source}
         </span>
       </div>
-      <div
+      <a
+        href={`/portfolio-reviews/${review.id}`}
         mix={css({
+          display: 'block',
           fontSize: font.md,
           fontWeight: 600,
           color: color.text,
           marginBottom: space[2],
           lineHeight: 1.4,
+          textDecoration: 'none',
+          '&:hover': { color: color.brandHover },
         })}
       >
         {review.headline ?? '(untitled)'}
-      </div>
+      </a>
       {review.summary_md && <Block label="Summary" body={review.summary_md} />}
       {review.content_md && <Block label="Full content" body={review.content_md} />}
       {review.decisions_md && <Block label="Decisions" body={review.decisions_md} />}

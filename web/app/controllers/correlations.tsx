@@ -24,6 +24,7 @@ import {
   space,
   StockBadge,
   type Theme,
+  UnreadDot,
 } from '../ui/layout.tsx'
 import { MarkdownToggle } from '../ui/markdown.tsx'
 import { render } from '../utils/render.tsx'
@@ -219,22 +220,26 @@ function RunHeader() {
       <div
         mix={css({
           display: 'flex',
-          alignItems: 'baseline',
+          alignItems: 'center',
           gap: space[2],
           marginBottom: space[1],
           flexWrap: 'wrap',
         })}
       >
-        <span
+        <UnreadDot readAt={run.read_at} />
+        <a
+          href={`/correlations/${run.id}`}
           mix={css({
             fontFamily: font.mono,
             fontSize: font.base,
             fontWeight: 600,
             color: color.text,
+            textDecoration: 'none',
+            '&:hover': { color: color.brandHover },
           })}
         >
           {run.run_date}
-        </span>
+        </a>
         <Badge tone="brand">{run.kind}</Badge>
         <span mix={css({ fontSize: font.xs, color: color.textMuted })}>
           method: <strong>{run.method}</strong> · lookback{' '}
@@ -454,21 +459,25 @@ function RunRow() {
         borderRadius: radius.md,
         padding: `${space[2]} ${space[4]}`,
         display: 'flex',
-        alignItems: 'baseline',
+        alignItems: 'center',
         gap: space[2],
         flexWrap: 'wrap',
       })}
     >
-      <span
+      <UnreadDot readAt={run.read_at} />
+      <a
+        href={`/correlations/${run.id}`}
         mix={css({
           fontFamily: font.mono,
           fontSize: font.sm,
           fontWeight: 600,
           color: color.text,
+          textDecoration: 'none',
+          '&:hover': { color: color.brandHover },
         })}
       >
         {run.run_date}
-      </span>
+      </a>
       <Badge tone="brand">{run.kind}</Badge>
       <span mix={css({ fontSize: font.xs, color: color.textMuted })}>
         {universe ? universe.name : `universe#${run.universe_id}`} · {run.method} ·{' '}

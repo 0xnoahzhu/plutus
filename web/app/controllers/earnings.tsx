@@ -20,6 +20,7 @@ import {
   space,
   StockBadge,
   type Theme,
+  UnreadDot,
 } from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
@@ -192,29 +193,46 @@ function EarningsRow() {
         })}
       >
         <td mix={css({ padding: `${space[3]} ${space[4]}`, width: '24%' })}>
-          {stock ? (
-            <a
-              href={`/stocks/${stock.id}`}
-              mix={css({
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: space[2],
-                textDecoration: 'none',
-                color: color.text,
-                '&:hover': { color: color.brandHover },
-              })}
-            >
-              <StockBadge symbol={stock.symbol} size={22} />
-              <span mix={css({ fontFamily: font.mono, fontWeight: 600 })}>{stock.symbol}</span>
-            </a>
-          ) : (
-            <span mix={css({ color: color.textDim })}>#{event.stock_id}</span>
-          )}
+          <div
+            mix={css({
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: space[2],
+            })}
+          >
+            <UnreadDot readAt={event.read_at} />
+            {stock ? (
+              <a
+                href={`/stocks/${stock.id}`}
+                mix={css({
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: space[2],
+                  textDecoration: 'none',
+                  color: color.text,
+                  '&:hover': { color: color.brandHover },
+                })}
+              >
+                <StockBadge symbol={stock.symbol} size={22} />
+                <span mix={css({ fontFamily: font.mono, fontWeight: 600 })}>{stock.symbol}</span>
+              </a>
+            ) : (
+              <span mix={css({ color: color.textDim })}>#{event.stock_id}</span>
+            )}
+          </div>
         </td>
         <td mix={css({ padding: `${space[3]} ${space[4]}`, width: '12%' })}>
-          <span mix={css({ fontSize: font.sm, color: color.textMuted })}>
+          <a
+            href={`/earnings/${event.id}`}
+            mix={css({
+              fontSize: font.sm,
+              color: color.textMuted,
+              textDecoration: 'none',
+              '&:hover': { color: color.brandHover },
+            })}
+          >
             {event.fiscal_period} {event.fiscal_year}
-          </span>
+          </a>
         </td>
         <td mix={css({ padding: `${space[3]} ${space[4]}`, width: '12%' })}>
           <TimingPill timing={event.announce_timing} />

@@ -20,6 +20,7 @@ import {
   space,
   StockBadge,
   type Theme,
+  UnreadDot,
 } from '../ui/layout.tsx'
 import { MarkdownToggle } from '../ui/markdown.tsx'
 import { render } from '../utils/render.tsx'
@@ -188,6 +189,7 @@ function CatalystRow() {
           flexWrap: 'wrap',
         })}
       >
+        <UnreadDot readAt={catalyst.read_at} />
         <Target catalyst={catalyst} stock={stock} />
         <Badge tone="brand">{catalyst.catalyst_kind}</Badge>
         <Badge tone={impactTone(catalyst.impact_level)}>{catalyst.impact_level}</Badge>
@@ -205,17 +207,21 @@ function CatalystRow() {
           {catalyst.source}
         </span>
       </div>
-      <div
+      <a
+        href={`/catalysts/${catalyst.id}`}
         mix={css({
+          display: 'block',
           fontSize: font.base,
           fontWeight: 600,
           color: color.text,
           marginBottom: space[1],
           lineHeight: 1.4,
+          textDecoration: 'none',
+          '&:hover': { color: color.brandHover },
         })}
       >
         {catalyst.title ?? '(untitled)'}
-      </div>
+      </a>
       {catalyst.summary_md && (
         <div mix={css({ marginTop: space[2] })}>
           <MarkdownToggle source={catalyst.summary_md} />

@@ -20,6 +20,7 @@ import {
   space,
   StockBadge,
   type Theme,
+  UnreadDot,
 } from '../ui/layout.tsx'
 import { fmtMoney } from '../ui/format.ts'
 import { LocalTime } from '../ui/local-time.tsx'
@@ -154,8 +155,18 @@ function RecRow() {
             flexWrap: 'wrap',
           })}
         >
+          <UnreadDot readAt={rec.read_at} />
           <Target rec={rec} stock={stock} />
-          <Badge tone={actionTone(rec.action)}>{rec.action}</Badge>
+          <a
+            href={`/recommendations/${rec.id}`}
+            mix={css({
+              textDecoration: 'none',
+              '&:hover': { opacity: 0.85 },
+            })}
+            title="Open detail"
+          >
+            <Badge tone={actionTone(rec.action)}>{rec.action}</Badge>
+          </a>
           {rec.confidence && (
             <span
               mix={css({
