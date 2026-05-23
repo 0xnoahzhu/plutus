@@ -23,15 +23,20 @@ import {
 import { apiKeyCreate, apiKeyDelete, apiKeys } from './controllers/api-keys.tsx'
 import { audit } from './controllers/audit.tsx'
 import { briefs } from './controllers/briefs.tsx'
+import { briefDetail } from './controllers/brief-detail.tsx'
 import { catalysts } from './controllers/catalysts.tsx'
+import { catalystDetail } from './controllers/catalyst-detail.tsx'
 import { changePassword } from './controllers/change-password.tsx'
 import { correlations } from './controllers/correlations.tsx'
+import { correlationDetail } from './controllers/correlation-detail.tsx'
 import { earnings } from './controllers/earnings.tsx'
+import { earningsDetail } from './controllers/earnings-detail.tsx'
 import { holdings } from './controllers/holdings.tsx'
 import { home } from './controllers/home.tsx'
 import { login } from './controllers/login.tsx'
 import { logout } from './controllers/logout.tsx'
 import { macroEvents } from './controllers/macro-events.tsx'
+import { macroEventDetail } from './controllers/macro-event-detail.tsx'
 import { news } from './controllers/news.tsx'
 import { newsDetail } from './controllers/news-detail.tsx'
 import {
@@ -43,9 +48,13 @@ import {
   orders,
 } from './controllers/orders.tsx'
 import { portfolioReviews } from './controllers/portfolio-reviews.tsx'
+import { portfolioReviewDetail } from './controllers/portfolio-review-detail.tsx'
 import { recommendations } from './controllers/recommendations.tsx'
+import { recommendationDetail } from './controllers/recommendation-detail.tsx'
 import { screeners } from './controllers/screeners.tsx'
+import { screenerDetail } from './controllers/screener-detail.tsx'
 import { selfExams } from './controllers/self-exams.tsx'
+import { selfExamDetail } from './controllers/self-exam-detail.tsx'
 import { settings } from './controllers/settings.tsx'
 import { stockDetail } from './controllers/stock-detail.tsx'
 import { stocks } from './controllers/stocks.tsx'
@@ -106,14 +115,23 @@ router.map(routes.watchlists, withAuth(watchlists))
 router.map(routes.news, withAuth(news))
 router.map(routes.newsDetail, withAuth(newsDetail))
 router.map(routes.briefs, withAuth(briefs))
+router.map(routes.briefDetail, withAuth(briefDetail))
 router.map(routes.earnings, withAuth(earnings))
+router.map(routes.earningsDetail, withAuth(earningsDetail))
 router.map(routes.macroEvents, withAuth(macroEvents))
+router.map(routes.macroEventDetail, withAuth(macroEventDetail))
 router.map(routes.catalysts, withAuth(catalysts))
+router.map(routes.catalystDetail, withAuth(catalystDetail))
 router.map(routes.screeners, withAuth(screeners))
+router.map(routes.screenerDetail, withAuth(screenerDetail))
 router.map(routes.recommendations, withAuth(recommendations))
+router.map(routes.recommendationDetail, withAuth(recommendationDetail))
 router.map(routes.portfolioReviews, withAuth(portfolioReviews))
+router.map(routes.portfolioReviewDetail, withAuth(portfolioReviewDetail))
 router.map(routes.correlations, withAuth(correlations))
+router.map(routes.correlationDetail, withAuth(correlationDetail))
 router.map(routes.selfExams, withAuth(selfExams))
+router.map(routes.selfExamDetail, withAuth(selfExamDetail))
 router.map(routes.audit, withAuth(audit))
 router.map(routes.settings, withAuth(settings))
 router.map(routes.apiKeys, withAuth(apiKeys))
