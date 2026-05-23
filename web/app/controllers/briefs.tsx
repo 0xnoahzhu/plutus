@@ -123,20 +123,15 @@ function DayRow() {
       </div>
       <div
         mix={css({
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: space[3],
-          '@media (max-width: 720px)': { gridTemplateColumns: '1fr' },
+          display: 'flex',
+          flexDirection: 'column',
+          gap: space[2],
         })}
       >
-        <BriefCard kind="pre_market" brief={pre} />
-        <BriefCard kind="post_market" brief={post} />
+        {pre && <BriefCard kind="pre_market" brief={pre} />}
+        {post && <BriefCard kind="post_market" brief={post} />}
+        {scan && <BriefCard kind="smart_money_scan" brief={scan} />}
       </div>
-      {scan && (
-        <div mix={css({ marginTop: space[3] })}>
-          <BriefCard kind="smart_money_scan" brief={scan} />
-        </div>
-      )}
     </div>
   )
 }

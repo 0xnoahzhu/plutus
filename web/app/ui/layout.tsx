@@ -325,8 +325,14 @@ export function Layout() {
             // sticky header (top) and the children wrapper (bottom) so
             // the header's background can reach the full viewport edge
             // when pinned.
+            //
+            // 1800px cap (was 1400px): the previous bound left an empty
+            // strip on the right of common 2K monitors and made
+            // detail-page side cards feel under-fed. List rows and
+            // tables benefit most from the extra room; long-form text
+            // gets a row max-width of its own where it matters.
             padding: `0 ${space[10]}`,
-            maxWidth: '1400px',
+            maxWidth: '1800px',
             width: '100%',
             '@media (max-width: 1100px)': {
               padding: `0 ${space[6]}`,
