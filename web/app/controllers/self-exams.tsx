@@ -18,7 +18,6 @@ import {
   type Theme,
   UnreadDot,
 } from '../ui/layout.tsx'
-import { MarkdownToggle } from '../ui/markdown.tsx'
 import { render } from '../utils/render.tsx'
 
 export const selfExams: BuildAction<'GET', typeof routes.selfExams> = {
@@ -94,13 +93,22 @@ function ExamCard() {
       } catch {}
     }
     return (
-      <div
+      <a
+        href={`/self-exams/${exam.id}`}
         mix={css({
+          display: 'block',
           background: color.surface,
           border: `1px solid ${color.border}`,
           borderLeft: `3px solid ${color.brand}`,
           borderRadius: radius.lg,
           padding: `${space[4]} ${space[5]}`,
+          textDecoration: 'none',
+          color: 'inherit',
+          transition: 'border-color 120ms ease, transform 120ms ease',
+          '&:hover': {
+            borderColor: color.brand,
+            transform: 'translateY(-1px)',
+          },
         })}
       >
         <div
@@ -125,7 +133,7 @@ function ExamCard() {
           </span>
           {recIds.length > 0 && (
             <span mix={css({ fontSize: font.xs, color: color.textMuted })}>
-              reviewing {recIds.length} recommendation{recIds.length === 1 ? '' : 's'}
+              {recIds.length} rec{recIds.length === 1 ? '' : 's'}
             </span>
           )}
           <span
@@ -138,58 +146,17 @@ function ExamCard() {
             {exam.source}
           </span>
         </div>
-        <a
-          href={`/self-exams/${exam.id}`}
+        <div
           mix={css({
-            display: 'block',
             fontSize: font.md,
             fontWeight: 600,
             color: color.text,
-            marginBottom: space[2],
             lineHeight: 1.4,
-            textDecoration: 'none',
-            '&:hover': { color: color.brandHover },
           })}
         >
           {exam.headline ?? '(untitled)'}
-        </a>
-        {exam.content_md && <MarkdownToggle source={exam.content_md} />}
-        {exam.notes && (
-          <div
-            mix={css({
-              marginTop: space[2],
-              fontSize: font.sm,
-              fontStyle: 'italic',
-              color: color.textMuted,
-            })}
-          >
-            note: {exam.notes}
-          </div>
-        )}
-        {recIds.length > 0 && (
-          <div
-            mix={css({
-              marginTop: space[3],
-              display: 'flex',
-              gap: space[1],
-              flexWrap: 'wrap',
-            })}
-          >
-            {recIds.map((id) => (
-              <a
-                href={`/recommendations`}
-                title={`Recommendation #${id}`}
-                mix={css({
-                  textDecoration: 'none',
-                  fontFamily: font.mono,
-                })}
-              >
-                <Badge tone="info">rec#{id}</Badge>
-              </a>
-            ))}
-          </div>
-        )}
-      </div>
+        </div>
+      </a>
     )
   }
 }

@@ -20,7 +20,6 @@ import {
   type Theme,
   UnreadDot,
 } from '../ui/layout.tsx'
-import { MarkdownToggle } from '../ui/markdown.tsx'
 import { render } from '../utils/render.tsx'
 
 interface DayGroup {
@@ -178,13 +177,22 @@ function BriefCard() {
       )
     }
     return (
-      <div
+      <a
+        href={`/briefs/${brief.id}`}
         mix={css({
+          display: 'block',
           background: color.surface,
           border: `1px solid ${color.border}`,
           borderLeft: `3px solid ${meta.accent}`,
           borderRadius: radius.lg,
           padding: `${space[4]} ${space[5]}`,
+          textDecoration: 'none',
+          color: 'inherit',
+          transition: 'border-color 120ms ease, transform 120ms ease',
+          '&:hover': {
+            borderColor: color.brand,
+            transform: 'translateY(-1px)',
+          },
         })}
       >
         <div
@@ -221,23 +229,17 @@ function BriefCard() {
             {brief.source}
           </span>
         </div>
-        <a
-          href={`/briefs/${brief.id}`}
+        <div
           mix={css({
-            display: 'block',
             fontSize: font.md,
             fontWeight: 600,
             color: color.text,
-            marginBottom: space[2],
             lineHeight: 1.4,
-            textDecoration: 'none',
-            '&:hover': { color: color.brandHover },
           })}
         >
           {brief.headline ?? '(untitled)'}
-        </a>
-        {brief.content_md && <MarkdownToggle source={brief.content_md} />}
-      </div>
+        </div>
+      </a>
     )
   }
 }

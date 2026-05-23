@@ -22,7 +22,6 @@ import {
   type Theme,
   UnreadDot,
 } from '../ui/layout.tsx'
-import { MarkdownToggle } from '../ui/markdown.tsx'
 import { render } from '../utils/render.tsx'
 
 interface DayGroup {
@@ -173,11 +172,17 @@ function DayList() {
 
 function CatalystRow() {
   return ({ catalyst, stock }: { catalyst: Catalyst; stock: Stock | undefined }) => (
-    <div
+    <a
+      href={`/catalysts/${catalyst.id}`}
       mix={css({
+        display: 'block',
         padding: `${space[3]} ${space[4]}`,
         borderTop: `1px solid ${color.borderSoft}`,
         '&:first-child': { borderTop: 'none' },
+        textDecoration: 'none',
+        color: 'inherit',
+        transition: 'background 120ms ease',
+        '&:hover': { background: color.hover },
       })}
     >
       <div
@@ -207,62 +212,37 @@ function CatalystRow() {
           {catalyst.source}
         </span>
       </div>
-      <a
-        href={`/catalysts/${catalyst.id}`}
+      <div
         mix={css({
-          display: 'block',
           fontSize: font.base,
           fontWeight: 600,
           color: color.text,
-          marginBottom: space[1],
           lineHeight: 1.4,
-          textDecoration: 'none',
-          '&:hover': { color: color.brandHover },
         })}
       >
         {catalyst.title ?? '(untitled)'}
-      </a>
-      {catalyst.summary_md && (
-        <div mix={css({ marginTop: space[2] })}>
-          <MarkdownToggle source={catalyst.summary_md} />
-        </div>
-      )}
-      {(catalyst.bull_case_md || catalyst.bear_case_md) && (
-        <div
-          mix={css({
-            marginTop: space[2],
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: space[2],
-            '@media (max-width: 720px)': { gridTemplateColumns: '1fr' },
-          })}
-        >
-          {catalyst.bull_case_md && <CasePane kind="bull" body={catalyst.bull_case_md} />}
-          {catalyst.bear_case_md && <CasePane kind="bear" body={catalyst.bear_case_md} />}
-        </div>
-      )}
-    </div>
+      </div>
+    </a>
   )
 }
 
 function Target() {
   return ({ catalyst, stock }: { catalyst: Catalyst; stock: Stock | undefined }) => {
+    // Renders as plain content (no nested <a>) — the parent row is the
+    // clickable surface to /catalysts/:id.
     if (stock) {
       return (
-        <a
-          href={`/stocks/${stock.id}`}
+        <span
           mix={css({
             display: 'inline-flex',
             alignItems: 'center',
             gap: space[2],
-            textDecoration: 'none',
             color: color.text,
-            '&:hover': { color: color.brandHover },
           })}
         >
           <StockBadge symbol={stock.symbol} size={22} />
           <span mix={css({ fontFamily: font.mono, fontWeight: 600 })}>{stock.symbol}</span>
-        </a>
+        </span>
       )
     }
     if (catalyst.sector_code) {
@@ -295,34 +275,3 @@ function statusTone(status: string): BadgeTone {
   return 'neutral'
 }
 
-function CasePane() {
-  return ({ kind, body }: { kind: 'bull' | 'bear'; body: string }) => {
-    let accent = kind === 'bull' ? color.success : color.danger
-    let bg = kind === 'bull' ? color.successSoft : color.dangerSoft
-    let fg = kind === 'bull' ? color.successText : color.dangerText
-    return (
-      <div
-        mix={css({
-          padding: `${space[2]} ${space[3]}`,
-          background: bg,
-          border: `1px solid ${accent}33`,
-          borderRadius: radius.md,
-        })}
-      >
-        <div
-          mix={css({
-            fontSize: font.xs,
-            fontWeight: 700,
-            textTransform: 'uppercase',
-            letterSpacing: '0.08em',
-            color: fg,
-            marginBottom: space[1],
-          })}
-        >
-          {kind} case
-        </div>
-        <MarkdownToggle source={body} />
-      </div>
-    )
-  }
-}

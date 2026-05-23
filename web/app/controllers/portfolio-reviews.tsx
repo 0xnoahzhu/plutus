@@ -20,7 +20,6 @@ import {
   type Theme,
   UnreadDot,
 } from '../ui/layout.tsx'
-import { MarkdownToggle } from '../ui/markdown.tsx'
 import { render } from '../utils/render.tsx'
 
 export const portfolioReviews: BuildAction<'GET', typeof routes.portfolioReviews> = {
@@ -83,13 +82,22 @@ function PortfolioReviewsPage() {
 
 function ReviewCard() {
   return ({ review }: { review: PortfolioReview }) => (
-    <div
+    <a
+      href={`/portfolio-reviews/${review.id}`}
       mix={css({
+        display: 'block',
         background: color.surface,
         border: `1px solid ${color.border}`,
         borderLeft: `3px solid ${color.brand}`,
         borderRadius: radius.lg,
         padding: `${space[4]} ${space[5]}`,
+        textDecoration: 'none',
+        color: 'inherit',
+        transition: 'border-color 120ms ease, transform 120ms ease',
+        '&:hover': {
+          borderColor: color.brand,
+          transform: 'translateY(-1px)',
+        },
       })}
     >
       <div
@@ -125,45 +133,17 @@ function ReviewCard() {
           {review.source}
         </span>
       </div>
-      <a
-        href={`/portfolio-reviews/${review.id}`}
+      <div
         mix={css({
-          display: 'block',
           fontSize: font.md,
           fontWeight: 600,
           color: color.text,
-          marginBottom: space[2],
           lineHeight: 1.4,
-          textDecoration: 'none',
-          '&:hover': { color: color.brandHover },
         })}
       >
         {review.headline ?? '(untitled)'}
-      </a>
-      {review.summary_md && <Block label="Summary" body={review.summary_md} />}
-      {review.content_md && <Block label="Full content" body={review.content_md} />}
-      {review.decisions_md && <Block label="Decisions" body={review.decisions_md} />}
-    </div>
-  )
-}
-
-function Block() {
-  return ({ label, body }: { label: string; body: string }) => (
-    <div mix={css({ marginTop: space[3] })}>
-      <div
-        mix={css({
-          fontSize: font.xs,
-          fontWeight: 700,
-          textTransform: 'uppercase',
-          letterSpacing: '0.08em',
-          color: color.textMuted,
-          marginBottom: space[1],
-        })}
-      >
-        {label}
       </div>
-      <MarkdownToggle source={body} />
-    </div>
+    </a>
   )
 }
 

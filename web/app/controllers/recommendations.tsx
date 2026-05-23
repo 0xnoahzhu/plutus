@@ -24,7 +24,6 @@ import {
 } from '../ui/layout.tsx'
 import { fmtMoney } from '../ui/format.ts'
 import { LocalTime } from '../ui/local-time.tsx'
-import { MarkdownToggle } from '../ui/markdown.tsx'
 import { render } from '../utils/render.tsx'
 
 export const recommendations: BuildAction<'GET', typeof routes.recommendations> = {
@@ -138,99 +137,88 @@ function RecRow() {
     stock: Stock | undefined
     kind: 'open' | 'closed'
   }) => (
-    <Card padding="0">
+    <a
+      href={`/recommendations/${rec.id}`}
+      mix={css({
+        display: 'block',
+        background: color.surface,
+        border: `1px solid ${color.border}`,
+        borderLeft: `3px solid ${actionAccent(rec.action)}`,
+        borderRadius: radius.lg,
+        padding: `${space[4]} ${space[5]}`,
+        textDecoration: 'none',
+        color: 'inherit',
+        transition: 'border-color 120ms ease, transform 120ms ease',
+        '&:hover': {
+          borderColor: color.brand,
+          transform: 'translateY(-1px)',
+        },
+      })}
+    >
       <div
         mix={css({
-          borderLeft: `3px solid ${actionAccent(rec.action)}`,
-          padding: `${space[4]} ${space[5]}`,
-          borderRadius: radius.lg,
+          display: 'flex',
+          alignItems: 'center',
+          gap: space[2],
+          flexWrap: 'wrap',
         })}
       >
-        <div
-          mix={css({
-            display: 'flex',
-            alignItems: 'center',
-            gap: space[2],
-            marginBottom: space[2],
-            flexWrap: 'wrap',
-          })}
-        >
-          <UnreadDot readAt={rec.read_at} />
-          <Target rec={rec} stock={stock} />
-          <a
-            href={`/recommendations/${rec.id}`}
-            mix={css({
-              textDecoration: 'none',
-              '&:hover': { opacity: 0.85 },
-            })}
-            title="Open detail"
-          >
-            <Badge tone={actionTone(rec.action)}>{rec.action}</Badge>
-          </a>
-          {rec.confidence && (
-            <span
-              mix={css({
-                fontSize: font.xs,
-                fontWeight: 600,
-                color: color.text,
-              })}
-            >
-              conf {rec.confidence}
-            </span>
-          )}
-          <span mix={css({ fontSize: font.xs, color: color.textMuted })}>
-            horizon: {rec.target_horizon}
-          </span>
-          {rec.target_price && (
-            <span
-              mix={css({
-                fontSize: font.xs,
-                color: color.text,
-                fontFamily: font.mono,
-              })}
-            >
-              target {fmtMoney(rec.target_price)}
-              {rec.target_currency ? ` ${rec.target_currency}` : ''}
-            </span>
-          )}
-          {kind === 'closed' && <Badge tone={statusTone(rec.status)}>{statusLabel(rec.status)}</Badge>}
-          {rec.pnl_pct && <PnlPill pnl={rec.pnl_pct} />}
+        <UnreadDot readAt={rec.read_at} />
+        <Target rec={rec} stock={stock} />
+        <Badge tone={actionTone(rec.action)}>{rec.action}</Badge>
+        {rec.confidence && (
           <span
             mix={css({
-              marginLeft: 'auto',
               fontSize: font.xs,
-              color: color.textDim,
+              fontWeight: 600,
+              color: color.text,
             })}
           >
-            issued <LocalTime value={rec.issued_at} format="date" /> · {rec.source}
+            conf {rec.confidence}
           </span>
-        </div>
-
-        {rec.rationale_md && <MarkdownToggle source={rec.rationale_md} />}
-
-        {rec.outcome_md && (
-          <div mix={css({ marginTop: space[2] })}>
-            <MarkdownToggle source={rec.outcome_md} />
-          </div>
         )}
+        <span mix={css({ fontSize: font.xs, color: color.textMuted })}>
+          horizon: {rec.target_horizon}
+        </span>
+        {rec.target_price && (
+          <span
+            mix={css({
+              fontSize: font.xs,
+              color: color.text,
+              fontFamily: font.mono,
+            })}
+          >
+            target {fmtMoney(rec.target_price)}
+            {rec.target_currency ? ` ${rec.target_currency}` : ''}
+          </span>
+        )}
+        {kind === 'closed' && <Badge tone={statusTone(rec.status)}>{statusLabel(rec.status)}</Badge>}
+        {rec.pnl_pct && <PnlPill pnl={rec.pnl_pct} />}
+        <span
+          mix={css({
+            marginLeft: 'auto',
+            fontSize: font.xs,
+            color: color.textDim,
+          })}
+        >
+          issued <LocalTime value={rec.issued_at} format="date" /> · {rec.source}
+        </span>
       </div>
-    </Card>
+    </a>
   )
 }
 
 function Target() {
   return ({ rec, stock }: { rec: Recommendation; stock: Stock | undefined }) => {
+    // Plain content (no nested <a>) — parent row links to /recommendations/:id.
     if (stock) {
       return (
-        <a
-          href={`/stocks/${stock.id}`}
+        <span
           mix={css({
             display: 'inline-flex',
             alignItems: 'center',
             gap: space[2],
-            textDecoration: 'none',
             color: color.text,
-            '&:hover': { color: color.brandHover },
           })}
         >
           <StockBadge symbol={stock.symbol} size={22} />
@@ -243,7 +231,7 @@ function Target() {
           >
             {stock.symbol}
           </span>
-        </a>
+        </span>
       )
     }
     if (rec.sector_code) {

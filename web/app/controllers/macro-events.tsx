@@ -21,7 +21,6 @@ import {
   type Theme,
   UnreadDot,
 } from '../ui/layout.tsx'
-import { MarkdownToggle } from '../ui/markdown.tsx'
 import { render } from '../utils/render.tsx'
 
 interface DayGroup {
@@ -172,11 +171,17 @@ function EventRow() {
   return ({ event, indicator }: { event: MacroEvent; indicator: MacroIndicator | undefined }) => {
     let isReleased = event.new_value != null
     return (
-      <div
+      <a
+        href={`/macro-events/${event.id}`}
         mix={css({
+          display: 'block',
           padding: `${space[3]} ${space[4]}`,
           borderTop: `1px solid ${color.borderSoft}`,
           '&:first-child': { borderTop: 'none' },
+          textDecoration: 'none',
+          color: 'inherit',
+          transition: 'background 120ms ease',
+          '&:hover': { background: color.hover },
         })}
       >
         <div
@@ -218,21 +223,17 @@ function EventRow() {
             {event.source}
           </span>
         </div>
-        <a
-          href={`/macro-events/${event.id}`}
+        <div
           mix={css({
-            display: 'block',
             fontSize: font.base,
             fontWeight: 600,
             color: color.text,
-            marginBottom: space[1],
+            marginBottom: isReleased ? space[2] : 0,
             lineHeight: 1.4,
-            textDecoration: 'none',
-            '&:hover': { color: color.brandHover },
           })}
         >
           {event.title ?? '(untitled)'}
-        </a>
+        </div>
         {isReleased && (
           <div
             mix={css({
@@ -242,7 +243,6 @@ function EventRow() {
               fontSize: font.sm,
               color: color.textMuted,
               fontVariantNumeric: 'tabular-nums',
-              marginTop: space[2],
             })}
           >
             <StatItem label="actual" value={event.new_value ?? '—'} strong />
@@ -258,12 +258,7 @@ function EventRow() {
             {event.vote && <StatItem label="vote" value={event.vote} />}
           </div>
         )}
-        {event.summary_md && (
-          <div mix={css({ marginTop: space[2] })}>
-            <MarkdownToggle source={event.summary_md} />
-          </div>
-        )}
-      </div>
+      </a>
     )
   }
 }
