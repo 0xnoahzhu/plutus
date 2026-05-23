@@ -1,6 +1,10 @@
 import { css, type RemixNode } from 'remix/ui'
 
-import { ambientAllowedCountries } from '../api.ts'
+import {
+  ambientAllowedCountries,
+  ambientUnreadCounts,
+  type EntityKind,
+} from '../api.ts'
 import {
   ArrowLeftRight,
   BarChart3,
@@ -74,14 +78,29 @@ type NavRoute = {
 }[keyof typeof routes]
 
 type NavEntry =
-  | { kind: 'link'; route: NavRoute; label: string; icon: string }
+  | {
+      kind: 'link'
+      route: NavRoute
+      label: string
+      icon: string
+      /// Entity kind whose unread count drives the badge on this row.
+      /// `undefined` means the row never shows a count (e.g. holdings,
+      /// settings).
+      unreadKind?: EntityKind
+    }
   | { kind: 'divider'; label: string }
 
-const link = (route: NavRoute, label: string, icon: string): NavEntry => ({
+const link = (
+  route: NavRoute,
+  label: string,
+  icon: string,
+  unreadKind?: EntityKind,
+): NavEntry => ({
   kind: 'link',
   route,
   label,
   icon,
+  unreadKind,
 })
 const divider = (label: string): NavEntry => ({ kind: 'divider', label })
 
@@ -95,17 +114,17 @@ function buildNav(m: Messages): NavEntry[] {
     link('transactions', m.nav.transactions, ArrowLeftRight),
     link('watchlists', m.nav.watchlist, Bookmark),
     divider(m.nav.sectionCalendar),
-    link('news', m.nav.news, Newspaper),
-    link('briefs', m.nav.briefs, FileText),
-    link('earnings', m.nav.earnings, BarChart3),
-    link('macroEvents', m.nav.macro, Globe),
-    link('catalysts', m.nav.catalysts, Zap),
+    link('news', m.nav.news, Newspaper, 'news'),
+    link('briefs', m.nav.briefs, FileText, 'market_brief'),
+    link('earnings', m.nav.earnings, BarChart3, 'earnings_event'),
+    link('macroEvents', m.nav.macro, Globe, 'macro_event'),
+    link('catalysts', m.nav.catalysts, Zap, 'catalyst'),
     divider(m.nav.sectionAnalysis),
-    link('screeners', m.nav.screeners, Filter),
-    link('recommendations', m.nav.recommendations, ThumbsUp),
-    link('portfolioReviews', m.nav.reviews, ClipboardCheck),
-    link('correlations', m.nav.correlations, GitMerge),
-    link('selfExams', m.nav.selfExam, SearchCheck),
+    link('screeners', m.nav.screeners, Filter, 'screener_run'),
+    link('recommendations', m.nav.recommendations, ThumbsUp, 'recommendation'),
+    link('portfolioReviews', m.nav.reviews, ClipboardCheck, 'portfolio_review'),
+    link('correlations', m.nav.correlations, GitMerge, 'correlation_run'),
+    link('selfExams', m.nav.selfExam, SearchCheck, 'self_exam'),
     divider(m.nav.sectionAccount),
     link('tradePlans', m.nav.tradePlans, Target),
     link('orders', m.nav.orders, Receipt),
@@ -448,6 +467,7 @@ function Sidebar() {
   return ({ locale }: { locale: string }) => {
     let m = messages(locale)
     let nav = buildNav(m)
+    let counts = ambientUnreadCounts()
     return (
       <aside
         mix={css({
@@ -469,7 +489,14 @@ function Sidebar() {
           <ul mix={css({ listStyle: 'none', padding: 0, margin: 0 })}>
             {nav.map((entry) =>
               entry.kind === 'divider' ? <NavDivider label={entry.label} /> : (
-                <NavLink route={entry.route} label={entry.label} icon={entry.icon} />
+                <NavLink
+                  route={entry.route}
+                  label={entry.label}
+                  icon={entry.icon}
+                  badge={
+                    entry.unreadKind ? (counts[entry.unreadKind] ?? 0) : 0
+                  }
+                />
               ),
             )}
           </ul>
@@ -598,10 +625,14 @@ function NavLink() {
     route,
     label,
     icon,
+    badge,
   }: {
     route: NavRoute
     label: string
     icon: string
+    /// Unread count for this row. Zero (or undefined) hides the chip.
+    /// 99+ collapses to "99+" so a runaway count doesn't break layout.
+    badge?: number
   }) => (
     <li>
       <a
@@ -624,7 +655,26 @@ function NavLink() {
         })}
       >
         <Icon svg={icon} size={18} />
-        {label}
+        <span mix={css({ flex: 1 })}>{label}</span>
+        {badge !== undefined && badge > 0 && (
+          <span
+            mix={css({
+              marginLeft: 'auto',
+              minWidth: '18px',
+              padding: `1px ${space[2]}`,
+              fontSize: '11px',
+              fontWeight: 600,
+              fontVariantNumeric: 'tabular-nums',
+              textAlign: 'center',
+              background: color.borderSoft,
+              color: color.text,
+              borderRadius: radius.pill,
+              lineHeight: 1.4,
+            })}
+          >
+            {badge > 99 ? '99+' : badge}
+          </span>
+        )}
       </a>
     </li>
   )

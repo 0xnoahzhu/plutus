@@ -49,6 +49,39 @@ export function ambientAllowedCountries(): string[] | null {
   return requestCountriesStore.getStore() ?? null
 }
 
+/// Per-request unread-count snapshot. Populated by `withAuth` from
+/// `/unread/counts` so the sidebar Layout can render badges without each
+/// page controller fetching them itself. Empty object = no scope (admin
+/// / preboot) or fetch failed.
+const requestUnreadStore = new AsyncLocalStorage<UnreadCounts>()
+
+/// Map of entity_type → unread row count for the current user. Keys
+/// match the canonical strings registered server-side in
+/// `plutus_storage::queries::unread::EntityKind`.
+export type UnreadCounts = Partial<Record<EntityKind, number>>
+
+/// Canonical entity types that participate in unread tracking. Must
+/// match the server-side `EntityKind::as_str()` list.
+export type EntityKind =
+  | 'news'
+  | 'market_brief'
+  | 'macro_event'
+  | 'earnings_event'
+  | 'catalyst'
+  | 'screener_run'
+  | 'recommendation'
+  | 'portfolio_review'
+  | 'correlation_run'
+  | 'self_exam'
+
+export function runWithUnreadCounts<T>(counts: UnreadCounts, fn: () => T): T {
+  return requestUnreadStore.run(counts, fn)
+}
+
+export function ambientUnreadCounts(): UnreadCounts {
+  return requestUnreadStore.getStore() ?? {}
+}
+
 export interface Market {
   code: string
   name: string
@@ -251,6 +284,9 @@ export interface NewsItem {
   importance: string
   created_at: string
   updated_at: string
+  /// RFC 3339 timestamp when this user opened the item's detail page.
+  /// `null` while the item is still unread.
+  read_at: string | null
 }
 
 export interface NewsStockLink {
@@ -328,6 +364,9 @@ export interface MacroEvent {
   source: string
   created_at: string
   updated_at: string
+  /// RFC 3339 timestamp when this user opened the item's detail page.
+  /// `null` while the item is still unread.
+  read_at: string | null
 }
 
 export interface MacroIndicator {
@@ -360,6 +399,9 @@ export interface EarningsEvent {
   source: string
   created_at: string
   updated_at: string
+  /// RFC 3339 timestamp when this user opened the item's detail page.
+  /// `null` while the item is still unread.
+  read_at: string | null
 }
 
 export interface MarketBrief {
@@ -377,6 +419,9 @@ export interface MarketBrief {
   source: string
   created_at: string
   updated_at: string
+  /// RFC 3339 timestamp when this user opened the item's detail page.
+  /// `null` while the item is still unread.
+  read_at: string | null
 }
 
 export interface ScreenerRun {
@@ -395,6 +440,9 @@ export interface ScreenerRun {
   source: string
   created_at: string
   updated_at: string
+  /// RFC 3339 timestamp when this user opened the item's detail page.
+  /// `null` while the item is still unread.
+  read_at: string | null
 }
 
 export interface ScreenerHit {
@@ -427,6 +475,9 @@ export interface PortfolioReview {
   source: string
   created_at: string
   updated_at: string
+  /// RFC 3339 timestamp when this user opened the item's detail page.
+  /// `null` while the item is still unread.
+  read_at: string | null
 }
 
 export interface Recommendation {
@@ -449,6 +500,9 @@ export interface Recommendation {
   source: string
   created_at: string
   updated_at: string
+  /// RFC 3339 timestamp when this user opened the item's detail page.
+  /// `null` while the item is still unread.
+  read_at: string | null
 }
 
 export interface SelfExam {
@@ -466,6 +520,9 @@ export interface SelfExam {
   source: string
   created_at: string
   updated_at: string
+  /// RFC 3339 timestamp when this user opened the item's detail page.
+  /// `null` while the item is still unread.
+  read_at: string | null
 }
 
 export interface UniverseDefinition {
@@ -490,6 +547,9 @@ export interface CorrelationRun {
   source: string
   created_at: string
   updated_at: string
+  /// RFC 3339 timestamp when this user opened the item's detail page.
+  /// `null` while the item is still unread.
+  read_at: string | null
 }
 
 export interface CorrelationPair {
@@ -574,11 +634,27 @@ export interface Catalyst {
   source: string
   created_at: string
   updated_at: string
+  /// RFC 3339 timestamp when this user opened the item's detail page.
+  /// `null` while the item is still unread.
+  read_at: string | null
 }
 
 export const api = {
   base: BASE,
   health: () => get<string>('/healthz').catch(() => 'down'),
+  /// Sidebar badge source. Returns 0 for every entity when the caller is
+  /// admin/anonymous (server fills the keys for us); a fetch failure
+  /// resolves to an empty object so the sidebar still renders.
+  unreadCounts: (cookie?: string | null) =>
+    get<UnreadCounts>('/unread/counts', cookie).catch(() => ({}) as UnreadCounts),
+  /// Flip an item back to unread. No-ops on the server for admin.
+  unreadUnmark: (kind: EntityKind, id: number, cookie?: string | null) =>
+    fetch(`${BASE}/api/v1/reads/${kind}/${id}`, {
+      method: 'DELETE',
+      headers: cookie ?? ambientCookie() ? { cookie: (cookie ?? ambientCookie())! } : {},
+    }).then((r) => {
+      if (!r.ok) throw new Error(`unreadUnmark failed: ${r.status}`)
+    }),
   markets: () => get<Market[]>('/markets'),
   brokers: () => get<Broker[]>('/brokers'),
   accounts: () => get<Account[]>('/accounts'),

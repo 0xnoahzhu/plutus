@@ -11,7 +11,12 @@
 
 import type { RequestHandler } from 'remix/fetch-router'
 
-import { api, runWithAllowedCountries, runWithCookie } from '../api.ts'
+import {
+  api,
+  runWithAllowedCountries,
+  runWithCookie,
+  runWithUnreadCounts,
+} from '../api.ts'
 
 export interface SignedInUser {
   kind: 'web' | 'api_token' | 'admin'
@@ -81,10 +86,15 @@ export function withAuth<A>(action: A): A {
     // Bind the cookie + the resolved country scope to async-local
     // contexts so every `api.*()` call inherits the session and every
     // `parseCountry` / `CountryChips` call inherits the user's allowed
-    // list — no need to thread either through every controller.
-    return runWithCookie(cookie, () =>
-      runWithAllowedCountries(me.allowed_countries, () => inner(ctx)),
-    )
+    // list — no need to thread either through every controller. The
+    // unread counts are pulled once per request for the sidebar badges;
+    // a failure resolves to `{}` so the page still renders.
+    return runWithCookie(cookie, async () => {
+      let counts = await api.unreadCounts(cookie)
+      return runWithAllowedCountries(me.allowed_countries, () =>
+        runWithUnreadCounts(counts, () => inner(ctx)),
+      )
+    })
   }
   return { handler: wrapped } as unknown as A
 }
