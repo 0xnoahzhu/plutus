@@ -1252,6 +1252,93 @@ CREATE TABLE IF NOT EXISTS user_reads (
 CREATE INDEX IF NOT EXISTS user_reads_user_type_idx
     ON user_reads (user_id, entity_type);
 
+-- One-shot backfill: rows that exist before unread tracking landed are
+-- marked read for every real user. Without this, the first deploy would
+-- light up the sidebar with a year's worth of "unread" badges and bury
+-- whatever's actually new. ON CONFLICT DO NOTHING keeps this idempotent
+-- — re-running migrate (or running it on a fresh DB) is a no-op. Admin
+-- (user_id=0) is skipped on purpose: admin has no per-user reads.
+--
+-- We gate the entire block on "does user_reads have zero rows", so a
+-- redeploy after users have started accumulating real reads doesn't
+-- silently mark unread items as read.
+DO $migrate_user_reads_backfill$
+DECLARE
+    needs_backfill BOOLEAN;
+BEGIN
+    SELECT NOT EXISTS (SELECT 1 FROM user_reads) INTO needs_backfill;
+    IF NOT needs_backfill THEN
+        RETURN;
+    END IF;
+
+    -- Per-user tables: read_at = the row's own created_at so the read
+    -- timestamp tells the truth ("seen at the moment it existed").
+    INSERT INTO user_reads (user_id, entity_type, entity_id, read_at)
+    SELECT user_id, 'market_brief', id, COALESCE(created_at, now())
+    FROM market_briefs
+    WHERE user_id <> 0
+    ON CONFLICT DO NOTHING;
+
+    INSERT INTO user_reads (user_id, entity_type, entity_id, read_at)
+    SELECT user_id, 'catalyst', id, COALESCE(created_at, now())
+    FROM catalysts
+    WHERE user_id <> 0
+    ON CONFLICT DO NOTHING;
+
+    INSERT INTO user_reads (user_id, entity_type, entity_id, read_at)
+    SELECT user_id, 'screener_run', id, COALESCE(created_at, now())
+    FROM screener_runs
+    WHERE user_id <> 0
+    ON CONFLICT DO NOTHING;
+
+    INSERT INTO user_reads (user_id, entity_type, entity_id, read_at)
+    SELECT user_id, 'recommendation', id, COALESCE(created_at, now())
+    FROM recommendations
+    WHERE user_id <> 0
+    ON CONFLICT DO NOTHING;
+
+    INSERT INTO user_reads (user_id, entity_type, entity_id, read_at)
+    SELECT user_id, 'portfolio_review', id, COALESCE(created_at, now())
+    FROM portfolio_reviews
+    WHERE user_id <> 0
+    ON CONFLICT DO NOTHING;
+
+    INSERT INTO user_reads (user_id, entity_type, entity_id, read_at)
+    SELECT user_id, 'correlation_run', id, COALESCE(created_at, now())
+    FROM correlation_runs
+    WHERE user_id <> 0
+    ON CONFLICT DO NOTHING;
+
+    INSERT INTO user_reads (user_id, entity_type, entity_id, read_at)
+    SELECT user_id, 'self_exam', id, COALESCE(created_at, now())
+    FROM self_exams
+    WHERE user_id <> 0
+    ON CONFLICT DO NOTHING;
+
+    -- Shared tables (news, macro_events, earnings_events): fan out to every
+    -- non-admin user. The cross join is bounded — these are reference data
+    -- volumes (hundreds to low thousands of rows) and the user table is
+    -- single-digit on this deployment.
+    INSERT INTO user_reads (user_id, entity_type, entity_id, read_at)
+    SELECT u.id, 'news', n.id, COALESCE(n.created_at, now())
+    FROM users u CROSS JOIN news_items n
+    WHERE u.id <> 0
+    ON CONFLICT DO NOTHING;
+
+    INSERT INTO user_reads (user_id, entity_type, entity_id, read_at)
+    SELECT u.id, 'macro_event', e.id, COALESCE(e.created_at, now())
+    FROM users u CROSS JOIN macro_events e
+    WHERE u.id <> 0
+    ON CONFLICT DO NOTHING;
+
+    INSERT INTO user_reads (user_id, entity_type, entity_id, read_at)
+    SELECT u.id, 'earnings_event', e.id, COALESCE(e.created_at, now())
+    FROM users u CROSS JOIN earnings_events e
+    WHERE u.id <> 0
+    ON CONFLICT DO NOTHING;
+END
+$migrate_user_reads_backfill$;
+
 -- ── Retired tables ─────────────────────────────────────────────────────────
 -- Cleanup pass after auditing usage. Each DROP is idempotent (IF EXISTS)
 -- so re-running migrate on a fresh database is a no-op; on a previously
