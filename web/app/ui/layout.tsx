@@ -294,78 +294,125 @@ export function Layout() {
         <Sidebar locale={locale} />
         <main
           mix={css({
-            padding: `${space[8]} ${space[10]}`,
+            // Horizontal padding only — vertical padding lives on the
+            // sticky header (top) and the children wrapper (bottom) so
+            // the header's background can reach the full viewport edge
+            // when pinned.
+            padding: `0 ${space[10]}`,
             maxWidth: '1400px',
             width: '100%',
-            // Tighten on narrow screens.
             '@media (max-width: 1100px)': {
-              padding: `${space[6]} ${space[6]}`,
+              padding: `0 ${space[6]}`,
             },
           })}
         >
-          {title && (
-            <header
-              mix={css({
-                display: 'flex',
-                alignItems: 'baseline',
-                justifyContent: 'space-between',
-                gap: space[4],
-                marginBottom: subtitle ? space[1] : space[4],
-                flexWrap: 'wrap',
-              })}
-            >
-              <div>
-                <h1
-                  mix={css({
-                    margin: 0,
-                    fontSize: font.xxl,
-                    fontWeight: 700,
-                    color: color.text,
-                    letterSpacing: '-0.01em',
-                  })}
-                >
-                  {title}
-                </h1>
-                {subtitle && (
-                  <p
-                    mix={css({
-                      margin: `${space[1]} 0 0`,
-                      fontSize: font.sm,
-                      color: color.textMuted,
-                    })}
-                  >
-                    {subtitle}
-                  </p>
-                )}
-              </div>
-            </header>
-          )}
-
-          {/* Page-level filter row — only the country chip lives here now.
-              Language + theme moved to /settings. */}
-          {country !== undefined && (
+          {(title !== undefined || country !== undefined) && (
             <div
               mix={css({
-                display: 'flex',
-                gap: space[6],
-                flexWrap: 'wrap',
-                alignItems: 'center',
-                marginTop: title ? space[4] : 0,
+                // Pin the title block + country filter to the viewport
+                // top as the page scrolls. The wrapper owns the top
+                // padding (previously on <main>) so at scroll-top the
+                // visual rhythm is unchanged; once stuck, the same
+                // padding becomes the breathing room between viewport
+                // edge and the title.
+                position: 'sticky',
+                top: 0,
+                zIndex: 10,
+                background: color.bg,
+                paddingTop: space[8],
+                paddingBottom: space[4],
                 marginBottom: space[6],
+                // Hairline separator so content scrolling underneath
+                // doesn't visually merge with the pinned header. Same
+                // divider used elsewhere, so it feels native.
+                borderBottom: `1px solid ${color.divider}`,
+                '@media (max-width: 1100px)': {
+                  paddingTop: space[6],
+                },
               })}
             >
-              <CountryChips
-                selected={country}
-                options={(() => {
-                  let amb = ambientAllowedCountries()
-                  return amb && amb.length > 0 ? amb : ALL_COUNTRIES
-                })()}
-                locale={locale}
-              />
+              {title && (
+                <header
+                  mix={css({
+                    display: 'flex',
+                    alignItems: 'baseline',
+                    justifyContent: 'space-between',
+                    gap: space[4],
+                    // Gap to the country chip row when both present.
+                    // When country is the only thing, no header → no gap.
+                    marginBottom: country !== undefined ? space[4] : 0,
+                    flexWrap: 'wrap',
+                  })}
+                >
+                  <div>
+                    <h1
+                      mix={css({
+                        margin: 0,
+                        fontSize: font.xxl,
+                        fontWeight: 700,
+                        color: color.text,
+                        letterSpacing: '-0.01em',
+                      })}
+                    >
+                      {title}
+                    </h1>
+                    {subtitle && (
+                      <p
+                        mix={css({
+                          margin: `${space[1]} 0 0`,
+                          fontSize: font.sm,
+                          color: color.textMuted,
+                        })}
+                      >
+                        {subtitle}
+                      </p>
+                    )}
+                  </div>
+                </header>
+              )}
+
+              {/* Page-level filter row — only the country chip lives here.
+                  Language + theme moved to /settings. */}
+              {country !== undefined && (
+                <div
+                  mix={css({
+                    display: 'flex',
+                    gap: space[6],
+                    flexWrap: 'wrap',
+                    alignItems: 'center',
+                  })}
+                >
+                  <CountryChips
+                    selected={country}
+                    options={(() => {
+                      let amb = ambientAllowedCountries()
+                      return amb && amb.length > 0 ? amb : ALL_COUNTRIES
+                    })()}
+                    locale={locale}
+                  />
+                </div>
+              )}
             </div>
           )}
 
-          <div>{children}</div>
+          <div
+            mix={css({
+              // Top padding only matters when no sticky header exists
+              // (e.g. login-like routes that go through Layout without
+              // a title). Bottom padding always — so the page breathes
+              // at the very end of scroll.
+              paddingTop:
+                title === undefined && country === undefined ? space[8] : 0,
+              paddingBottom: space[8],
+              '@media (max-width: 1100px)': {
+                paddingTop:
+                  title === undefined && country === undefined ? space[6] : 0,
+                paddingBottom: space[6],
+              },
+            })}
+          >
+            {children}
+          </div>
         </main>
       </div>
     </Document>
