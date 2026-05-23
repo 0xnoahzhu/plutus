@@ -117,7 +117,7 @@ function TransactionsPage() {
           action="/transactions"
           locale={locale}
           query={query}
-          placeholder="Symbol"
+          placeholder={p.searchPlaceholder}
           extraParams={{ country }}
         />
       </Card>
