@@ -10,6 +10,7 @@ use plutus_core::audit::Actor;
 use crate::dto::watchlist::{WatchlistItemIn, WatchlistItemOut};
 use crate::error::ApiResult;
 use crate::handlers::access::require_user;
+use crate::handlers::pagination::{clamp_limit, clamp_offset, paginate_slice};
 use crate::state::AppState;
 
 const DEFAULT_PER_PAGE: i64 = 15;
@@ -20,9 +21,15 @@ pub struct ListItemsFilter {
     pub country: Option<String>,
     /// Case-insensitive substring match on stock symbol.
     pub q: Option<String>,
-    /// 1-indexed page. When set, response carries X-Total-Count.
+    /// 1-indexed page (used with `per_page`). When set, response
+    /// carries X-Total-Count.
     pub page: Option<i64>,
     pub per_page: Option<i64>,
+    /// Direct slice via limit/offset — alternative to page/per_page.
+    /// When either is set, response also carries X-Total-Count. If
+    /// both forms are present, page/per_page wins.
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
 }
 
 pub async fn list_items(
@@ -98,8 +105,13 @@ pub async fn list_items(
         .collect();
 
     let total = filtered.len() as i64;
-    let paginating = filter.page.is_some();
-    let page_slice: Vec<_> = if paginating {
+    // Same dual-pagination contract as /holdings — see that handler's
+    // comment for the rationale.
+    let paginating = filter.page.is_some()
+        || filter.per_page.is_some()
+        || filter.limit.is_some()
+        || filter.offset.is_some();
+    let page_slice: Vec<_> = if filter.page.is_some() || filter.per_page.is_some() {
         let per_page = filter
             .per_page
             .unwrap_or(DEFAULT_PER_PAGE)
@@ -111,6 +123,10 @@ pub async fn list_items(
             .skip(offset)
             .take(per_page as usize)
             .collect()
+    } else if filter.limit.is_some() || filter.offset.is_some() {
+        let limit = clamp_limit(filter.limit)?;
+        let offset = clamp_offset(filter.offset)?;
+        paginate_slice(filtered, limit, offset)
     } else {
         filtered
     };

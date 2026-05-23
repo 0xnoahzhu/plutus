@@ -13,6 +13,7 @@ use plutus_core::transaction::TransactionKind;
 use crate::dto::transaction::{TransactionIn, TransactionOut};
 use crate::error::{ApiError, ApiResult};
 use crate::handlers::access::require_user;
+use crate::handlers::pagination::{clamp_limit, clamp_offset, paginate_slice};
 use crate::state::AppState;
 
 const DEFAULT_PER_PAGE: i64 = 15;
@@ -26,9 +27,15 @@ pub struct ListFilter {
     pub country: Option<String>,
     /// Case-insensitive substring match on the joined stock symbol.
     pub q: Option<String>,
-    /// 1-indexed page. When set, response carries X-Total-Count.
+    /// 1-indexed page (used with `per_page`). When set, response
+    /// carries X-Total-Count.
     pub page: Option<i64>,
     pub per_page: Option<i64>,
+    /// Direct slice via limit/offset — alternative to page/per_page.
+    /// When either is set, response also carries X-Total-Count. If
+    /// both forms are present, page/per_page wins.
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
 }
 
 pub async fn list(
@@ -118,8 +125,11 @@ pub async fn list(
         .collect();
 
     let total = filtered.len() as i64;
-    let paginating = f.page.is_some();
-    let page_slice: Vec<_> = if paginating {
+    // Same dual-pagination contract as /holdings — see that handler's
+    // comment for the rationale.
+    let paginating =
+        f.page.is_some() || f.per_page.is_some() || f.limit.is_some() || f.offset.is_some();
+    let page_slice: Vec<_> = if f.page.is_some() || f.per_page.is_some() {
         let per_page = f
             .per_page
             .unwrap_or(DEFAULT_PER_PAGE)
@@ -131,6 +141,10 @@ pub async fn list(
             .skip(offset)
             .take(per_page as usize)
             .collect()
+    } else if f.limit.is_some() || f.offset.is_some() {
+        let limit = clamp_limit(f.limit)?;
+        let offset = clamp_offset(f.offset)?;
+        paginate_slice(filtered, limit, offset)
     } else {
         filtered
     };
