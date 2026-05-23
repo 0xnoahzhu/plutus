@@ -655,6 +655,20 @@ export const api = {
     }).then((r) => {
       if (!r.ok) throw new Error(`unreadUnmark failed: ${r.status}`)
     }),
+  /// Bulk mark everything in this kind as read for the current user.
+  /// Returns the number of fresh inserts (0 if already all read).
+  unreadMarkAll: async (kind: EntityKind, cookie?: string | null): Promise<number> => {
+    let effective = cookie ?? ambientCookie()
+    let headers: Record<string, string> = { accept: 'application/json' }
+    if (effective) headers.cookie = effective
+    let res = await fetch(`${BASE}/api/v1/reads/mark-all/${kind}`, {
+      method: 'POST',
+      headers,
+    })
+    if (!res.ok) throw new Error(`unreadMarkAll failed: ${res.status}`)
+    let body = (await res.json()) as { marked: number }
+    return body.marked
+  },
   markets: () => get<Market[]>('/markets'),
   brokers: () => get<Broker[]>('/brokers'),
   accounts: () => get<Account[]>('/accounts'),

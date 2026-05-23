@@ -65,6 +65,7 @@ export const routes = route({
   correlationDetail: '/correlations/:id',
   selfExams: '/self-exams',
   selfExamDetail: '/self-exams/:id',
+  markAllRead: post('/reads/mark-all/:kind'),
   audit: '/audit',
   settings: '/settings',
 })

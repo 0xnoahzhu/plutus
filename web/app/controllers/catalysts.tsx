@@ -12,6 +12,7 @@ import {
   EmptyState,
   font,
   Layout,
+  MarkAllReadStrip,
   parseCountry,
   radius,
   resolveLocale,
@@ -110,6 +111,7 @@ function CatalystsPage() {
       locale={locale}
       theme={theme}
     >
+      <MarkAllReadStrip kind="catalyst" />
       <SectionTitle hint={messages(locale).pages.macroEvents.hintFrom(today)}>
         {p.sectionUpcoming}
       </SectionTitle>

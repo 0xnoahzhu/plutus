@@ -429,6 +429,7 @@ pub fn build_router(state: AppState) -> Router {
         // Per-user unread state. Individual items get marked read as a
         // side effect of each entity's detail GET (see those handlers).
         .route("/unread/counts", get(handlers::unread::counts))
+        .route("/reads/mark-all/:kind", post(handlers::unread::mark_all))
         .route("/reads/:kind/:id", delete(handlers::unread::unmark))
         .with_state(state.clone());
 

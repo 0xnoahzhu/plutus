@@ -1290,6 +1290,40 @@ fn paths() -> Value {
             }))
         }
     }));
+    paths.insert("/reads/mark-all/{kind}".into(), json!({
+        "post": {
+            "tags": ["unread"],
+            "summary": "Bulk mark every visible entity of this kind as read for the caller.",
+            "description": "Idempotent: already-read items are skipped. Returns the number of fresh inserts so the caller can show a confirmation (or skip the flash when nothing changed). Used by the per-page \"mark all read\" button.",
+            "parameters": [
+                {
+                    "name": "kind",
+                    "in": "path",
+                    "required": true,
+                    "schema": {
+                        "type": "string",
+                        "enum": [
+                            "news", "market_brief", "macro_event", "earnings_event",
+                            "catalyst", "screener_run", "recommendation",
+                            "portfolio_review", "correlation_run", "self_exam"
+                        ]
+                    }
+                }
+            ],
+            "responses": ok_inline(json!({
+                "type": "object",
+                "required": ["marked"],
+                "properties": {
+                    "marked": {
+                        "type": "integer",
+                        "format": "int64",
+                        "minimum": 0,
+                        "description": "Number of fresh inserts; 0 if everything was already read."
+                    }
+                }
+            }))
+        }
+    }));
     paths.insert("/reads/{kind}/{id}".into(), json!({
         "delete": {
             "tags": ["unread"],

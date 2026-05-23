@@ -12,6 +12,7 @@ import {
   EmptyState,
   font,
   Layout,
+  MarkAllReadStrip,
   PageIntro,
   radius,
   resolveLocale,
@@ -61,6 +62,7 @@ function PortfolioReviewsPage() {
         <code>POST /api/v1/portfolio-reviews</code> — upsert by (kind,
         period_start).
       </PageIntro>
+      <MarkAllReadStrip kind="portfolio_review" />
       {reviews.length === 0 ? (
         <Card>
           <EmptyState

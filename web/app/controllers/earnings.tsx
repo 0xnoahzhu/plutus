@@ -12,6 +12,7 @@ import {
   EmptyState,
   font,
   Layout,
+  MarkAllReadStrip,
   parseCountry,
   radius,
   resolveLocale,
@@ -108,6 +109,7 @@ function EarningsPage() {
       locale={locale}
       theme={theme}
     >
+      <MarkAllReadStrip kind="earnings_event" />
       <SectionTitle hint={messages(locale).pages.macroEvents.hintFrom(today)}>
         {p.sectionUpcoming}
       </SectionTitle>

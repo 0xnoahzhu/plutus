@@ -1059,6 +1059,72 @@ export function StockBadge() {
   }
 }
 
+/// Right-aligned strip that renders a `MarkAllReadButton` and disappears
+/// entirely (no leftover margin) when the kind's unread count is zero.
+/// Drop this near the top of every list page body.
+export function MarkAllReadStrip() {
+  return ({ kind }: { kind: EntityKind }) => {
+    let count = ambientUnreadCounts()[kind] ?? 0
+    if (count === 0) return null
+    return (
+      <div
+        mix={css({
+          display: 'flex',
+          justifyContent: 'flex-end',
+          marginBottom: space[3],
+        })}
+      >
+        <MarkAllReadButton kind={kind} />
+      </div>
+    )
+  }
+}
+
+/// "Mark all read" button. Submits a form to the per-kind action handler
+/// which calls the API and redirects back. Stateless — no JS required.
+/// Reads the current unread count from `ambientUnreadCounts()` and
+/// shows it in the label; renders nothing when the count is zero so the
+/// list header doesn't carry a useless control.
+export function MarkAllReadButton() {
+  return ({ kind, label }: { kind: EntityKind; label?: string }) => {
+    let count = ambientUnreadCounts()[kind] ?? 0
+    if (count === 0) return null
+    let text = label ?? `Mark ${count} as read`
+    return (
+      <form
+        method="post"
+        action={`/reads/mark-all/${kind}`}
+        mix={css({ margin: 0, display: 'inline-block' })}
+      >
+        <button
+          type="submit"
+          mix={css({
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: space[1],
+            padding: `${space[1]} ${space[3]}`,
+            fontSize: font.xs,
+            fontWeight: 600,
+            fontFamily: font.sans,
+            color: color.textMuted,
+            background: color.surface,
+            border: `1px solid ${color.border}`,
+            borderRadius: radius.pill,
+            cursor: 'pointer',
+            transition: 'background 120ms ease, color 120ms ease, border-color 120ms ease',
+            '&:hover': {
+              color: color.text,
+              borderColor: color.brand,
+            },
+          })}
+        >
+          {text}
+        </button>
+      </form>
+    )
+  }
+}
+
 /// Small filled circle that flags an unread list item. Pass the row's
 /// `read_at` — `null` renders the dot, any string hides it. Sits next to
 /// the leading metadata in a card so the eye picks it up first.

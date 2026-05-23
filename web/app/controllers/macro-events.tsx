@@ -12,6 +12,7 @@ import {
   EmptyState,
   font,
   Layout,
+  MarkAllReadStrip,
   parseCountry,
   radius,
   resolveLocale,
@@ -100,6 +101,7 @@ function MacroEventsPage() {
       locale={locale}
       theme={theme}
     >
+      <MarkAllReadStrip kind="macro_event" />
       <SectionTitle hint={p.hintFrom(today)}>{p.sectionUpcoming}</SectionTitle>
       {upcoming.length === 0 ? (
         <Card>

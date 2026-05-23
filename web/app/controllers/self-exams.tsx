@@ -11,6 +11,7 @@ import {
   EmptyState,
   font,
   Layout,
+  MarkAllReadStrip,
   radius,
   resolveLocale,
   resolveTheme,
@@ -64,6 +65,7 @@ function SelfExamsPage() {
         recommendations played out, what went wrong, what to change. Stored via{' '}
         <code>POST /api/v1/self-exams</code>, upserted by (kind, period_start).
       </p>
+      <MarkAllReadStrip kind="self_exam" />
       {exams.length === 0 ? (
         <Card>
           <EmptyState

@@ -52,3 +52,26 @@ pub async fn unmark(
     unread::unmark_read(&state.db, user_id, kind, id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
+
+#[derive(Debug, serde::Serialize)]
+pub struct MarkAllOut {
+    /// Number of fresh inserts. Already-read items don't increment this.
+    pub marked: u64,
+}
+
+/// `POST /reads/mark-all/:kind` — bulk mark every visible entity of this
+/// kind as read for the caller. Powers the per-page "mark all read"
+/// button. Idempotent: re-clicking when there's nothing left to mark
+/// returns `{ marked: 0 }`.
+pub async fn mark_all(
+    State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
+    Path(kind): Path<String>,
+) -> ApiResult<Json<MarkAllOut>> {
+    let user_id = require_user(&actor.0)?;
+    let Some(kind) = EntityKind::from_str(&kind) else {
+        return Err(ApiError::BadRequest(format!("unknown entity kind: {kind}")));
+    };
+    let marked = unread::mark_all_read(&state.db, user_id, kind).await?;
+    Ok(Json(MarkAllOut { marked }))
+}

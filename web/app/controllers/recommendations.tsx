@@ -12,6 +12,7 @@ import {
   EmptyState,
   font,
   Layout,
+  MarkAllReadStrip,
   PageIntro,
   radius,
   resolveLocale,
@@ -74,6 +75,7 @@ function RecommendationsPage() {
     return (
     <Layout title={p.title} locale={locale} theme={theme}>
       <PageIntro>{p.subtitle}</PageIntro>
+      <MarkAllReadStrip kind="recommendation" />
       <div mix={css({ display: 'flex', flexDirection: 'column', gap: space[6] })}>
         <div>
           <SectionTitle hint={`${open.length}`}>{p.sectionOpen}</SectionTitle>

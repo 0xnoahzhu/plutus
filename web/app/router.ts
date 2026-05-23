@@ -37,6 +37,7 @@ import { login } from './controllers/login.tsx'
 import { logout } from './controllers/logout.tsx'
 import { macroEvents } from './controllers/macro-events.tsx'
 import { macroEventDetail } from './controllers/macro-event-detail.tsx'
+import { markAllRead } from './controllers/mark-all-read.tsx'
 import { news } from './controllers/news.tsx'
 import { newsDetail } from './controllers/news-detail.tsx'
 import {
@@ -132,6 +133,7 @@ router.map(routes.correlations, withAuth(correlations))
 router.map(routes.correlationDetail, withAuth(correlationDetail))
 router.map(routes.selfExams, withAuth(selfExams))
 router.map(routes.selfExamDetail, withAuth(selfExamDetail))
+router.map(routes.markAllRead, withAuth(markAllRead))
 router.map(routes.audit, withAuth(audit))
 router.map(routes.settings, withAuth(settings))
 router.map(routes.apiKeys, withAuth(apiKeys))

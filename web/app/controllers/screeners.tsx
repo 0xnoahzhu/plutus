@@ -12,6 +12,7 @@ import {
   EmptyState,
   font,
   Layout,
+  MarkAllReadStrip,
   PageIntro,
   radius,
   resolveLocale,
@@ -48,6 +49,7 @@ function ScreenersPage() {
     return (
       <Layout title={p.title} locale={locale} theme={theme}>
         <PageIntro>{p.subtitle}</PageIntro>
+        <MarkAllReadStrip kind="screener_run" />
         {runs.length === 0 ? (
           <Card>
             <EmptyState

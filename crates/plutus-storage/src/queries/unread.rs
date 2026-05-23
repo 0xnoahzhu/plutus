@@ -113,6 +113,42 @@ pub async fn mark_read(
     Ok(())
 }
 
+/// Mark every visible entity of this kind as read for the user. Used by
+/// the "标记全部已读" button on each list page. Idempotent — already-read
+/// items are skipped via ON CONFLICT DO NOTHING. Returns the number of
+/// fresh inserts so the UI can show a confirmation (or skip the flash
+/// when nothing changed).
+pub async fn mark_all_read(
+    db: &Db,
+    user_id: i64,
+    kind: EntityKind,
+) -> Result<u64> {
+    if user_id == 0 {
+        return Ok(0);
+    }
+    let client = db.raw_client().await?;
+    let table = kind.table();
+    let user_filter = if kind.has_user_id() {
+        "WHERE t.user_id = $1"
+    } else {
+        ""
+    };
+    let sql = format!(
+        r#"
+            INSERT INTO user_reads (user_id, entity_type, entity_id, read_at)
+            SELECT $1, $2, t.id, now()
+            FROM {table} t
+            {user_filter}
+            ON CONFLICT (user_id, entity_type, entity_id) DO NOTHING
+        "#,
+    );
+    let n = client
+        .execute(&sql, &[&user_id, &kind.as_str()])
+        .await
+        .map_err(DbError::from)?;
+    Ok(n)
+}
+
 /// Mark an item back as unread. Used by the optional "unread" toggle in the UI.
 pub async fn unmark_read(
     db: &Db,

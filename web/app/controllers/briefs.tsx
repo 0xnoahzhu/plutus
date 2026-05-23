@@ -12,6 +12,7 @@ import {
   EmptyState,
   font,
   Layout,
+  MarkAllReadStrip,
   parseCountry,
   radius,
   resolveLocale,
@@ -78,6 +79,7 @@ function BriefsPage() {
       locale={locale}
       theme={theme}
     >
+      <MarkAllReadStrip kind="market_brief" />
       {days.length === 0 ? (
         <Card>
           <EmptyState title={p.emptyTitle} hint={p.emptyHint} />

@@ -15,6 +15,7 @@ import {
   EmptyState,
   font,
   Layout,
+  MarkAllReadStrip,
   radius,
   resolveLocale,
   resolveTheme,
@@ -75,6 +76,7 @@ function CorrelationsPage() {
       locale={locale}
       theme={theme}
     >
+      <MarkAllReadStrip kind="correlation_run" />
       <SectionTitle hint={`${universes.length}`}>{p.sectionUniverses}</SectionTitle>
       {universes.length === 0 ? (
         <Card>
