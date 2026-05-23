@@ -67,3 +67,15 @@ pub fn paginated_response_headers(total: i64) -> HeaderMap {
     }
     h
 }
+
+/// In-memory pagination — drops `offset` rows from the front and
+/// keeps `limit` rows from there. Used by the index-page handlers
+/// (news / earnings / market-briefs / screener-runs / recommendations
+/// / self-exams / pending-orders) where the storage layer doesn't
+/// yet support SQL-level LIMIT/OFFSET but the result sets are small
+/// enough that in-memory slicing is fine.
+pub fn paginate_slice<T>(rows: Vec<T>, limit: Option<usize>, offset: Option<usize>) -> Vec<T> {
+    let off = offset.unwrap_or(0);
+    let lim = limit.unwrap_or(usize::MAX);
+    rows.into_iter().skip(off).take(lim).collect()
+}

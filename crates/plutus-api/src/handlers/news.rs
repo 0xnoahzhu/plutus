@@ -1,4 +1,5 @@
 use axum::extract::{Path, Query, State};
+use axum::response::IntoResponse;
 use axum::Json;
 
 use crate::dto::news::{
@@ -6,6 +7,9 @@ use crate::dto::news::{
     NewsSectorLinkIn, NewsSectorLinkOut, NewsStockLinkIn, NewsStockLinkOut,
 };
 use crate::error::{ApiError, ApiResult};
+use crate::handlers::pagination::{
+    clamp_limit, clamp_offset, paginate_slice, paginated_response_headers, PaginationFilter,
+};
 use crate::i18n::LocaleQuery;
 use crate::state::AppState;
 
@@ -35,10 +39,23 @@ fn normalize_region(raw: &str) -> ApiResult<String> {
 pub async fn list(
     State(state): State<AppState>,
     Query(l): Query<LocaleQuery>,
-) -> ApiResult<Json<Vec<NewsOut>>> {
+    Query(p): Query<PaginationFilter>,
+) -> ApiResult<axum::response::Response> {
+    let limit = clamp_limit(p.limit)?;
+    let offset = clamp_offset(p.offset)?;
     let rows = plutus_storage::queries::news::list(&state.db, &l.locale).await?;
-    Ok(Json(rows.into_iter().map(Into::into).collect()))
+    let total = rows.len() as i64;
+    let body: Vec<NewsOut> = paginate_slice(rows, limit, offset)
+        .into_iter()
+        .map(Into::into)
+        .collect();
+    if p.is_paginating() {
+        Ok((paginated_response_headers(total), Json(body)).into_response())
+    } else {
+        Ok(Json(body).into_response())
+    }
 }
+
 
 pub async fn get(
     State(state): State<AppState>,

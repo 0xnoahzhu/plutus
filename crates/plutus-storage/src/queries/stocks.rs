@@ -81,6 +81,9 @@ fn row_to_localized(row: &tokio_postgres::Row) -> LocalizedStock {
 pub struct ListFilter<'a> {
     pub symbol: Option<&'a str>,
     pub q: Option<&'a str>,
+    /// Exact GICS sector code match (e.g. `"45"`, `"4530"`).
+    /// Empty string is treated as None.
+    pub sector_code: Option<&'a str>,
     /// Optional precise-fetch list. When set, returns exactly the rows
     /// whose id is in this slice; `limit` and `offset` are ignored.
     /// Used by consumer pages (holdings / watchlists / orders /
@@ -101,11 +104,18 @@ pub async fn count(db: &Db, filter: &ListFilter<'_>) -> Result<i64> {
     let mut next_pos = 1usize;
     let symbol_owned;
     let q_pattern_owned;
+    let sector_owned;
     let mut params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = Vec::new();
     if let Some(sym) = filter.symbol {
         symbol_owned = sym.to_string();
         params.push(&symbol_owned);
         wheres.push(format!("UPPER(symbol) = UPPER(${next_pos})"));
+        next_pos += 1;
+    }
+    if let Some(sc) = filter.sector_code.filter(|s| !s.is_empty()) {
+        sector_owned = sc.to_string();
+        params.push(&sector_owned);
+        wheres.push(format!("sector_code = ${next_pos}"));
         next_pos += 1;
     }
     if let Some(q) = filter.q {
@@ -156,6 +166,7 @@ pub async fn list(
     let mut next_pos = 2usize;
     let symbol_owned;
     let q_pattern_owned;
+    let sector_owned;
     let limit_owned;
     // Hoist the id slice to function scope so `params.push(&ids_owned)`
     // inside the if-let below has a borrow that outlives `params` itself.
@@ -166,6 +177,12 @@ pub async fn list(
         symbol_owned = sym.to_string();
         params.push(&symbol_owned);
         wheres.push(format!("UPPER(symbol) = UPPER(${next_pos})"));
+        next_pos += 1;
+    }
+    if let Some(sc) = filter.sector_code.filter(|s| !s.is_empty()) {
+        sector_owned = sc.to_string();
+        params.push(&sector_owned);
+        wheres.push(format!("sector_code = ${next_pos}"));
         next_pos += 1;
     }
     if let Some(q) = filter.q {

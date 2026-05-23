@@ -8,7 +8,7 @@ use crate::dto::earnings::{EarningsBatchIn, EarningsBatchOut, EarningsIn, Earnin
 use crate::error::{ApiError, ApiResult};
 use crate::handlers::batch::validate_batch_size;
 use crate::handlers::pagination::{
-    clamp_limit, paginated_response_headers, PaginationFilter,
+    clamp_limit, clamp_offset, paginate_slice, paginated_response_headers, PaginationFilter,
 };
 use crate::state::AppState;
 
@@ -24,7 +24,10 @@ pub struct ListFilter {
 pub async fn list(
     State(state): State<AppState>,
     Query(f): Query<ListFilter>,
-) -> ApiResult<Json<Vec<EarningsOut>>> {
+    Query(p): Query<PaginationFilter>,
+) -> ApiResult<axum::response::Response> {
+    let plimit = clamp_limit(p.limit)?;
+    let poffset = clamp_offset(p.offset)?;
     let mut rows = plutus_storage::queries::earnings::list(
         &state.db,
         plutus_storage::queries::earnings::ListFilter {
@@ -52,6 +55,7 @@ pub async fn list(
             plutus_storage::queries::stocks::ListFilter {
                 symbol: None,
                 q: None,
+                sector_code: None,
                 ids: None,
                 limit: None,
                 offset: None,
@@ -75,7 +79,14 @@ pub async fn list(
             .cmp(&b.announce_date)
             .then(a.stock_id.cmp(&b.stock_id))
     });
-    Ok(Json(rows.into_iter().map(Into::into).collect()))
+    let total = rows.len() as i64;
+    let page_slice = paginate_slice(rows, plimit, poffset);
+    let body: Vec<EarningsOut> = page_slice.into_iter().map(Into::into).collect();
+    if p.is_paginating() {
+        Ok((paginated_response_headers(total), Json(body)).into_response())
+    } else {
+        Ok(Json(body).into_response())
+    }
 }
 
 pub async fn list_for_stock(

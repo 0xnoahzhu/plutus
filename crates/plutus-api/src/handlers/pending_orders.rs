@@ -8,6 +8,7 @@
 //! `stop_price`, `stop_limit` needs both.
 
 use axum::extract::{Path, Query, State};
+use axum::response::IntoResponse;
 use axum::Json;
 use serde::Deserialize;
 
@@ -16,6 +17,9 @@ use plutus_core::audit::Actor;
 use crate::dto::pending_order::{PendingOrderIn, PendingOrderOut, PendingOrderPatch};
 use crate::error::{ApiError, ApiResult};
 use crate::handlers::access::require_user;
+use crate::handlers::pagination::{
+    clamp_limit, clamp_offset, paginate_slice, paginated_response_headers, PaginationFilter,
+};
 use crate::state::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -29,8 +33,11 @@ pub async fn list(
     State(state): State<AppState>,
     actor: axum::extract::Extension<Actor>,
     Query(f): Query<ListFilter>,
-) -> ApiResult<Json<Vec<PendingOrderOut>>> {
+    Query(p): Query<PaginationFilter>,
+) -> ApiResult<axum::response::Response> {
     let user_id = require_user(&actor.0)?;
+    let limit = clamp_limit(p.limit)?;
+    let offset = clamp_offset(p.offset)?;
     let rows = plutus_storage::queries::pending_orders::list(
         &state.db,
         plutus_storage::queries::pending_orders::ListFilter {
@@ -41,7 +48,14 @@ pub async fn list(
         },
     )
     .await?;
-    Ok(Json(rows.into_iter().map(Into::into).collect()))
+    let total = rows.len() as i64;
+    let page_slice = paginate_slice(rows, limit, offset);
+    let body: Vec<PendingOrderOut> = page_slice.into_iter().map(Into::into).collect();
+    if p.is_paginating() {
+        Ok((paginated_response_headers(total), Json(body)).into_response())
+    } else {
+        Ok(Json(body).into_response())
+    }
 }
 
 pub async fn get(

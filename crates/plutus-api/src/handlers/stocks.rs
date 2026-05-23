@@ -36,6 +36,8 @@ pub struct StocksListFilter {
     /// items, transactions) and need to join symbols/market codes
     /// without hitting the global LIMIT.
     pub ids: Option<String>,
+    /// Exact GICS sector code match (`"45"`, `"4530"`, etc.).
+    pub sector_code: Option<String>,
     /// Result cap. Defaults to DEFAULT_LIMIT, clamped to MAX_LIMIT.
     /// Ignored when `ids` is set.
     pub limit: Option<i64>,
@@ -103,6 +105,7 @@ pub async fn list(
     let storage_filter = plutus_storage::queries::stocks::ListFilter {
         symbol: filter.symbol.as_deref(),
         q: filter.q.as_deref(),
+        sector_code: filter.sector_code.as_deref(),
         ids: ids_owned.as_deref(),
         limit: effective_limit,
         offset: effective_offset,
@@ -135,6 +138,7 @@ pub async fn list(
         let count_filter = plutus_storage::queries::stocks::ListFilter {
             symbol: filter.symbol.as_deref(),
             q: filter.q.as_deref(),
+            sector_code: filter.sector_code.as_deref(),
             ids: None,
             limit: None,
             offset: None,
