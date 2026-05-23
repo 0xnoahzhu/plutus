@@ -41,8 +41,15 @@ export interface LayoutProps {
   children?: RemixNode
   title?: string
   /// Optional subtitle shown right under the title — useful for context like
-  /// a date range or row count. Plain text only.
+  /// a date range or row count. Plain text only. Keep it short — this lives
+  /// in the sticky header. For longer page-intro copy, render a `<p>` at
+  /// the top of `children` (it'll scroll with the content, where it belongs).
   subtitle?: string
+  /// Optional page-level navigation that should pin alongside the title —
+  /// the right home for tabs ("Items / Daily / Weekly" on /watchlists) and
+  /// any other top-of-page switcher you want visible while scrolling. Lives
+  /// inside the sticky header below the country chip row.
+  nav?: RemixNode
   /// Currently-selected country (ISO alpha-2). When provided, the country
   /// chip group renders in the filter row.
   country?: string
@@ -273,6 +280,7 @@ export function Layout() {
   return ({
     title,
     subtitle,
+    nav,
     children,
     country,
     locale,
@@ -306,15 +314,15 @@ export function Layout() {
             },
           })}
         >
-          {(title !== undefined || country !== undefined) && (
+          {(title !== undefined || country !== undefined || nav !== undefined) && (
             <div
               mix={css({
-                // Pin the title block + country filter to the viewport
-                // top as the page scrolls. The wrapper owns the top
-                // padding (previously on <main>) so at scroll-top the
-                // visual rhythm is unchanged; once stuck, the same
-                // padding becomes the breathing room between viewport
-                // edge and the title.
+                // Pin the title block + country filter (+ optional nav)
+                // to the viewport top as the page scrolls. The wrapper
+                // owns the top padding (previously on <main>) so at
+                // scroll-top the visual rhythm is unchanged; once stuck,
+                // the same padding becomes the breathing room between
+                // viewport edge and the title.
                 position: 'sticky',
                 top: 0,
                 zIndex: 10,
@@ -338,9 +346,10 @@ export function Layout() {
                     alignItems: 'baseline',
                     justifyContent: 'space-between',
                     gap: space[4],
-                    // Gap to the country chip row when both present.
-                    // When country is the only thing, no header → no gap.
-                    marginBottom: country !== undefined ? space[4] : 0,
+                    // Gap to whatever follows (country / nav). When neither
+                    // is present the wrapper's paddingBottom owns the gap.
+                    marginBottom:
+                      country !== undefined || nav !== undefined ? space[4] : 0,
                     flexWrap: 'wrap',
                   })}
                 >
@@ -380,6 +389,8 @@ export function Layout() {
                     gap: space[6],
                     flexWrap: 'wrap',
                     alignItems: 'center',
+                    // Gap to nav below when both present.
+                    marginBottom: nav !== undefined ? space[4] : 0,
                   })}
                 >
                   <CountryChips
@@ -392,6 +403,10 @@ export function Layout() {
                   />
                 </div>
               )}
+
+              {/* Page-level nav slot — tabs and similar switchers go here so
+                  they stay visible while the user scrolls through content. */}
+              {nav}
             </div>
           )}
 
@@ -402,11 +417,19 @@ export function Layout() {
               // a title). Bottom padding always — so the page breathes
               // at the very end of scroll.
               paddingTop:
-                title === undefined && country === undefined ? space[8] : 0,
+                title === undefined &&
+                country === undefined &&
+                nav === undefined
+                  ? space[8]
+                  : 0,
               paddingBottom: space[8],
               '@media (max-width: 1100px)': {
                 paddingTop:
-                  title === undefined && country === undefined ? space[6] : 0,
+                  title === undefined &&
+                  country === undefined &&
+                  nav === undefined
+                    ? space[6]
+                    : 0,
                 paddingBottom: space[6],
               },
             })}
@@ -836,6 +859,31 @@ export function Stat() {
       </Card>
     )
   }
+}
+
+/// One-or-two-sentence page description rendered just under the sticky
+/// header. Same muted-small treatment portfolio-reviews used; lifted here
+/// so every page that needs a long intro picks up the same style without
+/// reaching for raw `<p mix={...}>` each time.
+///
+/// Why this is a separate component (and not Layout's `subtitle`):
+/// `subtitle` lives in the sticky header and should stay short ("12
+/// reviews", "Today's snapshot"). Long descriptive copy goes here so it
+/// scrolls with the content and doesn't bloat the pinned area.
+export function PageIntro() {
+  return ({ children }: { children: RemixNode }) => (
+    <p
+      mix={css({
+        fontSize: font.sm,
+        color: color.textMuted,
+        marginTop: 0,
+        marginBottom: space[4],
+        lineHeight: 1.55,
+      })}
+    >
+      {children}
+    </p>
+  )
 }
 
 /// Section heading used inside cards / above tables. Uppercase track-wide

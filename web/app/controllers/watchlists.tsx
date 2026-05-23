@@ -131,11 +131,13 @@ function WatchlistPage() {
           ? p.subtitleReports(dailyReports.length)
           : p.subtitleReports(weeklyReports.length)
     return (
-      <Layout title={p.title} subtitle={subtitle} locale={locale} theme={theme}>
-        <div mix={css({ marginBottom: space[5] })}>
-          <TabStrip active={tab} locale={locale} />
-        </div>
-
+      <Layout
+        title={p.title}
+        subtitle={subtitle}
+        nav={<TabStrip active={tab} locale={locale} />}
+        locale={locale}
+        theme={theme}
+      >
         {tab === 'items' && (
           <ItemsView
             items={items}
