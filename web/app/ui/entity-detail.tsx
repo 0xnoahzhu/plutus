@@ -81,9 +81,14 @@ export function EntityDetailPage() {
         mix={css({
           marginTop: space[3],
           display: 'grid',
-          gridTemplateColumns: side ? '2fr 1fr' : '1fr',
+          // `minmax(0, …)` is load-bearing: without it, an unbreakable
+          // value in the side column (long JSON, comma-joined id list)
+          // grows past 1fr and steals width from the hero card. With it
+          // both columns clamp to the declared ratio and long values
+          // wrap inside their cell instead of expanding their column.
+          gridTemplateColumns: side ? 'minmax(0, 2fr) minmax(0, 1fr)' : 'minmax(0, 1fr)',
           gap: space[4],
-          '@media (max-width: 880px)': { gridTemplateColumns: '1fr' },
+          '@media (max-width: 880px)': { gridTemplateColumns: 'minmax(0, 1fr)' },
         })}
       >
         <Card>
@@ -203,7 +208,10 @@ export function MetaList() {
           mix={css({
             margin: 0,
             display: 'grid',
-            gridTemplateColumns: 'auto 1fr',
+            // `minmax(0, 1fr)` on the value column so a long JSON blob
+            // (metrics, recommendation_ids) wraps inside the cell
+            // instead of pushing the column wider than the side card.
+            gridTemplateColumns: 'auto minmax(0, 1fr)',
             rowGap: space[2],
             columnGap: space[3],
             fontSize: font.sm,
@@ -219,7 +227,19 @@ export function MetaList() {
               >
                 {k}
               </dt>
-              <dd mix={css({ margin: 0, color: color.text })}>{v}</dd>
+              <dd
+                mix={css({
+                  margin: 0,
+                  color: color.text,
+                  minWidth: 0,
+                  // Long unbreakable runs (URLs, JSON, csv id lists) get
+                  // to break mid-token so the card never overflows its
+                  // grid column.
+                  overflowWrap: 'anywhere',
+                })}
+              >
+                {v}
+              </dd>
             </>
           ))}
         </dl>
