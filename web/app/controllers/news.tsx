@@ -18,6 +18,7 @@ import {
   resolveTheme,
   space,
   type Theme,
+  UnreadDot,
 } from '../ui/layout.tsx'
 import { LocalTime } from '../ui/local-time.tsx'
 import { render } from '../utils/render.tsx'
@@ -110,6 +111,7 @@ function NewsCard() {
           flexWrap: 'wrap',
         })}
       >
+        <UnreadDot readAt={n.read_at} />
         <ImportanceDot importance={n.importance} />
         {n.sentiment && <Badge tone={sentimentTone(n.sentiment)}>{n.sentiment}</Badge>}
         <Badge tone="brand">{n.category}</Badge>

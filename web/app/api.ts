@@ -804,10 +804,13 @@ export const api = {
     let suffix = q.toString() ? `?${q.toString()}` : ''
     return get<MarketBrief[]>(`/market-briefs${suffix}`)
   },
+  marketBrief: (id: number, locale?: string) =>
+    get<MarketBrief>(withLocale(`/market-briefs/${id}`, locale)),
   earnings: (country?: string) => {
     let suffix = country ? `?country=${country}` : ''
     return get<EarningsEvent[]>(`/earnings${suffix}`)
   },
+  earningsEvent: (id: number) => get<EarningsEvent>(`/earnings/${id}`),
   macroEvents: (country?: string, locale?: string) => {
     let q = new URLSearchParams()
     if (country) q.set('country', country)
@@ -815,6 +818,8 @@ export const api = {
     let suffix = q.toString() ? `?${q.toString()}` : ''
     return get<MacroEvent[]>(`/macro/events${suffix}`)
   },
+  macroEvent: (id: number, locale?: string) =>
+    get<MacroEvent>(withLocale(`/macro/events/${id}`, locale)),
   macroIndicators: () => get<MacroIndicator[]>('/macro/indicators'),
   watchlistReports: (params: { kind?: string; locale?: string } = {}) => {
     let q = new URLSearchParams()

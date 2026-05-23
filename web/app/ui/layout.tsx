@@ -1059,6 +1059,29 @@ export function StockBadge() {
   }
 }
 
+/// Small filled circle that flags an unread list item. Pass the row's
+/// `read_at` — `null` renders the dot, any string hides it. Sits next to
+/// the leading metadata in a card so the eye picks it up first.
+export function UnreadDot() {
+  return ({ readAt, size = 8 }: { readAt: string | null; size?: number }) => {
+    if (readAt) return null
+    return (
+      <span
+        title="Unread"
+        aria-label="Unread"
+        mix={css({
+          display: 'inline-block',
+          width: `${size}px`,
+          height: `${size}px`,
+          borderRadius: '50%',
+          background: color.brand,
+          flexShrink: 0,
+        })}
+      />
+    )
+  }
+}
+
 /// Use inside cards / pages when there's no data to show. Single source of
 /// truth so the empty experience feels consistent.
 export function EmptyState() {
