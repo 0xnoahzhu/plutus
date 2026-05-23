@@ -195,6 +195,7 @@ fn tags() -> Value {
         { "name": "fundamentals", "description": "Per-period fundamentals snapshots." },
         { "name": "connect", "description": "HK Stock Connect flow + holdings." },
         { "name": "agent-outputs", "description": "Screener runs, recommendations, reviews, self-exams, correlations." },
+        { "name": "unread", "description": "Per-user unread state. Detail GETs on event-like entities mark the item read as a side effect; counts power the sidebar badges." },
         { "name": "audit", "description": "Server-side write log." },
         { "name": "reference", "description": "Markets, brokers, accounts, FX, sectors." }
     ])
@@ -1260,6 +1261,64 @@ fn paths() -> Value {
     // ── audit ─────────────────────────────────────────────────────────────
     // AuditEntryOut is defined inline in handlers/audit.rs without ToSchema,
     // so we inline the response shape here.
+    // ── Unread state ────────────────────────────────────────────────────
+    // The 10 event-like entity GETs (news/{id}, market-briefs/{id}, …) all
+    // mark the item read as a side effect; those paths are documented
+    // alongside their other operations above. These two endpoints are
+    // the dedicated unread surface.
+    paths.insert("/unread/counts".into(), json!({
+        "get": {
+            "tags": ["unread"],
+            "summary": "Per-entity unread counts for the calling user. Drives the sidebar badge.",
+            "description": "Returns `{ entity_type: count }` over the full set of tracked entity kinds. Counts skip items created before the user's `users.created_at` so new accounts start from a clean slate. Admin / anonymous callers get zero across the board.",
+            "responses": ok_inline(json!({
+                "type": "object",
+                "description": "Map of canonical entity_type → unread row count. Always contains every tracked kind (zero-filled).",
+                "additionalProperties": { "type": "integer", "format": "int64", "minimum": 0 },
+                "example": {
+                    "news": 3,
+                    "market_brief": 1,
+                    "macro_event": 0,
+                    "earnings_event": 0,
+                    "catalyst": 5,
+                    "screener_run": 0,
+                    "recommendation": 2,
+                    "portfolio_review": 0,
+                    "correlation_run": 0,
+                    "self_exam": 0
+                }
+            }))
+        }
+    }));
+    paths.insert("/reads/{kind}/{id}".into(), json!({
+        "delete": {
+            "tags": ["unread"],
+            "summary": "Flip an item back to unread for the calling user.",
+            "description": "Removes the row from `user_reads`. Idempotent — deleting an already-unread item still returns 204. `kind` must be one of the canonical entity_type strings (`news`, `market_brief`, `macro_event`, `earnings_event`, `catalyst`, `screener_run`, `recommendation`, `portfolio_review`, `correlation_run`, `self_exam`); unknown values return 400.",
+            "parameters": [
+                {
+                    "name": "kind",
+                    "in": "path",
+                    "required": true,
+                    "schema": {
+                        "type": "string",
+                        "enum": [
+                            "news", "market_brief", "macro_event", "earnings_event",
+                            "catalyst", "screener_run", "recommendation",
+                            "portfolio_review", "correlation_run", "self_exam"
+                        ]
+                    }
+                },
+                id_param()
+            ],
+            "responses": {
+                "204": { "description": "Marked unread (or was already unread)." },
+                "400": { "description": "Unknown entity kind." },
+                "403": { "description": "Caller has no user_id (admin / anonymous)." }
+            }
+        }
+    }));
+
     paths.insert("/audit".into(), json!({
         "get": {
             "tags": ["audit"],
