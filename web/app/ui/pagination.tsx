@@ -48,6 +48,11 @@ export function SearchBar() {
           gap: space[2],
           alignItems: 'center',
           margin: 0,
+          // Cap so the search row doesn't stretch to fill a full-width
+          // card on wide monitors. A symbol/code search doesn't need
+          // more than ~400px of typing space.
+          maxWidth: '480px',
+          width: '100%',
         })}
       >
         {extraParams &&
