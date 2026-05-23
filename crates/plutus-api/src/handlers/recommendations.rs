@@ -4,6 +4,7 @@ use axum::Json;
 use serde::Deserialize;
 
 use plutus_core::audit::Actor;
+use plutus_storage::queries::unread::{self, EntityKind};
 
 use crate::dto::recommendation::{RecommendationClosePatch, RecommendationIn, RecommendationOut};
 use crate::error::{ApiError, ApiResult};
@@ -46,7 +47,14 @@ pub async fn list(
     .await?;
     let total = rows.len() as i64;
     let page_slice = paginate_slice(rows, limit, offset);
-    let body: Vec<RecommendationOut> = page_slice.into_iter().map(Into::into).collect();
+    let mut body: Vec<RecommendationOut> =
+        page_slice.into_iter().map(Into::into).collect();
+    let ids: Vec<i64> = body.iter().map(|r| r.id).collect();
+    let read_ats =
+        unread::read_ats(&state.db, user_id, EntityKind::Recommendation, &ids).await?;
+    for r in &mut body {
+        r.read_at = read_ats.get(&r.id).map(jiff::Timestamp::to_string);
+    }
     if p.is_paginating() {
         Ok((paginated_response_headers(total), Json(body)).into_response())
     } else {
@@ -85,7 +93,10 @@ pub async fn get(
     let user_id = require_user(&actor.0)?;
     let row =
         plutus_storage::queries::recommendations::get(&state.db, user_id, &l.locale, id).await?;
-    Ok(Json(row.into()))
+    unread::mark_read(&state.db, user_id, EntityKind::Recommendation, id).await?;
+    let mut out: RecommendationOut = row.into();
+    out.read_at = Some(jiff::Timestamp::now().to_string());
+    Ok(Json(out))
 }
 
 pub async fn create(

@@ -56,6 +56,9 @@ pub struct RecommendationOut {
     pub created_at: String,
     /// RFC 3339 UTC timestamp.
     pub updated_at: String,
+    /// RFC 3339 UTC timestamp when this user opened the item's detail
+    /// page. `null` while the item is still unread.
+    pub read_at: Option<String>,
 }
 
 impl From<LocalizedRecommendation> for RecommendationOut {
@@ -78,6 +81,7 @@ impl From<LocalizedRecommendation> for RecommendationOut {
             source: r.source,
             created_at: r.created_at.to_string(),
             updated_at: r.updated_at.to_string(),
+            read_at: None,
         }
     }
 }

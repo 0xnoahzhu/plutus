@@ -27,3 +27,16 @@ pub fn require_user(actor: &Actor) -> ApiResult<i64> {
         _ => Err(ApiError::Forbidden),
     }
 }
+
+/// Non-failing variant for endpoints that are public but still want per-user
+/// data when a caller is signed in (e.g. shared `news` items with per-user
+/// `read_at`). Returns `None` for anonymous and admin actors so unread
+/// tracking is skipped cleanly.
+pub fn maybe_user_id(actor: &Actor) -> Option<i64> {
+    match actor.kind {
+        ActorKind::Web | ActorKind::ApiToken => {
+            actor.user_id.filter(|id| *id != ORPHAN_USER_ID)
+        }
+        _ => None,
+    }
+}

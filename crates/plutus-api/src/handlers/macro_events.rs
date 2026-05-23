@@ -3,10 +3,14 @@ use axum::Json;
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 
+use plutus_core::audit::Actor;
+use plutus_storage::queries::unread::{self, EntityKind};
+
 use crate::dto::macro_event::{
     MacroEventBatchIn, MacroEventBatchOut, MacroEventIn, MacroEventOut,
 };
 use crate::error::{ApiError, ApiResult};
+use crate::handlers::access::maybe_user_id;
 use crate::handlers::batch::validate_batch_size;
 use crate::i18n::LocaleQuery;
 use crate::state::AppState;
@@ -22,6 +26,7 @@ pub struct ListFilter {
 
 pub async fn list(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Query(f): Query<ListFilter>,
     Query(l): Query<LocaleQuery>,
 ) -> ApiResult<Json<Vec<MacroEventOut>>> {
@@ -51,16 +56,31 @@ pub async fn list(
         });
     }
 
-    Ok(Json(rows.into_iter().map(Into::into).collect()))
+    let mut body: Vec<MacroEventOut> = rows.into_iter().map(Into::into).collect();
+    if let Some(user_id) = maybe_user_id(&actor.0) {
+        let ids: Vec<i64> = body.iter().map(|e| e.id).collect();
+        let read_ats =
+            unread::read_ats(&state.db, user_id, EntityKind::MacroEvent, &ids).await?;
+        for e in &mut body {
+            e.read_at = read_ats.get(&e.id).map(jiff::Timestamp::to_string);
+        }
+    }
+    Ok(Json(body))
 }
 
 pub async fn get(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Path(id): Path<i64>,
     Query(l): Query<LocaleQuery>,
 ) -> ApiResult<Json<MacroEventOut>> {
     let row = plutus_storage::queries::macro_events::get(&state.db, &l.locale, id).await?;
-    Ok(Json(row.into()))
+    let mut out: MacroEventOut = row.into();
+    if let Some(user_id) = maybe_user_id(&actor.0) {
+        unread::mark_read(&state.db, user_id, EntityKind::MacroEvent, id).await?;
+        out.read_at = Some(jiff::Timestamp::now().to_string());
+    }
+    Ok(Json(out))
 }
 
 pub async fn upsert(

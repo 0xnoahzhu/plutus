@@ -4,8 +4,12 @@ use axum::Json;
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 
+use plutus_core::audit::Actor;
+use plutus_storage::queries::unread::{self, EntityKind};
+
 use crate::dto::earnings::{EarningsBatchIn, EarningsBatchOut, EarningsIn, EarningsOut};
 use crate::error::{ApiError, ApiResult};
+use crate::handlers::access::maybe_user_id;
 use crate::handlers::batch::validate_batch_size;
 use crate::handlers::pagination::{
     clamp_limit, clamp_offset, paginate_slice, paginated_response_headers, PaginationFilter,
@@ -23,6 +27,7 @@ pub struct ListFilter {
 
 pub async fn list(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Query(f): Query<ListFilter>,
     Query(p): Query<PaginationFilter>,
 ) -> ApiResult<axum::response::Response> {
@@ -81,7 +86,15 @@ pub async fn list(
     });
     let total = rows.len() as i64;
     let page_slice = paginate_slice(rows, plimit, poffset);
-    let body: Vec<EarningsOut> = page_slice.into_iter().map(Into::into).collect();
+    let mut body: Vec<EarningsOut> = page_slice.into_iter().map(Into::into).collect();
+    if let Some(user_id) = maybe_user_id(&actor.0) {
+        let ids: Vec<i64> = body.iter().map(|e| e.id).collect();
+        let read_ats =
+            unread::read_ats(&state.db, user_id, EntityKind::EarningsEvent, &ids).await?;
+        for e in &mut body {
+            e.read_at = read_ats.get(&e.id).map(jiff::Timestamp::to_string);
+        }
+    }
     if p.is_paginating() {
         Ok((paginated_response_headers(total), Json(body)).into_response())
     } else {
@@ -112,10 +125,16 @@ pub async fn list_for_stock(
 
 pub async fn get(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Path(id): Path<i64>,
 ) -> ApiResult<Json<EarningsOut>> {
     let row = plutus_storage::queries::earnings::get(&state.db, id).await?;
-    Ok(Json(row.into()))
+    let mut out: EarningsOut = row.into();
+    if let Some(user_id) = maybe_user_id(&actor.0) {
+        unread::mark_read(&state.db, user_id, EntityKind::EarningsEvent, id).await?;
+        out.read_at = Some(jiff::Timestamp::now().to_string());
+    }
+    Ok(Json(out))
 }
 
 pub async fn upsert(

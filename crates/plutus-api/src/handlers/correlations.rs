@@ -2,6 +2,7 @@ use axum::extract::{Path, Query, State};
 use axum::Json;
 
 use plutus_core::audit::Actor;
+use plutus_storage::queries::unread::{self, EntityKind};
 
 use crate::dto::correlation::{
     CorrelationPairIn, CorrelationPairOut, CorrelationRunIn, CorrelationRunOut, UniverseIn,
@@ -75,7 +76,14 @@ pub async fn list_runs(
     let user_id = require_user(&actor.0)?;
     let rows =
         plutus_storage::queries::correlations::list_runs(&state.db, user_id, &l.locale).await?;
-    Ok(Json(rows.into_iter().map(Into::into).collect()))
+    let mut body: Vec<CorrelationRunOut> = rows.into_iter().map(Into::into).collect();
+    let ids: Vec<i64> = body.iter().map(|r| r.id).collect();
+    let read_ats =
+        unread::read_ats(&state.db, user_id, EntityKind::CorrelationRun, &ids).await?;
+    for r in &mut body {
+        r.read_at = read_ats.get(&r.id).map(jiff::Timestamp::to_string);
+    }
+    Ok(Json(body))
 }
 
 pub async fn get_run(
@@ -87,7 +95,10 @@ pub async fn get_run(
     let user_id = require_user(&actor.0)?;
     let row =
         plutus_storage::queries::correlations::get_run(&state.db, user_id, &l.locale, id).await?;
-    Ok(Json(row.into()))
+    unread::mark_read(&state.db, user_id, EntityKind::CorrelationRun, id).await?;
+    let mut out: CorrelationRunOut = row.into();
+    out.read_at = Some(jiff::Timestamp::now().to_string());
+    Ok(Json(out))
 }
 
 pub async fn create_run(

@@ -64,6 +64,9 @@ pub struct CatalystOut {
     pub created_at: String,
     /// RFC 3339 UTC timestamp. Refreshed on every upsert.
     pub updated_at: String,
+    /// RFC 3339 UTC timestamp when this user opened the item's detail
+    /// page. `null` while the item is still unread.
+    pub read_at: Option<String>,
 }
 
 impl From<LocalizedCatalyst> for CatalystOut {
@@ -87,6 +90,7 @@ impl From<LocalizedCatalyst> for CatalystOut {
             source: c.source,
             created_at: c.created_at.to_string(),
             updated_at: c.updated_at.to_string(),
+            read_at: None,
         }
     }
 }

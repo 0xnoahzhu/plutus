@@ -57,6 +57,9 @@ pub struct EarningsOut {
     pub created_at: String,
     /// RFC 3339 UTC timestamp.
     pub updated_at: String,
+    /// RFC 3339 UTC timestamp when this user opened the item's detail
+    /// page. `null` while the item is still unread.
+    pub read_at: Option<String>,
 }
 
 impl From<EarningsEvent> for EarningsOut {
@@ -81,6 +84,7 @@ impl From<EarningsEvent> for EarningsOut {
             source: e.source,
             created_at: e.created_at.to_string(),
             updated_at: e.updated_at.to_string(),
+            read_at: None,
         }
     }
 }

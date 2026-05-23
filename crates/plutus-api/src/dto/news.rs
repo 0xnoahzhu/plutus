@@ -63,6 +63,9 @@ pub struct NewsOut {
     pub created_at: String,
     /// RFC 3339 UTC timestamp.
     pub updated_at: String,
+    /// RFC 3339 UTC timestamp when this user opened the item's detail
+    /// page. `null` while the item is still unread.
+    pub read_at: Option<String>,
 }
 
 impl From<LocalizedNewsItem> for NewsOut {
@@ -90,6 +93,7 @@ impl From<LocalizedNewsItem> for NewsOut {
             importance: n.importance,
             created_at: n.created_at.to_string(),
             updated_at: n.updated_at.to_string(),
+            read_at: None,
         }
     }
 }

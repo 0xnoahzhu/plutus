@@ -3,6 +3,7 @@ use axum::Json;
 use serde::Deserialize;
 
 use plutus_core::audit::Actor;
+use plutus_storage::queries::unread::{self, EntityKind};
 
 use crate::dto::portfolio_review::{PortfolioReviewIn, PortfolioReviewOut};
 use crate::error::{ApiError, ApiResult};
@@ -35,7 +36,15 @@ pub async fn list(
         },
     )
     .await?;
-    Ok(Json(rows.into_iter().map(Into::into).collect()))
+    let mut body: Vec<PortfolioReviewOut> =
+        rows.into_iter().map(Into::into).collect();
+    let ids: Vec<i64> = body.iter().map(|r| r.id).collect();
+    let read_ats =
+        unread::read_ats(&state.db, user_id, EntityKind::PortfolioReview, &ids).await?;
+    for r in &mut body {
+        r.read_at = read_ats.get(&r.id).map(jiff::Timestamp::to_string);
+    }
+    Ok(Json(body))
 }
 
 pub async fn get(
@@ -47,7 +56,10 @@ pub async fn get(
     let user_id = require_user(&actor.0)?;
     let row =
         plutus_storage::queries::portfolio_reviews::get(&state.db, user_id, &l.locale, id).await?;
-    Ok(Json(row.into()))
+    unread::mark_read(&state.db, user_id, EntityKind::PortfolioReview, id).await?;
+    let mut out: PortfolioReviewOut = row.into();
+    out.read_at = Some(jiff::Timestamp::now().to_string());
+    Ok(Json(out))
 }
 
 pub async fn upsert(

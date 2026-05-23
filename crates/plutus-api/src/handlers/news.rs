@@ -2,11 +2,15 @@ use axum::extract::{Path, Query, State};
 use axum::response::IntoResponse;
 use axum::Json;
 
+use plutus_core::audit::Actor;
+use plutus_storage::queries::unread::{self, EntityKind};
+
 use crate::dto::news::{
     NewsCountryLinkIn, NewsCountryLinkOut, NewsIn, NewsMacroLinkIn, NewsMacroLinkOut, NewsOut,
     NewsSectorLinkIn, NewsSectorLinkOut, NewsStockLinkIn, NewsStockLinkOut,
 };
 use crate::error::{ApiError, ApiResult};
+use crate::handlers::access::maybe_user_id;
 use crate::handlers::pagination::{
     clamp_limit, clamp_offset, paginate_slice, paginated_response_headers, PaginationFilter,
 };
@@ -38,6 +42,7 @@ fn normalize_region(raw: &str) -> ApiResult<String> {
 
 pub async fn list(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Query(l): Query<LocaleQuery>,
     Query(p): Query<PaginationFilter>,
 ) -> ApiResult<axum::response::Response> {
@@ -45,10 +50,18 @@ pub async fn list(
     let offset = clamp_offset(p.offset)?;
     let rows = plutus_storage::queries::news::list(&state.db, &l.locale).await?;
     let total = rows.len() as i64;
-    let body: Vec<NewsOut> = paginate_slice(rows, limit, offset)
+    let mut body: Vec<NewsOut> = paginate_slice(rows, limit, offset)
         .into_iter()
         .map(Into::into)
         .collect();
+    if let Some(user_id) = maybe_user_id(&actor.0) {
+        let ids: Vec<i64> = body.iter().map(|n| n.id).collect();
+        let read_ats =
+            unread::read_ats(&state.db, user_id, EntityKind::News, &ids).await?;
+        for n in &mut body {
+            n.read_at = read_ats.get(&n.id).map(jiff::Timestamp::to_string);
+        }
+    }
     if p.is_paginating() {
         Ok((paginated_response_headers(total), Json(body)).into_response())
     } else {
@@ -59,11 +72,17 @@ pub async fn list(
 
 pub async fn get(
     State(state): State<AppState>,
+    actor: axum::extract::Extension<Actor>,
     Path(id): Path<i64>,
     Query(l): Query<LocaleQuery>,
 ) -> ApiResult<Json<NewsOut>> {
     let row = plutus_storage::queries::news::get(&state.db, &l.locale, id).await?;
-    Ok(Json(row.into()))
+    let mut out: NewsOut = row.into();
+    if let Some(user_id) = maybe_user_id(&actor.0) {
+        unread::mark_read(&state.db, user_id, EntityKind::News, id).await?;
+        out.read_at = Some(jiff::Timestamp::now().to_string());
+    }
+    Ok(Json(out))
 }
 
 pub async fn create(
