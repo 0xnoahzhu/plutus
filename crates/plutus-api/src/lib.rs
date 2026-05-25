@@ -325,7 +325,9 @@ pub fn build_router(state: AppState) -> Router {
         .route("/news", get(handlers::news::list).post(handlers::news::create))
         .route(
             "/news/:id",
-            get(handlers::news::get).delete(handlers::news::delete),
+            get(handlers::news::get)
+                .patch(handlers::news::update)
+                .delete(handlers::news::delete),
         )
         .route(
             "/news/:id/stock-links",

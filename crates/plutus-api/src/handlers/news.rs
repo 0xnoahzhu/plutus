@@ -7,7 +7,7 @@ use plutus_storage::queries::unread::{self, EntityKind};
 
 use crate::dto::news::{
     NewsCountryLinkIn, NewsCountryLinkOut, NewsIn, NewsMacroLinkIn, NewsMacroLinkOut, NewsOut,
-    NewsSectorLinkIn, NewsSectorLinkOut, NewsStockLinkIn, NewsStockLinkOut,
+    NewsPatch, NewsSectorLinkIn, NewsSectorLinkOut, NewsStockLinkIn, NewsStockLinkOut,
 };
 use crate::error::{ApiError, ApiResult};
 use crate::handlers::access::maybe_user_id;
@@ -126,6 +126,71 @@ pub async fn create(
         },
     )
     .await?;
+    Ok(Json(row.into()))
+}
+
+pub async fn update(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    Query(l): Query<LocaleQuery>,
+    Json(input): Json<NewsPatch>,
+) -> ApiResult<Json<NewsOut>> {
+    // Reject obviously-bad inputs up front so the storage layer doesn't
+    // have to know about JSON shape rules.
+    if let Some(c) = input.content.as_ref() {
+        if !c.is_object() {
+            return Err(ApiError::BadRequest(
+                "content must be a JSON object keyed by locale".into(),
+            ));
+        }
+    }
+    let region = match input.region.as_deref() {
+        Some(r) => Some(normalize_region(r)?),
+        None => None,
+    };
+    let published_at = match input.published_at.as_deref() {
+        Some(s) => Some(parse_ts(s, "published_at")?),
+        None => None,
+    };
+    let fetched_at = match input.fetched_at.as_deref() {
+        Some(s) => Some(parse_ts(s, "fetched_at")?),
+        None => None,
+    };
+    let last_verified_at = match input.last_verified_at.as_deref() {
+        Some(s) => Some(parse_ts(s, "last_verified_at")?),
+        None => None,
+    };
+    let row = plutus_storage::queries::news::update(
+        &state.db,
+        id,
+        plutus_storage::queries::news::NewsPatch {
+            external_id: input.external_id.as_deref(),
+            url: input.url.as_deref(),
+            canonical_url: input.canonical_url.as_deref(),
+            archive_url: input.archive_url.as_deref(),
+            url_status: input.url_status,
+            last_verified_at,
+            source: input.source.as_deref(),
+            source_kind: input.source_kind.as_deref(),
+            category: input.category.as_deref(),
+            region: region.as_deref(),
+            published_at,
+            fetched_at,
+            sentiment: input.sentiment.as_deref(),
+            sentiment_score: input.sentiment_score,
+            importance: input.importance.as_deref(),
+            content: input.content,
+        },
+    )
+    .await?;
+    // Re-fetch with the requested locale so the response is consistent
+    // with GET behavior. update() inside the storage layer returned the
+    // `en` projection unconditionally.
+    let row = if l.locale == "en" {
+        row
+    } else {
+        plutus_storage::queries::news::get(&state.db, &l.locale, id).await?
+    };
     Ok(Json(row.into()))
 }
 

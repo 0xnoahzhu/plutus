@@ -41,7 +41,7 @@ use crate::dto::{
     market_brief::{MarketBriefIn, MarketBriefOut},
     news::{
         NewsCountryLinkIn, NewsCountryLinkOut, NewsIn, NewsMacroLinkIn, NewsMacroLinkOut, NewsOut,
-        NewsSectorLinkIn, NewsSectorLinkOut, NewsStockLinkIn, NewsStockLinkOut,
+        NewsPatch, NewsSectorLinkIn, NewsSectorLinkOut, NewsStockLinkIn, NewsStockLinkOut,
     },
     ohlcv::{OhlcvBatchIn, OhlcvBatchOut, OhlcvIn, OhlcvOut},
     pending_order::{PendingOrderIn, PendingOrderOut, PendingOrderPatch},
@@ -93,7 +93,7 @@ use crate::handlers::admin::brokers::{AdminCreateBrokerIn, AdminUpdateBrokerIn};
     MacroObservationIn, MacroObservationOut,
     MarketOut,
     MarketBriefIn, MarketBriefOut,
-    NewsIn, NewsOut,
+    NewsIn, NewsOut, NewsPatch,
     NewsStockLinkIn, NewsStockLinkOut,
     NewsSectorLinkIn, NewsSectorLinkOut,
     NewsMacroLinkIn, NewsMacroLinkOut,
@@ -838,9 +838,25 @@ fn paths() -> Value {
         ),
         "post": post_op("news", "Create a news item.", "NewsIn", "NewsOut")
     }));
+    // PATCH semantics: partial update, content JSONB-merged at the top
+    // level so single-locale fixes don't wipe other locales.
     paths.insert("/news/{id}".into(), json!({
         "parameters": [id_param(), locale_param()],
         "get": get_op("news", "Fetch one news item.", "NewsOut"),
+        "patch": {
+            "tags": ["news"],
+            "summary": "Partial update of a news item.",
+            "description": "Every field is optional; absent fields are left untouched. `content` is JSONB-merged at the top level so e.g. `{ \"zh-CN\": { \"title\": \"…\" } }` adds/replaces just that locale and preserves any other locales on the row. To fully replace `content`, delete + re-create.",
+            "requestBody": {
+                "required": true,
+                "content": {
+                    "application/json": {
+                        "schema": schema_ref("NewsPatch")
+                    }
+                }
+            },
+            "responses": ok_inline(schema_ref("NewsOut"))
+        },
         "delete": delete_op("news", "Delete a news item.")
     }));
     paths.insert("/news/{id}/stock-links".into(), json!({

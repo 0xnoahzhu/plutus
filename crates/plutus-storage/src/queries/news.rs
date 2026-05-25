@@ -201,6 +201,125 @@ pub async fn create(db: &Db, input: NewNewsItem<'_>) -> Result<LocalizedNewsItem
     get(db, "en", id).await
 }
 
+/// PATCH-style partial update. Every field is `Option<…>`; only the
+/// `Some(…)` fields make it into the UPDATE. Always bumps `updated_at`.
+///
+/// `content` is merged into the existing JSONB with the `||` operator
+/// so e.g. `{ "zh-CN": { "title": "…" } }` adds/replaces just the
+/// zh-CN locale and leaves `en` untouched — the common case is fixing
+/// or translating one locale on an existing row. To wipe a locale,
+/// caller can send a full `content` via DELETE + re-create instead.
+pub struct NewsPatch<'a> {
+    pub external_id: Option<&'a str>,
+    pub url: Option<&'a str>,
+    pub canonical_url: Option<&'a str>,
+    pub archive_url: Option<&'a str>,
+    pub url_status: Option<i32>,
+    pub last_verified_at: Option<jiff::Timestamp>,
+    pub source: Option<&'a str>,
+    pub source_kind: Option<&'a str>,
+    pub category: Option<&'a str>,
+    pub region: Option<&'a str>,
+    pub published_at: Option<jiff::Timestamp>,
+    pub fetched_at: Option<jiff::Timestamp>,
+    pub sentiment: Option<&'a str>,
+    pub sentiment_score: Option<Decimal>,
+    pub importance: Option<&'a str>,
+    pub content: Option<serde_json::Value>,
+}
+
+pub async fn update(db: &Db, id: i64, patch: NewsPatch<'_>) -> Result<LocalizedNewsItem> {
+    let client = db.raw_client().await?;
+    let now = jiff::Timestamp::now();
+
+    // Build SET clause dynamically. `updated_at` always present so the
+    // row's mtime moves even on a no-other-fields patch. Each `Some(_)`
+    // field appends one fragment + binds one param; the trailing
+    // `WHERE id = $N` slot is reserved after all fields are placed.
+    let mut sets: Vec<String> = vec!["updated_at = $1".to_string()];
+    let mut params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = vec![&now];
+
+    if let Some(v) = patch.external_id.as_ref() {
+        sets.push(format!("external_id = ${}", params.len() + 1));
+        params.push(v);
+    }
+    if let Some(v) = patch.url.as_ref() {
+        sets.push(format!("url = ${}", params.len() + 1));
+        params.push(v);
+    }
+    if let Some(v) = patch.canonical_url.as_ref() {
+        sets.push(format!("canonical_url = ${}", params.len() + 1));
+        params.push(v);
+    }
+    if let Some(v) = patch.archive_url.as_ref() {
+        sets.push(format!("archive_url = ${}", params.len() + 1));
+        params.push(v);
+    }
+    if let Some(v) = patch.url_status.as_ref() {
+        sets.push(format!("url_status = ${}", params.len() + 1));
+        params.push(v);
+    }
+    if let Some(v) = patch.last_verified_at.as_ref() {
+        sets.push(format!("last_verified_at = ${}", params.len() + 1));
+        params.push(v);
+    }
+    if let Some(v) = patch.source.as_ref() {
+        sets.push(format!("source = ${}", params.len() + 1));
+        params.push(v);
+    }
+    if let Some(v) = patch.source_kind.as_ref() {
+        sets.push(format!("source_kind = ${}", params.len() + 1));
+        params.push(v);
+    }
+    if let Some(v) = patch.category.as_ref() {
+        sets.push(format!("category = ${}", params.len() + 1));
+        params.push(v);
+    }
+    if let Some(v) = patch.region.as_ref() {
+        sets.push(format!("region = ${}", params.len() + 1));
+        params.push(v);
+    }
+    if let Some(v) = patch.published_at.as_ref() {
+        sets.push(format!("published_at = ${}", params.len() + 1));
+        params.push(v);
+    }
+    if let Some(v) = patch.fetched_at.as_ref() {
+        sets.push(format!("fetched_at = ${}", params.len() + 1));
+        params.push(v);
+    }
+    if let Some(v) = patch.sentiment.as_ref() {
+        sets.push(format!("sentiment = ${}", params.len() + 1));
+        params.push(v);
+    }
+    if let Some(v) = patch.sentiment_score.as_ref() {
+        sets.push(format!("sentiment_score = ${}", params.len() + 1));
+        params.push(v);
+    }
+    if let Some(v) = patch.importance.as_ref() {
+        sets.push(format!("importance = ${}", params.len() + 1));
+        params.push(v);
+    }
+    // Content uses JSONB merge so a partial blob (one locale) doesn't
+    // wipe the others. Full-replace requires DELETE + create.
+    if let Some(v) = patch.content.as_ref() {
+        sets.push(format!("content = content || ${}::jsonb", params.len() + 1));
+        params.push(v);
+    }
+
+    let sql = format!(
+        "UPDATE news_items SET {} WHERE id = ${}",
+        sets.join(", "),
+        params.len() + 1,
+    );
+    params.push(&id);
+
+    let affected = client.execute(&sql, &params).await.map_err(DbError::from)?;
+    if affected == 0 {
+        return Err(DbError::NotFound);
+    }
+    get(db, "en", id).await
+}
+
 pub async fn delete(db: &Db, id: i64) -> Result<()> {
     let client = db.raw_client().await?;
     let affected = client

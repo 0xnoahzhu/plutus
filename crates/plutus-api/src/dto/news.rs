@@ -151,6 +151,38 @@ fn default_category() -> String { "company".into() }
 fn default_region() -> String { "global".into() }
 fn default_importance() -> String { "medium".into() }
 
+/// `PATCH /news/{id}` body. Every field is optional; missing fields are
+/// left untouched. `content` is JSONB-merged into the existing column,
+/// so sending `{ "zh-CN": { "title": "…" } }` adds/replaces just that
+/// locale and preserves any other locales already on the row. To fully
+/// replace content (wipe a locale), delete + re-create the row.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct NewsPatch {
+    pub external_id: Option<String>,
+    pub url: Option<String>,
+    pub canonical_url: Option<String>,
+    pub archive_url: Option<String>,
+    pub url_status: Option<i32>,
+    /// RFC 3339 timestamp.
+    pub last_verified_at: Option<String>,
+    pub source: Option<String>,
+    pub source_kind: Option<String>,
+    pub category: Option<String>,
+    /// Server normalizes case + validates against US/HK/CN/global.
+    pub region: Option<String>,
+    /// RFC 3339 timestamp.
+    pub published_at: Option<String>,
+    /// RFC 3339 timestamp.
+    pub fetched_at: Option<String>,
+    pub sentiment: Option<String>,
+    #[schema(value_type = Option<String>)]
+    pub sentiment_score: Option<Decimal>,
+    pub importance: Option<String>,
+    /// Multi-locale content blob, JSONB-merged at the top level so each
+    /// locale key is independent.
+    pub content: Option<serde_json::Value>,
+}
+
 // ── Link DTOs ────────────────────────────────────────────────────────────
 
 /// A many-to-many edge between a news item and a stock. Created via
