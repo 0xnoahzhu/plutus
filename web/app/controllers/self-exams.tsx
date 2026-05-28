@@ -17,6 +17,7 @@ import {
   resolveTheme,
   space,
   type Theme,
+  unreadCardStyle,
   UnreadDot,
 } from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
@@ -99,8 +100,7 @@ function ExamCard() {
         href={`/self-exams/${exam.id}`}
         mix={css({
           display: 'block',
-          background: color.surface,
-          border: `1px solid ${color.border}`,
+          ...unreadCardStyle(exam.read_at),
           borderLeft: `3px solid ${color.brand}`,
           borderRadius: radius.lg,
           padding: `${space[4]} ${space[5]}`,
@@ -108,7 +108,6 @@ function ExamCard() {
           color: 'inherit',
           transition: 'border-color 120ms ease, transform 120ms ease',
           '&:hover': {
-            borderColor: color.brand,
             transform: 'translateY(-1px)',
           },
         })}

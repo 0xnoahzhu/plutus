@@ -19,6 +19,7 @@ import {
   resolveTheme,
   space,
   type Theme,
+  unreadCardStyle,
   UnreadDot,
 } from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
@@ -77,8 +78,7 @@ function RunCard() {
       href={`/screeners/${run.id}`}
       mix={css({
         display: 'block',
-        background: color.surface,
-        border: `1px solid ${color.border}`,
+        ...unreadCardStyle(run.read_at),
         borderRadius: radius.lg,
         padding: `${space[4]} ${space[5]}`,
         textDecoration: 'none',

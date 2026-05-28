@@ -192,9 +192,18 @@ function EarningsRow() {
         mix={css({
           borderTop: `1px solid ${color.borderSoft}`,
           '&:first-child': { borderTop: 'none' },
+          // Unread rows carry a brand tint across all cells + a left
+          // accent on the first cell (added below). Read rows stay clear.
+          background: event.read_at ? undefined : color.brandSoft,
         })}
       >
-        <td mix={css({ padding: `${space[3]} ${space[4]}`, width: '24%' })}>
+        <td
+          mix={css({
+            padding: `${space[3]} ${space[4]}`,
+            width: '24%',
+            boxShadow: event.read_at ? 'none' : `inset 3px 0 0 ${color.brand}`,
+          })}
+        >
           <div
             mix={css({
               display: 'inline-flex',

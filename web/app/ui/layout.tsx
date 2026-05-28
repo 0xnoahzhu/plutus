@@ -1132,11 +1132,33 @@ export function MarkAllReadButton() {
   }
 }
 
-/// Small filled circle that flags an unread list item. Pass the row's
+/// Card-level surface styling that flips with read state. Spread this
+/// into a list card's `mix={css({...})}` so unread rows read as
+/// "new at a glance": brand-tinted background + brand border. Read rows
+/// fall back to the plain surface + hairline border.
+///
+/// Ordering note: cards that paint a semantic `borderLeft` (action color
+/// on recommendations, kind accent on briefs) must spread this FIRST and
+/// declare their `borderLeft` AFTER, so the left accent still wins while
+/// the other three sides + background carry the unread signal.
+export function unreadCardStyle(readAt: string | null) {
+  return readAt
+    ? {
+        background: color.surface,
+        border: `1px solid ${color.border}`,
+      }
+    : {
+        background: color.brandSoft,
+        border: `1px solid ${color.brand}`,
+      }
+}
+
+/// Filled circle that flags an unread list item. Pass the row's
 /// `read_at` — `null` renders the dot, any string hides it. Sits next to
-/// the leading metadata in a card so the eye picks it up first.
+/// the leading metadata in a card. Default 10px with a soft glow so it
+/// carries even against the brand-tinted unread surface.
 export function UnreadDot() {
-  return ({ readAt, size = 8 }: { readAt: string | null; size?: number }) => {
+  return ({ readAt, size = 10 }: { readAt: string | null; size?: number }) => {
     if (readAt) return null
     return (
       <span
@@ -1148,6 +1170,7 @@ export function UnreadDot() {
           height: `${size}px`,
           borderRadius: '50%',
           background: color.brand,
+          boxShadow: `0 0 0 3px ${color.brandSoft}`,
           flexShrink: 0,
         })}
       />

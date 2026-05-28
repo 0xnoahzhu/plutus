@@ -22,6 +22,7 @@ import {
   SectionTitle,
   space,
   type Theme,
+  unreadCardStyle,
   UnreadDot,
 } from '../ui/layout.tsx'
 import { MarkdownToggle } from '../ui/markdown.tsx'
@@ -165,8 +166,7 @@ function RunRow() {
     <a
       href={`/correlations/${run.id}`}
       mix={css({
-        background: color.surface,
-        border: `1px solid ${color.border}`,
+        ...unreadCardStyle(run.read_at),
         borderRadius: radius.md,
         padding: `${space[3]} ${space[4]}`,
         display: 'flex',

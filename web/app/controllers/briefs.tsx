@@ -19,6 +19,7 @@ import {
   resolveTheme,
   space,
   type Theme,
+  unreadCardStyle,
   UnreadDot,
 } from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
@@ -178,8 +179,9 @@ function BriefCard() {
         href={`/briefs/${brief.id}`}
         mix={css({
           display: 'block',
-          background: color.surface,
-          border: `1px solid ${color.border}`,
+          ...unreadCardStyle(brief.read_at),
+          // Keep the kind accent on the left; unread border covers the
+          // other three sides. Declared after the spread so it wins.
           borderLeft: `3px solid ${meta.accent}`,
           borderRadius: radius.lg,
           padding: `${space[4]} ${space[5]}`,
@@ -187,7 +189,6 @@ function BriefCard() {
           color: 'inherit',
           transition: 'border-color 120ms ease, transform 120ms ease',
           '&:hover': {
-            borderColor: color.brand,
             transform: 'translateY(-1px)',
           },
         })}

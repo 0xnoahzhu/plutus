@@ -21,6 +21,7 @@ import {
   space,
   StockBadge,
   type Theme,
+  unreadCardStyle,
   UnreadDot,
 } from '../ui/layout.tsx'
 import { fmtMoney } from '../ui/format.ts'
@@ -143,8 +144,7 @@ function RecRow() {
       href={`/recommendations/${rec.id}`}
       mix={css({
         display: 'block',
-        background: color.surface,
-        border: `1px solid ${color.border}`,
+        ...unreadCardStyle(rec.read_at),
         borderLeft: `3px solid ${actionAccent(rec.action)}`,
         borderRadius: radius.lg,
         padding: `${space[4]} ${space[5]}`,
@@ -152,7 +152,6 @@ function RecRow() {
         color: 'inherit',
         transition: 'border-color 120ms ease, transform 120ms ease',
         '&:hover': {
-          borderColor: color.brand,
           transform: 'translateY(-1px)',
         },
       })}

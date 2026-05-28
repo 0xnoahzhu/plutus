@@ -19,6 +19,7 @@ import {
   resolveTheme,
   space,
   type Theme,
+  unreadCardStyle,
   UnreadDot,
 } from '../ui/layout.tsx'
 import { LocalTime } from '../ui/local-time.tsx'
@@ -91,8 +92,7 @@ function NewsCard() {
       href={`/news/${n.id}`}
       mix={css({
         display: 'block',
-        background: color.surface,
-        border: `1px solid ${color.border}`,
+        ...unreadCardStyle(n.read_at),
         borderRadius: radius.lg,
         padding: `${space[4]} ${space[5]}`,
         textDecoration: 'none',

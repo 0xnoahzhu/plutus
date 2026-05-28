@@ -180,6 +180,8 @@ function EventRow() {
           padding: `${space[3]} ${space[4]}`,
           borderTop: `1px solid ${color.borderSoft}`,
           '&:first-child': { borderTop: 'none' },
+          background: event.read_at ? 'transparent' : color.brandSoft,
+          boxShadow: event.read_at ? 'none' : `inset 3px 0 0 ${color.brand}`,
           textDecoration: 'none',
           color: 'inherit',
           transition: 'background 120ms ease',
