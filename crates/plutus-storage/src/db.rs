@@ -1262,11 +1262,19 @@ CREATE INDEX IF NOT EXISTS user_reads_user_type_idx
 -- We gate the entire block on "does user_reads have zero rows", so a
 -- redeploy after users have started accumulating real reads doesn't
 -- silently mark unread items as read.
+-- Run-once gate. A sentinel row (user_id=0 admin, a reserved
+-- entity_type that maps to no real EntityKind) records that the
+-- backfill has happened. Gating on "the marker is absent" instead of
+-- "the table is empty" means a manual `DELETE FROM user_reads` for a
+-- real user (e.g. resetting one account to all-unread) does NOT
+-- re-trigger the backfill on the next migrate.
 DO $migrate_user_reads_backfill$
 DECLARE
     needs_backfill BOOLEAN;
 BEGIN
-    SELECT NOT EXISTS (SELECT 1 FROM user_reads) INTO needs_backfill;
+    SELECT NOT EXISTS (
+        SELECT 1 FROM user_reads WHERE entity_type = '__backfill_done__'
+    ) INTO needs_backfill;
     IF NOT needs_backfill THEN
         RETURN;
     END IF;
@@ -1335,6 +1343,13 @@ BEGIN
     SELECT u.id, 'earnings_event', e.id, COALESCE(e.created_at, now())
     FROM users u CROSS JOIN earnings_events e
     WHERE u.id <> 0
+    ON CONFLICT DO NOTHING;
+
+    -- Drop the run-once marker (admin sentinel row). entity_id 0 is fine
+    -- — it never collides with a real entity because the entity_type is
+    -- reserved. Future migrates see this and skip the whole block.
+    INSERT INTO user_reads (user_id, entity_type, entity_id, read_at)
+    VALUES (0, '__backfill_done__', 0, now())
     ON CONFLICT DO NOTHING;
 END
 $migrate_user_reads_backfill$;

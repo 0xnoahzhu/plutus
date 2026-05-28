@@ -170,8 +170,16 @@ pub async fn unmark_read(
     Ok(())
 }
 
-/// Unread counts per entity kind for the sidebar badge. Items created before
-/// the user signed up are not counted — new users start with a clean slate.
+/// Unread counts per entity kind for the sidebar badge.
+///
+/// "Unread" is defined exactly as the list view sees it: a row with no
+/// matching `user_reads` entry. There is deliberately NO `created_at`
+/// watermark here — an earlier version filtered to items created after
+/// the user signed up, which made the badge disagree with the list
+/// (the list tinted an item unread while the badge counted 0). The
+/// one-shot backfill on first migrate is what keeps existing accounts
+/// from lighting up with a year of history; the count and the list now
+/// share one source of truth.
 pub async fn counts(db: &Db, user_id: i64) -> Result<HashMap<EntityKind, i64>> {
     let mut result: HashMap<EntityKind, i64> = HashMap::new();
     if user_id == 0 {
@@ -182,18 +190,6 @@ pub async fn counts(db: &Db, user_id: i64) -> Result<HashMap<EntityKind, i64>> {
     }
 
     let client = db.raw_client().await?;
-    let user_row = client
-        .query_opt("SELECT created_at FROM users WHERE id = $1", &[&user_id])
-        .await
-        .map_err(DbError::from)?;
-    let Some(row) = user_row else {
-        for k in EntityKind::ALL {
-            result.insert(*k, 0);
-        }
-        return Ok(result);
-    };
-    let watermark: jiff::Timestamp = row.get(0);
-
     for kind in EntityKind::ALL {
         let table = kind.table();
         let user_filter = if kind.has_user_id() {
@@ -205,17 +201,16 @@ pub async fn counts(db: &Db, user_id: i64) -> Result<HashMap<EntityKind, i64>> {
             r#"
                 SELECT COUNT(*)::BIGINT
                 FROM {table} t
-                WHERE {user_filter}t.created_at > $2
-                  AND NOT EXISTS (
+                WHERE {user_filter}NOT EXISTS (
                       SELECT 1 FROM user_reads ur
                       WHERE ur.user_id = $1
-                        AND ur.entity_type = $3
+                        AND ur.entity_type = $2
                         AND ur.entity_id = t.id
                   )
             "#,
         );
         let row = client
-            .query_one(&sql, &[&user_id, &watermark, &kind.as_str()])
+            .query_one(&sql, &[&user_id, &kind.as_str()])
             .await
             .map_err(DbError::from)?;
         let count: i64 = row.get(0);
