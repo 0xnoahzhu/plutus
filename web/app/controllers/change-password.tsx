@@ -12,6 +12,7 @@ import {
   radius,
   resolveLocale,
   resolveTheme,
+  shadow,
   space,
   type Theme,
 } from '../ui/layout.tsx'
@@ -207,7 +208,7 @@ function ChangePasswordPage() {
                   width: '100%',
                   padding: `${space[3]} ${space[4]}`,
                   background: color.brand,
-                  color: '#fff',
+                  color: color.textOnBrand,
                   border: 'none',
                   borderRadius: radius.md,
                   fontSize: font.base,
@@ -282,14 +283,16 @@ function LocaleToggle() {
 const fieldStyle = {
   width: '100%',
   padding: `${space[3]} ${space[3]}`,
-  background: color.bg,
-  border: `1px solid ${color.border}`,
+  // Inset well — typing happens "inside" the surface.
+  background: color.hover,
+  border: '1px solid transparent',
+  boxShadow: shadow.inset,
   borderRadius: radius.md,
   fontSize: font.base,
   color: color.text,
   fontFamily: font.sans,
   outline: 'none',
-  '&:focus': { borderColor: color.brand, background: color.surface },
+  '&:focus': { borderColor: color.brand },
   '&::placeholder': { color: color.textDim },
 }
 

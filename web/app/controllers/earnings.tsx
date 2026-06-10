@@ -153,7 +153,7 @@ function DayList() {
               fontSize: font.sm,
               fontWeight: 600,
               color: color.text,
-              background: color.bg,
+              background: color.hover,
               borderBottom: `1px solid ${color.borderSoft}`,
               borderRadius: `${radius.lg} ${radius.lg} 0 0`,
             })}

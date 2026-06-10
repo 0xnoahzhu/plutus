@@ -48,7 +48,7 @@ export function MarkdownToggle() {
             display: 'inline-flex',
             padding: '2px',
             marginBottom: space[2],
-            background: color.bg,
+            background: color.hover,
             border: `1px solid ${color.borderSoft}`,
             borderRadius: radius.pill,
             gap: '2px',
@@ -74,7 +74,7 @@ export function MarkdownToggle() {
           mix={css({
             margin: 0,
             padding: `${space[3]} ${space[3]}`,
-            background: color.bg,
+            background: color.hover,
             border: `1px solid ${color.borderSoft}`,
             borderRadius: radius.md,
             fontSize: font.sm,
@@ -384,7 +384,7 @@ function renderTable(lines: string[], key: number): RemixNode {
         })}
       >
         <thead>
-          <tr mix={css({ background: color.bg })}>
+          <tr mix={css({ background: color.hover })}>
             {headers.map((h, j) => (
               <th
                 key={j}
@@ -484,7 +484,7 @@ function renderInline(text: string): RemixNode[] {
               fontSize: '0.9em',
               padding: '1px 5px',
               borderRadius: radius.sm,
-              background: color.bg,
+              background: color.hover,
               border: `1px solid ${color.borderSoft}`,
               color: color.text,
             })}

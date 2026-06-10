@@ -2,6 +2,7 @@ import { css, type RemixNode } from 'remix/ui'
 
 import {
   ambientAllowedCountries,
+  ambientPath,
   ambientUnreadCounts,
   type EntityKind,
 } from '../api.ts'
@@ -316,6 +317,11 @@ export function Layout() {
           gridTemplateColumns: `${SIDEBAR_WIDTH} 1fr`,
           minHeight: '100vh',
           background: color.bg,
+          // Below 900px the fixed sidebar column would crush the content;
+          // collapse to one column and let the sidebar become a top strip.
+          '@media (max-width: 900px)': {
+            gridTemplateColumns: '1fr',
+          },
         })}
       >
         <Sidebar locale={locale} />
@@ -383,10 +389,10 @@ export function Layout() {
                     <h1
                       mix={css({
                         margin: 0,
+                        fontFamily: font.display,
                         fontSize: font.xxl,
                         fontWeight: 700,
                         color: color.text,
-                        letterSpacing: '-0.01em',
                       })}
                     >
                       {title}
@@ -487,13 +493,49 @@ function Sidebar() {
           top: 0,
           height: '100vh',
           overflowY: 'auto',
+          // Mobile: horizontal scroll strip across the top instead of a
+          // column that would eat most of the viewport width.
+          '@media (max-width: 900px)': {
+            position: 'static',
+            height: 'auto',
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: space[3],
+            padding: `${space[2]} ${space[3]}`,
+            borderRight: 'none',
+            borderBottom: `1px solid ${color.divider}`,
+            overflowY: 'visible',
+            overflowX: 'auto',
+          },
         })}
       >
-        <div mix={css({ padding: `0 ${space[5]}` })}>
+        <div
+          mix={css({
+            padding: `0 ${space[5]}`,
+            '@media (max-width: 900px)': { padding: 0, flexShrink: 0 },
+          })}
+        >
           <BrandMark />
         </div>
-        <nav mix={css({ marginTop: space[6], flex: 1 })}>
-          <ul mix={css({ listStyle: 'none', padding: 0, margin: 0 })}>
+        <nav
+          mix={css({
+            marginTop: space[6],
+            flex: 1,
+            '@media (max-width: 900px)': { marginTop: 0 },
+          })}
+        >
+          <ul
+            mix={css({
+              listStyle: 'none',
+              padding: 0,
+              margin: 0,
+              '@media (max-width: 900px)': {
+                display: 'flex',
+                alignItems: 'center',
+                gap: space[1],
+              },
+            })}
+          >
             {nav.map((entry) =>
               entry.kind === 'divider' ? <NavDivider label={entry.label} /> : (
                 <NavLink
@@ -526,6 +568,11 @@ function LogoutLink() {
         margin: 0,
         padding: `${space[2]} ${space[3]}`,
         borderTop: `1px solid ${color.divider}`,
+        '@media (max-width: 900px)': {
+          borderTop: 'none',
+          padding: 0,
+          flexShrink: 0,
+        },
       })}
     >
       <button
@@ -585,8 +632,11 @@ export function BrandMark() {
             width: `${size}px`,
             height: `${size}px`,
             borderRadius: radius.md,
-            background: `linear-gradient(135deg, ${color.brand}, ${color.brandHover})`,
-            color: '#fff',
+            // Flat brand fill — gradients fight the matte neumorphic
+            // surface. The raised shadow does the depth work.
+            background: color.brand,
+            color: color.textOnBrand,
+            boxShadow: shadow.card,
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -597,10 +647,10 @@ export function BrandMark() {
         </div>
         <span
           mix={css({
+            fontFamily: font.display,
             fontSize: textSize,
             fontWeight: 700,
             color: color.text,
-            letterSpacing: '-0.02em',
           })}
         >
           Plutus
@@ -620,6 +670,8 @@ function NavDivider() {
         padding: `0 ${space[5]}`,
         // Empty-label dividers render as spacers — useful before "Audit".
         minHeight: label ? undefined : space[3],
+        // The horizontal mobile strip has no room for section labels.
+        '@media (max-width: 900px)': { display: 'none' },
       })}
     >
       {label}
@@ -640,24 +692,42 @@ function NavLink() {
     /// Unread count for this row. Zero (or undefined) hides the chip.
     /// 99+ collapses to "99+" so a runaway count doesn't break layout.
     badge?: number
-  }) => (
+  }) => {
+    let href = routes[route].href({} as never)
+    // Current section: exact match, or a detail page under the section
+    // ("/news/42" lights up "/news"). Home is exact-only so it doesn't
+    // swallow every route.
+    let path = ambientPath()
+    let active =
+      path !== null &&
+      (path === href || (href !== '/' && path.startsWith(href + '/')))
+    return (
     <li>
       <a
-        href={routes[route].href({} as never)}
+        href={href}
+        aria-current={active ? 'page' : undefined}
         mix={css({
           display: 'flex',
           alignItems: 'center',
           gap: space[3],
           padding: `${space[2]} ${space[5]}`,
-          color: color.textMuted,
+          color: active ? color.navActiveText : color.textMuted,
+          background: active ? color.navActiveBg : 'transparent',
           textDecoration: 'none',
           fontSize: font.base,
-          fontWeight: 500,
-          borderLeft: `3px solid transparent`,
-          transition: 'background 120ms ease, color 120ms ease',
+          fontWeight: active ? 600 : 500,
+          transition: 'background 120ms ease, color 120ms ease, transform 120ms ease',
           '&:hover': {
-            background: color.hover,
-            color: color.text,
+            background: active ? color.navActiveBg : color.hover,
+            color: active ? color.navActiveText : color.text,
+          },
+          '&:active': {
+            transform: 'scale(0.98)',
+          },
+          '@media (max-width: 900px)': {
+            padding: `${space[1]} ${space[3]}`,
+            borderRadius: radius.pill,
+            whiteSpace: 'nowrap',
           },
         })}
       >
@@ -669,6 +739,7 @@ function NavLink() {
               marginLeft: 'auto',
               minWidth: '18px',
               padding: `1px ${space[2]}`,
+              fontFamily: font.mono,
               fontSize: '11px',
               fontWeight: 600,
               fontVariantNumeric: 'tabular-nums',
@@ -684,7 +755,8 @@ function NavLink() {
         )}
       </a>
     </li>
-  )
+    )
+  }
 }
 
 // ── Country chips ────────────────────────────────────────────────────────────
@@ -764,7 +836,7 @@ function ChipGroup() {
         gap: space[2],
         padding: `${space[1]} ${space[2]} ${space[1]} ${space[3]}`,
         background: color.surface,
-        border: `1px solid ${color.border}`,
+        border: `1px solid ${color.edge}`,
         borderRadius: radius.pill,
         boxShadow: shadow.card,
       })}
@@ -774,7 +846,9 @@ function ChipGroup() {
         mix={css({
           display: 'inline-flex',
           gap: space[1],
-          background: color.bg,
+          // Carved track: the inset well the active pill sits proud of.
+          background: color.hover,
+          boxShadow: shadow.inset,
           padding: '3px',
           borderRadius: radius.pill,
         })}
@@ -807,16 +881,19 @@ function ChipLink() {
         fontWeight: 600,
         borderRadius: radius.pill,
         textDecoration: 'none',
-        // Active state: white pill + dark text on the inset gray track.
-        // Reads clearly without the previous "slate-900 fill" looking
-        // overdone next to the rest of the chrome.
+        // Active state: raised surface pill + dark text on the inset
+        // track — the neumorphic read of "soft active". Never a hard
+        // brand fill.
         color: active ? color.text : color.textMuted,
         background: active ? color.surface : 'transparent',
         boxShadow: active ? shadow.card : 'none',
-        transition: 'background 120ms ease, color 120ms ease',
+        transition: 'background 120ms ease, color 120ms ease, transform 120ms ease',
         '&:hover': active
           ? undefined
           : { color: color.text },
+        '&:active': {
+          transform: 'scale(0.97)',
+        },
       })}
     >
       {icon && <Icon svg={icon} size={14} />}
@@ -860,7 +937,8 @@ export function Card() {
         background: color.surface,
         borderRadius: radius.lg,
         padding: padding ?? space[5],
-        border: border ? `1px solid ${color.border}` : undefined,
+        // Lit rim, not a fence — the raised shadow pair carries the depth.
+        border: border ? `1px solid ${color.edge}` : undefined,
         boxShadow: shadow.card,
       })}
     >
@@ -893,10 +971,12 @@ export function Stat() {
           <div mix={css({ ...labelStyle, marginBottom: space[2] })}>{label}</div>
           <div
             mix={css({
+              fontFamily: font.display,
               fontSize: font.xxl,
               fontWeight: 700,
               color: valueColor,
               lineHeight: 1.1,
+              fontVariantNumeric: 'tabular-nums',
             })}
           >
             {value}
@@ -1011,8 +1091,9 @@ export function Badge() {
           background: bg,
           color: fg,
           borderRadius: radius.pill,
+          fontFamily: font.mono,
           fontSize: font.xs,
-          fontWeight: 600,
+          fontWeight: 500,
           whiteSpace: 'nowrap',
         })}
       >
@@ -1112,16 +1193,22 @@ export function MarkAllReadButton() {
             padding: `${space[1]} ${space[3]}`,
             fontSize: font.xs,
             fontWeight: 600,
-            fontFamily: font.sans,
+            fontFamily: font.mono,
             color: color.textMuted,
             background: color.surface,
-            border: `1px solid ${color.border}`,
+            border: `1px solid ${color.edge}`,
             borderRadius: radius.pill,
+            boxShadow: shadow.card,
             cursor: 'pointer',
-            transition: 'background 120ms ease, color 120ms ease, border-color 120ms ease',
+            transition:
+              'background 120ms ease, color 120ms ease, border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease',
             '&:hover': {
               color: color.text,
               borderColor: color.brand,
+            },
+            '&:active': {
+              boxShadow: shadow.pressed,
+              transform: 'scale(0.98)',
             },
           })}
         >
@@ -1144,12 +1231,17 @@ export function MarkAllReadButton() {
 export function unreadCardStyle(readAt: string | null) {
   return readAt
     ? {
+        // Read: flush with the surface — hairline only, no elevation.
         background: color.surface,
-        border: `1px solid ${color.border}`,
+        border: `1px solid ${color.borderSoft}`,
+        boxShadow: 'none',
       }
     : {
+        // Unread: physically extruded from the surface. The raised shadow
+        // plus brand tint makes new items the only things that pop.
         background: color.brandSoft,
         border: `1px solid ${color.brand}`,
+        boxShadow: shadow.card,
       }
 }
 

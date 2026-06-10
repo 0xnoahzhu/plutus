@@ -71,7 +71,7 @@ export function SearchBar() {
             fontSize: font.base,
             fontFamily: font.sans,
             color: color.text,
-            background: color.bg,
+            background: color.hover,
             border: `1px solid ${color.border}`,
             borderRadius: radius.md,
             outline: 'none',
@@ -163,7 +163,7 @@ export function Pagination() {
       color: color.text,
       textDecoration: 'none',
       transition: 'background 120ms ease',
-      '&:hover': { background: color.bg },
+      '&:hover': { background: color.hover },
     })
     let pillDisabled = css({
       display: 'inline-flex',
@@ -232,7 +232,7 @@ export function Pagination() {
                 fontFamily: font.mono,
                 textAlign: 'center',
                 color: color.text,
-                background: color.bg,
+                background: color.hover,
                 border: `1px solid ${color.border}`,
                 borderRadius: radius.md,
                 outline: 'none',
@@ -260,7 +260,7 @@ export function Pagination() {
                 borderRadius: radius.md,
                 cursor: 'pointer',
                 transition: 'background 120ms ease',
-                '&:hover': { background: color.bg },
+                '&:hover': { background: color.hover },
               })}
             >
               {m.paginationGo}

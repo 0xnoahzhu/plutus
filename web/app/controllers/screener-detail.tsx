@@ -110,7 +110,7 @@ function HitsCard() {
         <div
           mix={css({
             padding: `${space[3]} ${space[5]}`,
-            background: color.bg,
+            background: color.hover,
             borderBottom: `1px solid ${color.border}`,
             fontSize: font.xs,
             color: color.textMuted,

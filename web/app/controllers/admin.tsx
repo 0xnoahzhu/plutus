@@ -319,7 +319,7 @@ function AdminPage() {
                 mix={css({
                   padding: `${space[3]} ${space[4]}`,
                   background: color.brand,
-                  color: '#fff',
+                  color: color.textOnBrand,
                   border: 'none',
                   borderRadius: radius.md,
                   fontSize: font.base,
@@ -379,7 +379,7 @@ function UserRow() {
         border: `1px solid ${color.border}`,
         borderRadius: radius.md,
         padding: space[3],
-        background: color.bg,
+        background: color.hover,
       })}
     >
       <div
@@ -703,7 +703,7 @@ export function AdminTabs() {
           display: 'inline-flex',
           gap: space[1],
           padding: '3px',
-          background: color.bg,
+          background: color.hover,
           border: `1px solid ${color.border}`,
           borderRadius: radius.pill,
           marginBottom: space[5],

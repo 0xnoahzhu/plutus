@@ -165,7 +165,7 @@ function HoldingsPage() {
                     mix={css({
                       borderTop: `1px solid ${color.borderSoft}`,
                       cursor: 'pointer',
-                      '&:hover td': { background: color.bg },
+                      '&:hover td': { background: color.hover },
                     })}
                   >
                     <Td>
@@ -256,7 +256,7 @@ function Th() {
         letterSpacing: '0.08em',
         color: color.textMuted,
         fontWeight: 600,
-        background: color.bg,
+        background: color.hover,
         borderBottom: `1px solid ${color.border}`,
       })}
     >

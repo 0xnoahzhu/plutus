@@ -43,6 +43,25 @@ const GLOBAL_CSS = `
   button { font-family: inherit; }
   table { border-collapse: collapse; }
 
+  /* Timestamps are data: render them in the data voice, digits aligned. */
+  time {
+    font-family: ${font.mono};
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Keyboard focus must survive the soft, border-less surfaces. */
+  :focus-visible {
+    outline: 2px solid ${color.brand};
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+    }
+  }
+
   .confirm-modal-root {
     position: fixed;
     inset: 0;
@@ -66,9 +85,9 @@ const GLOBAL_CSS = `
     width: 100%;
     max-width: 440px;
     background: ${color.surface};
-    border: 1px solid ${color.border};
-    border-radius: ${radius.lg};
-    box-shadow: ${shadow.card};
+    border: 1px solid ${color.edge};
+    border-radius: ${radius.xl};
+    box-shadow: ${shadow.popover};
     padding: ${space[5]} ${space[5]} ${space[4]};
     display: flex;
     flex-direction: column;
@@ -101,20 +120,24 @@ const GLOBAL_CSS = `
     font-size: ${font.base};
     font-weight: 600;
     cursor: pointer;
-    border: 1px solid ${color.border};
+    border: 1px solid ${color.edge};
     background: ${color.surface};
     color: ${color.text};
-    transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+    box-shadow: ${shadow.card};
+    transition: background 120ms ease, color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
   }
   .confirm-modal-btn:hover { background: ${color.hover}; }
+  .confirm-modal-btn:active {
+    box-shadow: ${shadow.pressed};
+    transform: scale(0.98);
+  }
   .confirm-modal-btn-danger {
     background: ${color.danger};
-    border-color: ${color.danger};
-    color: #fff;
+    border-color: transparent;
+    color: ${color.textOnDanger};
   }
   .confirm-modal-btn-danger:hover {
     background: ${color.dangerText};
-    border-color: ${color.dangerText};
   }
 
   /* Markdown raw/preview toggle. Both views ship in the DOM; CSS picks
@@ -480,12 +503,13 @@ export function Document() {
           <meta name="viewport" content="width=device-width, initial-scale=1" />
           <meta name="color-scheme" content="light dark" />
           <title>{title}</title>
-          {/* Inter as a progressive enhancement. system-ui fallback below. */}
+          {/* Display + data faces as a progressive enhancement; ui-monospace
+              fallbacks below. Space Mono only ships 400/700. */}
           <link rel="preconnect" href="https://fonts.googleapis.com" />
           <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
           <link
             rel="stylesheet"
-            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+            href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
           />
           <style innerHTML={THEME_CSS} />
           <style innerHTML={GLOBAL_CSS} />

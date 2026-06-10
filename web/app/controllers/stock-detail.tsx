@@ -371,7 +371,7 @@ function TradePlanCard() {
           border: `1px solid ${color.border}`,
           borderRadius: radius.md,
           padding: space[4],
-          background: color.bg,
+          background: color.hover,
         })}
       >
         <div

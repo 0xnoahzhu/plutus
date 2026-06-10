@@ -5,7 +5,7 @@ import { api } from '../api.ts'
 import { messages } from '../i18n/messages.ts'
 import type { routes } from '../routes.ts'
 import { Document } from '../ui/document.tsx'
-import { BrandMark, color, font, radius, resolveLocale, resolveTheme, space, type Theme } from '../ui/layout.tsx'
+import { BrandMark, color, font, radius, resolveLocale, resolveTheme, shadow, space, type Theme } from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
 const showForm: BuildAction<'GET', typeof routes.login.index> = {
@@ -171,7 +171,7 @@ function LoginPage() {
                   width: '100%',
                   padding: `${space[3]} ${space[4]}`,
                   background: color.brand,
-                  color: '#fff',
+                  color: color.textOnBrand,
                   border: 'none',
                   borderRadius: radius.md,
                   fontSize: font.base,
@@ -249,8 +249,10 @@ function LocaleToggle() {
 const fieldStyle = {
   width: '100%',
   padding: `${space[3]} ${space[3]}`,
-  background: color.bg,
-  border: `1px solid ${color.border}`,
+  // Inset well — typing happens "inside" the surface.
+  background: color.hover,
+  border: '1px solid transparent',
+  boxShadow: shadow.inset,
   borderRadius: radius.md,
   fontSize: font.base,
   color: color.text,
@@ -258,7 +260,6 @@ const fieldStyle = {
   outline: 'none',
   '&:focus': {
     borderColor: color.brand,
-    background: color.surface,
   },
   '&::placeholder': { color: color.textDim },
 }

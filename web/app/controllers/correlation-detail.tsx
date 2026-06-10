@@ -100,7 +100,7 @@ function PairsCard() {
         <div
           mix={css({
             padding: `${space[2]} ${space[4]}`,
-            background: color.bg,
+            background: color.hover,
             borderBottom: `1px solid ${color.border}`,
             fontSize: font.xs,
             color: color.textMuted,

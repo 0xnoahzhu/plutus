@@ -277,7 +277,7 @@ function BrokerRow() {
           border: `1px solid ${color.border}`,
           borderRadius: radius.md,
           padding: space[3],
-          background: color.bg,
+          background: color.hover,
         })}
       >
         <div
@@ -420,7 +420,7 @@ const fieldStyle = {
 const primaryButton = {
   padding: `${space[3]} ${space[4]}`,
   background: color.brand,
-  color: '#fff',
+  color: color.textOnBrand,
   border: 'none',
   borderRadius: radius.md,
   fontSize: font.base,

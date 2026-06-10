@@ -363,7 +363,7 @@ const fieldStyle = {
 const primaryButton = {
   padding: `${space[2]} ${space[4]}`,
   background: color.brand,
-  color: '#fff',
+  color: color.textOnBrand,
   border: 'none',
   borderRadius: radius.md,
   fontSize: font.base,
