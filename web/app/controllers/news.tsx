@@ -34,7 +34,11 @@ export const news: BuildAction<'GET', typeof routes.news> = {
 
     let all = await api.news(locale).catch(() => [])
     let filtered = all.filter((n) => n.region === country || n.region === 'global')
-    filtered.sort((a, b) => b.published_at.localeCompare(a.published_at))
+    // Unread first, newest first within each read state.
+    let readRank = (n: NewsItem) => (n.read_at === null ? 0 : 1)
+    filtered.sort(
+      (a, b) => readRank(a) - readRank(b) || b.published_at.localeCompare(a.published_at),
+    )
 
     return render(
       <NewsListPage

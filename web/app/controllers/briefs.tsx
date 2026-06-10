@@ -51,8 +51,12 @@ export const briefs: BuildAction<'GET', typeof routes.briefs> = {
       else if (b.kind === 'post_market') g.post = b
       else if (b.kind === 'smart_money_scan') g.scan = b
     }
-    let days: DayGroup[] = Array.from(byDate.values()).sort((a, b) =>
-      b.date.localeCompare(a.date),
+    // Days holding any unread brief float to the top; newest first within
+    // each read state so the chronology stays predictable.
+    let readRank = (g: DayGroup) =>
+      [g.pre, g.post, g.scan].some((b) => b && b.read_at === null) ? 0 : 1
+    let days: DayGroup[] = Array.from(byDate.values()).sort(
+      (a, b) => readRank(a) - readRank(b) || b.date.localeCompare(a.date),
     )
     return render(
       <BriefsPage days={days} country={country} locale={locale} theme={theme} />,

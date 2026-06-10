@@ -82,8 +82,12 @@ function groupByDate(
     g.events.push({ event: e, stock: stocks.get(e.stock_id) })
   }
   for (let g of by.values()) {
-    g.events.sort((a, b) =>
-      (a.stock?.symbol ?? '').localeCompare(b.stock?.symbol ?? ''),
+    // Unread events first within the day, then by symbol. The day grouping
+    // itself stays chronological — it's a calendar, not a feed.
+    g.events.sort(
+      (a, b) =>
+        (a.event.read_at === null ? 0 : 1) - (b.event.read_at === null ? 0 : 1) ||
+        (a.stock?.symbol ?? '').localeCompare(b.stock?.symbol ?? ''),
     )
   }
   return Array.from(by.values()).sort((a, b) => a.date.localeCompare(b.date))
