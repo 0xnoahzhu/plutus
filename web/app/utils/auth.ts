@@ -15,6 +15,7 @@ import {
   api,
   runWithAllowedCountries,
   runWithCookie,
+  runWithPath,
   runWithUnreadCounts,
 } from '../api.ts'
 
@@ -92,7 +93,9 @@ export function withAuth<A>(action: A): A {
     return runWithCookie(cookie, async () => {
       let counts = await api.unreadCounts(cookie)
       return runWithAllowedCountries(me.allowed_countries, () =>
-        runWithUnreadCounts(counts, () => inner(ctx)),
+        runWithUnreadCounts(counts, () =>
+          runWithPath(new URL(req.url).pathname, () => inner(ctx)),
+        ),
       )
     })
   }

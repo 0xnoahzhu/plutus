@@ -82,6 +82,21 @@ export function ambientUnreadCounts(): UnreadCounts {
   return requestUnreadStore.getStore() ?? {}
 }
 
+/// Per-request pathname. Populated by `withAuth` so the sidebar can
+/// highlight the section the user is currently on without every
+/// controller threading the URL through to `Layout`.
+const requestPathStore = new AsyncLocalStorage<string>()
+
+export function runWithPath<T>(path: string, fn: () => T): T {
+  return requestPathStore.run(path, fn)
+}
+
+/// Pathname of the request being rendered, or `null` outside a request
+/// (server boot, public routes that skip `withAuth`).
+export function ambientPath(): string | null {
+  return requestPathStore.getStore() ?? null
+}
+
 export interface Market {
   code: string
   name: string
