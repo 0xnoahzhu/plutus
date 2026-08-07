@@ -62,7 +62,12 @@ USER plutus
 EXPOSE 8080
 
 # tini reaps zombies + forwards signals; `plutus serve` is the actual
-# long-running command. Migrations are run as a separate
-# `podman exec ... plutus migrate` step from the deploy script.
+# long-running command.
+#
+# Migrations are NOT run here. `plutus-api.container`'s ExecStartPre runs
+# `plutus migrate` in a throwaway container from this same image before
+# every start (see scripts/bootstrap.sh), so a deploy that restarts the
+# service always migrates first. Don't add a migrate step to deploy.sh —
+# it would just run the same idempotent work twice.
 ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["plutus", "serve"]
