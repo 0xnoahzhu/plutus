@@ -56,7 +56,7 @@ use crate::dto::{
         TradePlanIn, TradePlanLevelIn, TradePlanLevelOut, TradePlanLevelPatch, TradePlanOut,
         TradePlanPatch,
     },
-    transaction::{TransactionIn, TransactionOut},
+    transaction::{TransactionIn, TransactionOut, TransactionPatch, TransactionSummaryOut},
     user::{
         AdminCreateUserIn, AdminResetPasswordIn, AdminUpdateCountriesIn, ChangePasswordIn, UserOut,
     },
@@ -110,7 +110,7 @@ use crate::handlers::admin::brokers::{AdminCreateBrokerIn, AdminUpdateBrokerIn};
     TokenIn, TokenOut, TokenCreatedOut,
     TradePlanIn, TradePlanOut, TradePlanPatch,
     TradePlanLevelIn, TradePlanLevelOut, TradePlanLevelPatch,
-    TransactionIn, TransactionOut,
+    TransactionIn, TransactionOut, TransactionPatch, TransactionSummaryOut,
     UserOut, AdminCreateUserIn, AdminResetPasswordIn, AdminUpdateCountriesIn, ChangePasswordIn,
     WatchlistItemIn, WatchlistItemOut,
     WatchlistReportIn, WatchlistReportOut,
@@ -712,7 +712,17 @@ fn paths() -> Value {
 
     // ── transactions / holdings ───────────────────────────────────────────
     paths.insert("/transactions".into(), json!({
-        "get": list_op("transactions", "List transactions.", "TransactionOut"),
+        "get": list_op_p(
+            "transactions",
+            "List transactions, newest first.",
+            "TransactionOut",
+            vec![
+                query_i64_param("account_id"),
+                query_i64_param("stock_id"),
+                country_param(),
+                query_str_param("q")
+            ]
+        ),
         "post": post_op(
             "transactions",
             "Record a transaction (idempotent via `Idempotency-Key` header).",
@@ -723,7 +733,37 @@ fn paths() -> Value {
     paths.insert("/transactions/{id}".into(), json!({
         "parameters": [id_param()],
         "get": get_op("transactions", "Fetch one transaction.", "TransactionOut"),
+        "patch": patch_op(
+            "transactions",
+            "Correct a transaction in place. Every field optional; nullable columns accept an explicit null to clear. Derived views (holdings, value series, per-stock summary) recompute on read, so an edit lands immediately.",
+            "TransactionPatch",
+            "TransactionOut"
+        ),
         "delete": delete_op("transactions", "Delete a transaction.")
+    }));
+    paths.insert("/stocks/{id}/transactions".into(), json!({
+        "parameters": [id_param(), query_i64_param("account_id")],
+        "get": list_op(
+            "transactions",
+            "List one stock's transactions, newest first. Same rows as /transactions?stock_id={id}.",
+            "TransactionOut"
+        )
+    }));
+    paths.insert("/stocks/{id}/transaction-summary".into(), json!({
+        "parameters": [
+            id_param(),
+            query_i64_param("account_id"),
+            json!({
+                "name": "method", "in": "query",
+                "schema": { "type": "string", "enum": ["fifo", "lifo", "average"], "default": "fifo" }
+            })
+        ],
+        "get": {
+            "tags": ["transactions"],
+            "summary": "Roll the ledger up for one stock.",
+            "description": "Gross bought / sold quantity and amount, lifetime commission and tax in base currency, and the open position (quantity, average cost, cost basis, realized P&L) under the chosen cost-basis method. The position fields match the stock's `/holdings` row for the same `method`. A stock with no transactions returns a zero-filled body, not a 404.",
+            "responses": ok_item("TransactionSummaryOut")
+        }
     }));
     paths.insert("/holdings".into(), json!({
         "get": {

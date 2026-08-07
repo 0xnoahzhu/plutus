@@ -1,5 +1,12 @@
-//! Every buy/sell/dividend/fee/etc. Stored as an immutable ledger; holdings
-//! are derived. Currency-specific amounts are paired with their currency code.
+//! Every buy/sell/dividend/fee/etc. The ledger every derived view reads
+//! from — holdings, the portfolio value series, and the per-stock summary
+//! are all recomputed from these rows rather than stored. Currency-specific
+//! amounts are paired with their currency code.
+//!
+//! Rows are normally append-only: a posting that really happened gets
+//! reversed by a compensating entry, not erased. `queries::transactions::update`
+//! is the escape hatch for the other case — a typo in a hand-entered row.
+//! It's safe precisely because nothing caches the rollup.
 
 use rust_decimal::Decimal;
 

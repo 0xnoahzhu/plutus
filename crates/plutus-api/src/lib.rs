@@ -250,7 +250,20 @@ pub fn build_router(state: AppState) -> Router {
         )
         .route(
             "/transactions/:id",
-            get(handlers::transactions::get).delete(handlers::transactions::delete),
+            get(handlers::transactions::get)
+                .patch(handlers::transactions::update)
+                .delete(handlers::transactions::delete),
+        )
+        // Per-stock ledger views — same rows as `/transactions?stock_id=`,
+        // shaped like the other `/stocks/:id/*` sub-resources so the stock
+        // detail page reads consistently.
+        .route(
+            "/stocks/:id/transactions",
+            get(handlers::transactions::list_for_stock),
+        )
+        .route(
+            "/stocks/:id/transaction-summary",
+            get(handlers::transactions::summary_for_stock),
         )
         // Holdings (derived)
         .route("/holdings", get(handlers::holdings::list))

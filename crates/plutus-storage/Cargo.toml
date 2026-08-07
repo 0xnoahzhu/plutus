@@ -23,5 +23,8 @@ uuid = { workspace = true }
 futures = { workspace = true }
 sha2 = { workspace = true }
 
+[dev-dependencies]
+rust_decimal_macros = { workspace = true }
+
 [lints]
 workspace = true
