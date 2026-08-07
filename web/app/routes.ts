@@ -45,6 +45,8 @@ export const routes = route({
   stockDetail: '/stocks/:id',
   watchlists: '/watchlists',
   transactions: '/transactions',
+  transactionCreate: post('/transactions/new'),
+  transactionDelete: post('/transactions/:id/delete'),
   news: '/news',
   newsDetail: '/news/:id',
   briefs: '/briefs',

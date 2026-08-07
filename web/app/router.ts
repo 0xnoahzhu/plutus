@@ -71,7 +71,11 @@ import {
   tradePlanReopen,
   tradePlans,
 } from './controllers/trade-plans.tsx'
-import { transactions } from './controllers/transactions.tsx'
+import {
+  transactionCreate,
+  transactionDelete,
+  transactions,
+} from './controllers/transactions.tsx'
 import { watchlists } from './controllers/watchlists.tsx'
 import { routes } from './routes.ts'
 import { withAuth } from './utils/auth.ts'
@@ -112,6 +116,8 @@ router.map(routes.holdings, withAuth(holdings))
 router.map(routes.stocks, withAuth(stocks))
 router.map(routes.stockDetail, withAuth(stockDetail))
 router.map(routes.transactions, withAuth(transactions))
+router.map(routes.transactionCreate, withAuth(transactionCreate))
+router.map(routes.transactionDelete, withAuth(transactionDelete))
 router.map(routes.watchlists, withAuth(watchlists))
 router.map(routes.news, withAuth(news))
 router.map(routes.newsDetail, withAuth(newsDetail))

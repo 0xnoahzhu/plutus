@@ -162,6 +162,42 @@ export interface Transaction {
   updated_at: string
 }
 
+/// The ledger rolled up for one stock — what the "Transactions" panel on
+/// a stock's detail page renders above the table. Computed server-side
+/// from the same rows the table lists.
+export interface TransactionSummary {
+  stock_id: number
+  account_id: number | null
+  /// 'fifo' | 'lifo' | 'average' — echoes the requested method.
+  method: string
+  /// Every row touching this stock, cash-only kinds included.
+  transaction_count: number
+  buy_count: number
+  sell_count: number
+  /// Gross, not netted: a buy-then-sell round trip counts in both.
+  buy_quantity: string
+  sell_quantity: string
+  /// Trade-currency totals. Only meaningful when `trade_currency` below
+  /// is non-null — otherwise they sum unlike units and the UI should
+  /// fall back to the `_base` pair.
+  buy_amount_trade: string
+  sell_amount_trade: string
+  buy_amount_base: string
+  sell_amount_base: string
+  commission_total_base: string
+  tax_total_base: string
+  /// Open position, identical to this stock's `/holdings` row for the
+  /// same `method`.
+  quantity: string
+  avg_cost_trade: string
+  cost_base: string
+  realized_pnl_base: string
+  first_executed_at: string | null
+  last_executed_at: string | null
+  /// `null` when the history spans more than one trade currency.
+  trade_currency: string | null
+}
+
 export interface Holding {
   stock_id: number
   account_id: number | null
@@ -777,6 +813,10 @@ export const api = {
     page?: number
     perPage?: number
     q?: string
+    /// Narrow to one stock. The /transactions page uses this to render
+    /// the "just this ticker" view holdings and stock-detail link into.
+    stock_id?: number
+    account_id?: number
   }) => {
     let qs = new URLSearchParams({
       page: String(params.page ?? 1),
@@ -784,11 +824,103 @@ export const api = {
     })
     if (params.country) qs.set('country', params.country)
     if (params.q) qs.set('q', params.q)
+    if (params.stock_id !== undefined) qs.set('stock_id', String(params.stock_id))
+    if (params.account_id !== undefined) qs.set('account_id', String(params.account_id))
     let { body, response } = await getWithHeaders<Transaction[]>(
       `/transactions?${qs.toString()}`,
     )
     let total = Number(response.headers.get('X-Total-Count') ?? body.length)
     return { items: body, total, page: params.page ?? 1, perPage: params.perPage ?? 15 }
+  },
+  /// One stock's slice of the ledger, newest first. Same rows as
+  /// `transactionsPage({ stock_id })`, via the nested route that matches
+  /// the other per-stock sub-resources.
+  transactionsForStock: (stockId: number, params: { limit?: number } = {}) => {
+    let q = new URLSearchParams()
+    if (params.limit !== undefined) q.set('limit', String(params.limit))
+    let suffix = q.toString() ? `?${q.toString()}` : ''
+    return get<Transaction[]>(`/stocks/${stockId}/transactions${suffix}`)
+  },
+  /// Aggregates for the stock-detail panel. Returns a zero-filled body
+  /// (not a 404) for a stock with no transactions.
+  transactionSummaryForStock: (stockId: number, params: { method?: string } = {}) => {
+    let q = new URLSearchParams()
+    if (params.method) q.set('method', params.method)
+    let suffix = q.toString() ? `?${q.toString()}` : ''
+    return get<TransactionSummary>(`/stocks/${stockId}/transaction-summary${suffix}`)
+  },
+
+  createTransactionRaw: (
+    cookie: string | null | undefined,
+    body: {
+      account_id: number
+      stock_id: number | null
+      kind: string
+      executed_at: string
+      quantity: string
+      price: string
+      trade_currency: string
+      commission?: string
+      commission_currency: string
+      tax?: string
+      tax_currency: string
+      fx_rate_to_base: string
+      external_ref?: string | null
+      notes?: string | null
+      source?: string
+    },
+  ) => {
+    let headers: Record<string, string> = {
+      'content-type': 'application/json',
+      accept: 'application/json',
+    }
+    if (cookie) headers.cookie = cookie
+    return fetch(`${BASE}/api/v1/transactions`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    })
+  },
+
+  /// Correct a row in place. Omitted keys are left alone; an explicit
+  /// `null` on a nullable column clears it.
+  updateTransactionRaw: (
+    cookie: string | null | undefined,
+    id: number,
+    body: {
+      account_id?: number
+      stock_id?: number | null
+      kind?: string
+      executed_at?: string
+      quantity?: string
+      price?: string
+      trade_currency?: string
+      commission?: string
+      commission_currency?: string
+      tax?: string
+      tax_currency?: string
+      fx_rate_to_base?: string
+      external_ref?: string | null
+      notes?: string | null
+      source?: string
+    },
+  ) => {
+    let headers: Record<string, string> = {
+      'content-type': 'application/json',
+      accept: 'application/json',
+    }
+    if (cookie) headers.cookie = cookie
+    return fetch(`${BASE}/api/v1/transactions/${id}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(body),
+    })
+  },
+
+  deleteTransactionRaw: (cookie: string | null | undefined, id: number) => {
+    let headers: Record<string, string> = { accept: 'application/json' }
+    if (cookie) headers.cookie = cookie
+    return fetch(`${BASE}/api/v1/transactions/${id}`, { method: 'DELETE', headers })
   },
   watchlistItems: (country?: string) => {
     let suffix = country ? `?country=${country}` : ''
