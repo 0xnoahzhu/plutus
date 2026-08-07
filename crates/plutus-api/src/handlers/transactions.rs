@@ -44,13 +44,29 @@ pub async fn list(
     Query(f): Query<ListFilter>,
 ) -> ApiResult<axum::response::Response> {
     let user_id = require_user(&actor.0)?;
-    let rows = if let Some(account_id) = f.account_id {
-        plutus_storage::queries::transactions::list_for_account(&state.db, user_id, account_id)
-            .await?
-    } else if let Some(stock_id) = f.stock_id {
-        plutus_storage::queries::transactions::list_for_stock(&state.db, user_id, stock_id).await?
-    } else {
-        plutus_storage::queries::transactions::list(&state.db, user_id).await?
+    // Pick whichever filter has an index behind it, then narrow in memory
+    // for the other. The two used to be an if/else-if chain, which meant
+    // `?account_id=1&stock_id=2` silently ignored the stock and returned
+    // the whole account — a wrong answer rather than an error.
+    let rows = match (f.account_id, f.stock_id) {
+        (Some(account_id), stock_id) => {
+            let rows = plutus_storage::queries::transactions::list_for_account(
+                &state.db, user_id, account_id,
+            )
+            .await?;
+            match stock_id {
+                Some(s) => rows
+                    .into_iter()
+                    .filter(|r| r.stock_id == Some(s))
+                    .collect(),
+                None => rows,
+            }
+        }
+        (None, Some(stock_id)) => {
+            plutus_storage::queries::transactions::list_for_stock(&state.db, user_id, stock_id)
+                .await?
+        }
+        (None, None) => plutus_storage::queries::transactions::list(&state.db, user_id).await?,
     };
 
     // Resolve symbol + market_code per touched stock_id for the q
