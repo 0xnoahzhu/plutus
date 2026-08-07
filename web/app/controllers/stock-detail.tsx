@@ -10,10 +10,13 @@ import {
   type Stock,
   type TradePlan,
   type TradePlanLevel,
+  type Transaction,
+  type TransactionSummary,
 } from '../api.ts'
 import { messages } from '../i18n/messages.ts'
 import type { routes } from '../routes.ts'
 import { OrdersTable } from './orders.tsx'
+import { TransactionsTable } from './transactions.tsx'
 import {
   Badge,
   type BadgeTone,
@@ -26,6 +29,7 @@ import {
   resolveLocale,
   resolveTheme,
   SectionTitle,
+  shadow,
   space,
   StockBadge,
   type Theme,
@@ -33,6 +37,11 @@ import {
 import { fmtMoney } from '../ui/format.ts'
 import { MarkdownToggle } from '../ui/markdown.tsx'
 import { render } from '../utils/render.tsx'
+
+/// How many ledger rows the stock-detail panel shows before deferring to
+/// the full `/transactions?stock_id=` view. Enough to see the recent
+/// shape of a position without turning the page into a second ledger.
+const TXN_PREVIEW_LIMIT = 8
 
 export const stockDetail: BuildAction<'GET', typeof routes.stockDetail> = {
   async handler({ request, params }) {
@@ -44,16 +53,26 @@ export const stockDetail: BuildAction<'GET', typeof routes.stockDetail> = {
     let locale = resolveLocale(request, url.searchParams)
     let theme = resolveTheme(request, url.searchParams)
 
-    let [stock, newsLinks, allNews, plans, openOrders, accounts] = await Promise.all([
-      api.stock(id, locale).catch(() => null),
-      api.newsForStock(id).catch(() => [] as NewsStockLink[]),
-      api.news(locale).catch(() => [] as NewsItem[]),
-      api.tradePlans({ stock_id: id }).catch(() => [] as TradePlan[]),
-      api.pendingOrders({ stock_id: id, status: 'open' }).catch(
-        () => [] as PendingOrder[],
-      ),
-      api.accounts().catch(() => [] as Account[]),
-    ])
+    let [stock, newsLinks, allNews, plans, openOrders, accounts, txns, txnSummary] =
+      await Promise.all([
+        api.stock(id, locale).catch(() => null),
+        api.newsForStock(id).catch(() => [] as NewsStockLink[]),
+        api.news(locale).catch(() => [] as NewsItem[]),
+        api.tradePlans({ stock_id: id }).catch(() => [] as TradePlan[]),
+        api.pendingOrders({ stock_id: id, status: 'open' }).catch(
+          () => [] as PendingOrder[],
+        ),
+        api.accounts().catch(() => [] as Account[]),
+        // Newest slice only — the panel is a glance, and
+        // `/transactions?stock_id=` behind the "full history" link owns
+        // the paginated view. The summary below still spans everything.
+        api
+          .transactionsForStock(id, { limit: TXN_PREVIEW_LIMIT })
+          .catch(() => [] as Transaction[]),
+        api
+          .transactionSummaryForStock(id)
+          .catch(() => null as TransactionSummary | null),
+      ])
     if (!stock) {
       return new Response('Stock not found', { status: 404 })
     }
@@ -89,6 +108,8 @@ export const stockDetail: BuildAction<'GET', typeof routes.stockDetail> = {
         openOrders={openOrders}
         accountMap={accountMap}
         stockMap={stockMap}
+        txns={txns}
+        txnSummary={txnSummary}
       />,
       request,
       { locale, theme },
@@ -106,6 +127,10 @@ interface StockDetailProps {
   openOrders: PendingOrder[]
   accountMap: Map<number, Account>
   stockMap: Map<number, Stock>
+  txns: Transaction[]
+  /// `null` only when the summary request itself failed — an untraded
+  /// stock still returns a zero-filled body.
+  txnSummary: TransactionSummary | null
 }
 
 function StockDetailPage() {
@@ -119,6 +144,8 @@ function StockDetailPage() {
     openOrders,
     accountMap,
     stockMap,
+    txns,
+    txnSummary,
   }: StockDetailProps) => {
     let p = messages(locale).pages.stockDetail
     let displayName = stock.name ?? stock.symbol
@@ -288,6 +315,78 @@ function StockDetailPage() {
 
         <div mix={css({ marginTop: space[4] })}>
           <Card>
+            <div
+              mix={css({
+                display: 'flex',
+                alignItems: 'baseline',
+                justifyContent: 'space-between',
+                gap: space[3],
+                marginBottom: space[3],
+              })}
+            >
+              <SectionTitle
+                hint={
+                  txnSummary && txnSummary.transaction_count > 0
+                    ? p.hintTransactions(txns.length, txnSummary.transaction_count)
+                    : p.hintNoTransactions
+                }
+              >
+                {p.sectionTransactions}
+              </SectionTitle>
+              <a
+                href={`/transactions?stock_id=${stock.id}`}
+                mix={css({
+                  fontSize: font.xs,
+                  color: color.brand,
+                  textDecoration: 'none',
+                  fontWeight: 600,
+                  '&:hover': { textDecoration: 'underline' },
+                })}
+              >
+                {p.historyLink}
+              </a>
+            </div>
+            {txns.length === 0 ? (
+              <EmptyState
+                title={p.noTransactionsTitle}
+                hint={
+                  <>
+                    {p.noTransactionsHintPrefix}
+                    <a
+                      href={`/transactions?stock_id=${stock.id}`}
+                      mix={css({
+                        color: color.brand,
+                        textDecoration: 'none',
+                        '&:hover': { textDecoration: 'underline' },
+                      })}
+                    >
+                      {p.noTransactionsHintLink}
+                    </a>
+                    {p.noTransactionsHintSuffix}
+                  </>
+                }
+              />
+            ) : (
+              <>
+                {txnSummary && (
+                  <LedgerSummary summary={txnSummary} locale={locale} />
+                )}
+                <TransactionsTable
+                  locale={locale}
+                  rows={txns}
+                  stocks={stockMap}
+                  accounts={accountMap}
+                  showStockColumn={false}
+                  showAccountColumn
+                  showActions={false}
+                />
+              </>
+            )}
+          </Card>
+        </div>
+
+        <div mix={css({ marginTop: space[4] })}>
+          <Card>
             <SectionTitle hint={p.hintNewsShown(recentNews.length, totalNews)}>
               {p.sectionRecentNews}
             </SectionTitle>
@@ -295,6 +394,144 @@ function StockDetailPage() {
           </Card>
         </div>
       </Layout>
+    )
+  }
+}
+
+/// The numbers behind the ledger table: what this position cost, what it
+/// has returned, and what the broker took along the way.
+///
+/// Rendered as an inset well so it reads as carved into the card rather
+/// than as another raised tile — the summary is context for the table
+/// below it, not a peer of the surrounding sections.
+function LedgerSummary() {
+  return ({ summary, locale }: { summary: TransactionSummary; locale: string }) => {
+    let p = messages(locale).pages.stockDetail
+    // The trade-currency totals only mean something when every
+    // contributing row shares one currency; the API nulls the code out
+    // otherwise and we lean on the base-currency figures instead.
+    let tc = summary.trade_currency
+    let currencyNote = tc ? p.statBaseCurrencyNote : p.statMixedCurrencyNote
+    let realized = Number.parseFloat(summary.realized_pnl_base)
+    let realizedTrend: 'up' | 'down' | 'flat' =
+      Number.isFinite(realized) && realized !== 0
+        ? realized > 0
+          ? 'up'
+          : 'down'
+        : 'flat'
+    let suffix = (amount: string) => (tc ? `${fmtMoney(amount)} ${tc}` : undefined)
+    return (
+      <div
+        mix={css({
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+          gap: space[4],
+          padding: space[4],
+          marginBottom: space[4],
+          background: color.hover,
+          borderRadius: radius.md,
+          boxShadow: shadow.inset,
+        })}
+      >
+        <SummaryMetric
+          label={p.statOpenQty}
+          value={summary.quantity}
+          caption={tc ?? undefined}
+        />
+        <SummaryMetric
+          label={p.statAvgCost}
+          value={fmtMoney(summary.avg_cost_trade)}
+          caption={tc ?? undefined}
+        />
+        <SummaryMetric
+          label={p.statCostBasis}
+          value={fmtMoney(summary.cost_base)}
+          caption={currencyNote}
+        />
+        <SummaryMetric
+          label={p.statRealizedPnl}
+          value={`${realizedTrend === 'up' ? '+' : ''}${fmtMoney(summary.realized_pnl_base)}`}
+          caption={currencyNote}
+          trend={realizedTrend}
+        />
+        <SummaryMetric
+          label={p.statBought}
+          value={summary.buy_quantity}
+          caption={suffix(summary.buy_amount_trade)}
+        />
+        <SummaryMetric
+          label={p.statSold}
+          value={summary.sell_quantity}
+          caption={suffix(summary.sell_amount_trade)}
+        />
+        <SummaryMetric
+          label={p.statCommission}
+          value={fmtMoney(summary.commission_total_base)}
+          caption={currencyNote}
+        />
+        <SummaryMetric
+          label={p.statTax}
+          value={fmtMoney(summary.tax_total_base)}
+          caption={currencyNote}
+        />
+      </div>
+    )
+  }
+}
+
+function SummaryMetric() {
+  return ({
+    label,
+    value,
+    caption,
+    trend = 'flat',
+  }: {
+    label: string
+    value: string
+    caption?: string
+    /// Tints only the P&L figure. Everything else stays neutral so the
+    /// one number that carries a verdict is the one that's colored.
+    trend?: 'up' | 'down' | 'flat'
+  }) => {
+    let valueColor =
+      trend === 'up' ? color.success : trend === 'down' ? color.danger : color.text
+    return (
+      <div>
+        <div
+          mix={css({
+            fontSize: font.xs,
+            textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+            color: color.textMuted,
+            marginBottom: space[1],
+          })}
+        >
+          {label}
+        </div>
+        <div
+          mix={css({
+            fontSize: font.lg,
+            fontWeight: 700,
+            color: valueColor,
+            fontFamily: font.mono,
+            fontVariantNumeric: 'tabular-nums',
+            wordBreak: 'break-all',
+          })}
+        >
+          {value}
+        </div>
+        {caption && (
+          <div
+            mix={css({
+              marginTop: space[1],
+              fontSize: font.xs,
+              color: color.textDim,
+            })}
+          >
+            {caption}
+          </div>
+        )}
+      </div>
     )
   }
 }

@@ -140,6 +140,7 @@ function HoldingsPage() {
                 <Th align="right">{p.columnCostBasis}</Th>
                 <Th align="right">{p.columnUnrealizedPnl}</Th>
                 <Th align="right">{p.columnRealizedPnl}</Th>
+                <Th>{p.columnLedger}</Th>
               </tr>
             </thead>
             <tbody>
@@ -213,6 +214,27 @@ function HoldingsPage() {
                     </Td>
                     <Td align="right">
                       <PnlPill value={h.realized_pnl_base} trend={realizedTrend} />
+                    </Td>
+                    <Td>
+                      {/* Every number in this row is derived from the
+                          transactions behind it, so give the user a way
+                          to go read them. The row itself already opens
+                          the stock; this link skips straight to the
+                          ledger scoped to that ticker. */}
+                      <a
+                        href={`/transactions?stock_id=${h.stock_id}`}
+                        title={p.ledgerLinkTitle(h.symbol ?? `#${h.stock_id}`)}
+                        mix={css({
+                          fontSize: font.xs,
+                          fontWeight: 600,
+                          color: color.brand,
+                          textDecoration: 'none',
+                          whiteSpace: 'nowrap',
+                          '&:hover': { textDecoration: 'underline' },
+                        })}
+                      >
+                        {p.ledgerLink}
+                      </a>
                     </Td>
                   </tr>
                 )
