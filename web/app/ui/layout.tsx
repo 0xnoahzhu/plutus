@@ -1245,6 +1245,29 @@ export function unreadCardStyle(readAt: string | null) {
       }
 }
 
+/// Comparator fragment that floats unread rows above read ones. Chain it
+/// ahead of the page's own ordering with `||`:
+///
+/// ```ts
+/// rows.sort((a, b) => unreadFirst(a.read_at, b.read_at) || b.date.localeCompare(a.date))
+/// ```
+///
+/// Unread is `read_at === null`. This lives here rather than being
+/// rewritten per controller because the *precedence* is the part that
+/// has to stay consistent: every list sorts unread-first and then by its
+/// own key, never the other way round. A page that quietly reversed
+/// those two is exactly how items end up buried.
+export function unreadFirst(a: string | null, b: string | null): number {
+  return (a === null ? 0 : 1) - (b === null ? 0 : 1)
+}
+
+/// Group-level variant for day-grouped lists: a group holding any unread
+/// row sorts above one that holds none. Callers pass the already-computed
+/// predicate because only they know how to reach the rows.
+export function unreadGroupFirst(aHasUnread: boolean, bHasUnread: boolean): number {
+  return Number(bHasUnread) - Number(aHasUnread)
+}
+
 /// Filled circle that flags an unread list item. Pass the row's
 /// `read_at` — `null` renders the dot, any string hides it. Sits next to
 /// the leading metadata in a card. Default 10px with a soft glow so it

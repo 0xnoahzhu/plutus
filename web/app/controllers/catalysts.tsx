@@ -22,6 +22,8 @@ import {
   StockBadge,
   type Theme,
   UnreadDot,
+  unreadFirst,
+  unreadGroupFirst,
 } from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
@@ -47,14 +49,22 @@ export const catalysts: BuildAction<'GET', typeof routes.catalysts> = {
     let stockMap = new Map<number, Stock>(stocks.map((s) => [s.id, s]))
 
     let today = new Date().toISOString().slice(0, 10)
+    // Upcoming stays in date order — it answers "what's coming next", and
+    // hoisting an unread day in November above tomorrow would stop it
+    // answering that. Unread still floats within each day, and the
+    // brand-tinted card makes it loud. Past is a feed, not a calendar, and
+    // it grows without bound, so there whole day-groups with anything
+    // unread come to the top.
     let upcoming = group(
       all.filter((c) => c.catalyst_date >= today),
       stockMap,
     )
-    let past = group(
-      all.filter((c) => c.catalyst_date < today),
-      stockMap,
-    ).reverse()
+    let past = floatUnreadDays(
+      group(
+        all.filter((c) => c.catalyst_date < today),
+        stockMap,
+      ).reverse(),
+    )
 
     return render(
       <CatalystsPage
@@ -82,9 +92,22 @@ function group(items: Catalyst[], stocks: Map<number, Stock>): DayGroup[] {
     g.rows.push({ catalyst: c, stock: c.stock_id != null ? stocks.get(c.stock_id) : undefined })
   }
   for (let g of by.values()) {
-    g.rows.sort((a, b) => impactOrder(b.catalyst.impact_level) - impactOrder(a.catalyst.impact_level))
+    // Unread first within the day, then by impact.
+    g.rows.sort(
+      (a, b) =>
+        unreadFirst(a.catalyst.read_at, b.catalyst.read_at) ||
+        impactOrder(b.catalyst.impact_level) - impactOrder(a.catalyst.impact_level),
+    )
   }
   return Array.from(by.values()).sort((a, b) => a.date.localeCompare(b.date))
+}
+
+/// Lift day-groups holding any unread catalyst above fully-read ones,
+/// preserving the incoming order within each state. Only applied to the
+/// past list — see the handler for why upcoming stays chronological.
+function floatUnreadDays(days: DayGroup[]): DayGroup[] {
+  let hasUnread = (g: DayGroup) => g.rows.some((r) => r.catalyst.read_at === null)
+  return days.sort((a, b) => unreadGroupFirst(hasUnread(a), hasUnread(b)))
 }
 
 function impactOrder(level: string): number {

@@ -23,6 +23,7 @@ import {
   type Theme,
   unreadCardStyle,
   UnreadDot,
+  unreadFirst,
 } from '../ui/layout.tsx'
 import { fmtMoney } from '../ui/format.ts'
 import { LocalTime } from '../ui/local-time.tsx'
@@ -45,8 +46,14 @@ export const recommendations: BuildAction<'GET', typeof routes.recommendations> 
       .catch(() => [] as Stock[])
     let stockMap = new Map<number, Stock>(stocks.map((s) => [s.id, s]))
 
-    let open = recs.filter((r) => r.status === 'open')
-    let closed = recs.filter((r) => r.status !== 'open')
+    // Unread first within each section, then newest — the API's own
+    // issued_at DESC order. Sorting per section rather than globally
+    // keeps a stale unread open call from jumping above fresh ones in
+    // the closed list, and vice versa.
+    let byUnreadThenIssued = (a: Recommendation, b: Recommendation) =>
+      unreadFirst(a.read_at, b.read_at) || b.issued_at.localeCompare(a.issued_at)
+    let open = recs.filter((r) => r.status === 'open').sort(byUnreadThenIssued)
+    let closed = recs.filter((r) => r.status !== 'open').sort(byUnreadThenIssued)
 
     return render(
       <RecommendationsPage

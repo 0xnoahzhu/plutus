@@ -21,6 +21,7 @@ import {
   type Theme,
   unreadCardStyle,
   UnreadDot,
+  unreadFirst,
 } from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
@@ -30,6 +31,11 @@ export const screeners: BuildAction<'GET', typeof routes.screeners> = {
     let locale = resolveLocale(request, url.searchParams)
     let theme = resolveTheme(request, url.searchParams)
     let runs = await api.screenerRuns(locale).catch(() => [])
+    // Unread first; the API already hands these back run_date DESC, so
+    // the second key just preserves that within each read state.
+    runs.sort(
+      (a, b) => unreadFirst(a.read_at, b.read_at) || b.run_date.localeCompare(a.run_date),
+    )
     return render(
       <ScreenersPage runs={runs} locale={locale} theme={theme} />,
       request,

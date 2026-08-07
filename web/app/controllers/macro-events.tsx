@@ -21,6 +21,8 @@ import {
   space,
   type Theme,
   UnreadDot,
+  unreadFirst,
+  unreadGroupFirst,
 } from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
@@ -45,8 +47,14 @@ export const macroEvents: BuildAction<'GET', typeof routes.macroEvents> = {
     )
 
     let today = new Date().toISOString().slice(0, 10)
+    // Same split as /catalysts: upcoming keeps calendar order (unread
+    // floats within a day), past floats whole unread day-groups up
+    // because it's an unbounded feed where scanning for unread is the
+    // whole job.
     let upcoming = group(events.filter((e) => e.event_date >= today))
-    let past = group(events.filter((e) => e.event_date < today)).reverse()
+    let past = floatUnreadDays(
+      group(events.filter((e) => e.event_date < today)).reverse(),
+    )
 
     return render(
       <MacroEventsPage
@@ -75,9 +83,21 @@ function group(events: MacroEvent[]): DayGroup[] {
     g.events.push(e)
   }
   for (let g of by.values()) {
-    g.events.sort((a, b) => a.indicator_code.localeCompare(b.indicator_code))
+    // Unread first within the day, then by indicator code.
+    g.events.sort(
+      (a, b) =>
+        unreadFirst(a.read_at, b.read_at) ||
+        a.indicator_code.localeCompare(b.indicator_code),
+    )
   }
   return Array.from(by.values()).sort((a, b) => a.date.localeCompare(b.date))
+}
+
+/// Lift day-groups holding any unread event above fully-read ones,
+/// preserving the incoming order within each state. Past list only.
+function floatUnreadDays(days: DayGroup[]): DayGroup[] {
+  let hasUnread = (g: DayGroup) => g.events.some((e) => e.read_at === null)
+  return days.sort((a, b) => unreadGroupFirst(hasUnread(a), hasUnread(b)))
 }
 
 interface MacroEventsProps {

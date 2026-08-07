@@ -21,6 +21,7 @@ import {
   type Theme,
   unreadCardStyle,
   UnreadDot,
+  unreadGroupFirst,
 } from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
@@ -53,10 +54,11 @@ export const briefs: BuildAction<'GET', typeof routes.briefs> = {
     }
     // Days holding any unread brief float to the top; newest first within
     // each read state so the chronology stays predictable.
-    let readRank = (g: DayGroup) =>
-      [g.pre, g.post, g.scan].some((b) => b && b.read_at === null) ? 0 : 1
+    let hasUnread = (g: DayGroup) =>
+      [g.pre, g.post, g.scan].some((b) => b && b.read_at === null)
     let days: DayGroup[] = Array.from(byDate.values()).sort(
-      (a, b) => readRank(a) - readRank(b) || b.date.localeCompare(a.date),
+      (a, b) =>
+        unreadGroupFirst(hasUnread(a), hasUnread(b)) || b.date.localeCompare(a.date),
     )
     return render(
       <BriefsPage days={days} country={country} locale={locale} theme={theme} />,

@@ -24,6 +24,7 @@ import {
   type Theme,
   unreadCardStyle,
   UnreadDot,
+  unreadFirst,
 } from '../ui/layout.tsx'
 import { MarkdownToggle } from '../ui/markdown.tsx'
 import { render } from '../utils/render.tsx'
@@ -38,6 +39,10 @@ export const correlations: BuildAction<'GET', typeof routes.correlations> = {
       api.universes().catch(() => []),
     ])
     let universeMap = new Map<number, UniverseDefinition>(universes.map((u) => [u.id, u]))
+    // Unread first, then newest — the API's own run_date DESC order.
+    runs.sort(
+      (a, b) => unreadFirst(a.read_at, b.read_at) || b.run_date.localeCompare(a.run_date),
+    )
 
     return render(
       <CorrelationsPage

@@ -21,6 +21,7 @@ import {
   type Theme,
   unreadCardStyle,
   UnreadDot,
+  unreadFirst,
 } from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
@@ -30,8 +31,12 @@ export const portfolioReviews: BuildAction<'GET', typeof routes.portfolioReviews
     let locale = resolveLocale(request, url.searchParams)
     let theme = resolveTheme(request, url.searchParams)
     let reviews = await api.portfolioReviews(locale).catch(() => [])
-    // Newest first.
-    reviews.sort((a, b) => b.period_start.localeCompare(a.period_start))
+    // Unread first, newest first within each read state.
+    reviews.sort(
+      (a, b) =>
+        unreadFirst(a.read_at, b.read_at) ||
+        b.period_start.localeCompare(a.period_start),
+    )
     return render(
       <PortfolioReviewsPage reviews={reviews} locale={locale} theme={theme} />,
       request,

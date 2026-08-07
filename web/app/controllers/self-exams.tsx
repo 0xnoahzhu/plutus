@@ -19,6 +19,7 @@ import {
   type Theme,
   unreadCardStyle,
   UnreadDot,
+  unreadFirst,
 } from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
@@ -28,7 +29,12 @@ export const selfExams: BuildAction<'GET', typeof routes.selfExams> = {
     let locale = resolveLocale(request, url.searchParams)
     let theme = resolveTheme(request, url.searchParams)
     let exams = await api.selfExams({ locale }).catch(() => [])
-    exams.sort((a, b) => b.period_start.localeCompare(a.period_start))
+    // Unread first, newest first within each read state.
+    exams.sort(
+      (a, b) =>
+        unreadFirst(a.read_at, b.read_at) ||
+        b.period_start.localeCompare(a.period_start),
+    )
     return render(
       <SelfExamsPage exams={exams} locale={locale} theme={theme} />,
       request,

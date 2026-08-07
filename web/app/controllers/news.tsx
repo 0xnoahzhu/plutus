@@ -21,6 +21,7 @@ import {
   type Theme,
   unreadCardStyle,
   UnreadDot,
+  unreadFirst,
 } from '../ui/layout.tsx'
 import { LocalTime } from '../ui/local-time.tsx'
 import { render } from '../utils/render.tsx'
@@ -35,9 +36,10 @@ export const news: BuildAction<'GET', typeof routes.news> = {
     let all = await api.news(locale).catch(() => [])
     let filtered = all.filter((n) => n.region === country || n.region === 'global')
     // Unread first, newest first within each read state.
-    let readRank = (n: NewsItem) => (n.read_at === null ? 0 : 1)
     filtered.sort(
-      (a, b) => readRank(a) - readRank(b) || b.published_at.localeCompare(a.published_at),
+      (a, b) =>
+        unreadFirst(a.read_at, b.read_at) ||
+        b.published_at.localeCompare(a.published_at),
     )
 
     return render(

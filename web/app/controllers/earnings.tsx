@@ -22,6 +22,8 @@ import {
   StockBadge,
   type Theme,
   UnreadDot,
+  unreadFirst,
+  unreadGroupFirst,
 } from '../ui/layout.tsx'
 import { render } from '../utils/render.tsx'
 
@@ -48,10 +50,16 @@ export const earnings: BuildAction<'GET', typeof routes.earnings> = {
       events.filter((e) => e.announce_date >= today),
       stockMap,
     )
-    let past = groupByDate(
-      events.filter((e) => e.announce_date < today),
-      stockMap,
-    ).reverse()
+    // Past is a feed, not a calendar, and it only grows — so day-groups
+    // holding anything unread come to the top there. Upcoming keeps
+    // strict date order because it answers "what's next"; unread still
+    // floats within each day (see groupByDate).
+    let past = floatUnreadDays(
+      groupByDate(
+        events.filter((e) => e.announce_date < today),
+        stockMap,
+      ).reverse(),
+    )
 
     return render(
       <EarningsPage
@@ -86,11 +94,18 @@ function groupByDate(
     // itself stays chronological — it's a calendar, not a feed.
     g.events.sort(
       (a, b) =>
-        (a.event.read_at === null ? 0 : 1) - (b.event.read_at === null ? 0 : 1) ||
+        unreadFirst(a.event.read_at, b.event.read_at) ||
         (a.stock?.symbol ?? '').localeCompare(b.stock?.symbol ?? ''),
     )
   }
   return Array.from(by.values()).sort((a, b) => a.date.localeCompare(b.date))
+}
+
+/// Lift day-groups holding any unread event above fully-read ones,
+/// preserving the incoming order within each state. Past list only.
+function floatUnreadDays(days: DayGroup[]): DayGroup[] {
+  let hasUnread = (g: DayGroup) => g.events.some((e) => e.event.read_at === null)
+  return days.sort((a, b) => unreadGroupFirst(hasUnread(a), hasUnread(b)))
 }
 
 interface EarningsProps {
