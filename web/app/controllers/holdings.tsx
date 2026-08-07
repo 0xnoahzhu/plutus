@@ -1,7 +1,7 @@
 import type { BuildAction } from 'remix/fetch-router'
 import { css, type RemixNode } from 'remix/ui'
 
-import { api, type Holding } from '../api.ts'
+import { ambientPortfolioSummary, api, type Holding } from '../api.ts'
 import { messages } from '../i18n/messages.ts'
 import type { routes } from '../routes.ts'
 import {
@@ -107,6 +107,7 @@ function HoldingsPage() {
       locale={locale}
       theme={theme}
     >
+      <HoldingsTotals locale={locale} />
       <Card>
         <SearchBar
           action="/holdings"
@@ -257,6 +258,103 @@ function HoldingsPage() {
         />
       )}
     </Layout>
+    )
+  }
+}
+
+/// Portfolio totals above the position table.
+///
+/// Deliberately whole-portfolio, not a sum of the rows below: the table
+/// is filtered by country and paginated, so a footer summing the visible
+/// rows would change as you page through and wouldn't be your net worth.
+/// This answers "what am I worth" once, and the table answers "of what".
+///
+/// Reads the ambient summary the auth wrapper already fetched, so it
+/// costs no extra request.
+function HoldingsTotals() {
+  return ({ locale }: { locale: string }) => {
+    let summary = ambientPortfolioSummary()
+    if (!summary) return null
+    let p = messages(locale).pages.holdings
+    let unrealized = Number.parseFloat(summary.unrealized_pnl)
+    let trend: 'up' | 'down' | 'flat' =
+      Number.isFinite(unrealized) && unrealized !== 0
+        ? unrealized > 0
+          ? 'up'
+          : 'down'
+        : 'flat'
+    return (
+      <div mix={css({ marginBottom: space[4] })}>
+        <Card>
+          <div
+            mix={css({
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+              gap: space[4],
+            })}
+          >
+            <Total label={p.summaryCash} value={fmtMoney(summary.cash)} />
+            <Total
+              label={p.summaryMarketValue}
+              value={fmtMoney(summary.market_value)}
+            />
+            <Total
+              label={p.summaryUnrealized}
+              value={`${trend === 'up' ? '+' : ''}${fmtMoney(summary.unrealized_pnl)}`}
+              trend={trend}
+            />
+            <Total
+              label={p.summaryTotal}
+              value={fmtMoney(summary.total_assets)}
+              emphasis
+            />
+          </div>
+        </Card>
+      </div>
+    )
+  }
+}
+
+function Total() {
+  return ({
+    label,
+    value,
+    trend = 'flat',
+    emphasis,
+  }: {
+    label: string
+    value: string
+    trend?: 'up' | 'down' | 'flat'
+    emphasis?: boolean
+  }) => {
+    let valueColor =
+      trend === 'up' ? color.success : trend === 'down' ? color.danger : color.text
+    return (
+      <div>
+        <div
+          mix={css({
+            fontSize: font.xs,
+            textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+            color: color.textMuted,
+            marginBottom: space[1],
+          })}
+        >
+          {label}
+        </div>
+        <div
+          mix={css({
+            fontFamily: font.mono,
+            fontSize: emphasis ? font.xl : font.lg,
+            fontWeight: 700,
+            color: valueColor,
+            fontVariantNumeric: 'tabular-nums',
+            lineHeight: 1.1,
+          })}
+        >
+          {value}
+        </div>
+      </div>
     )
   }
 }

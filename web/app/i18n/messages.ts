@@ -37,6 +37,11 @@ const en = {
     sectionAnalysis: 'Analysis',
     sectionAccount: 'Account',
     signOut: 'Sign out',
+    totalAssets: 'Total assets',
+    /// Tooltip when some positions had no price and were counted at
+    /// cost. The figure is still the best available, just not exact.
+    totalAssetsEstimated: (n: number) =>
+      `Estimate — ${n} position${n === 1 ? '' : 's'} priced at cost basis (no market data yet)`,
   },
 
   pages: {
@@ -68,6 +73,19 @@ const en = {
       metricMarketValue: 'Market Value',
       metricCostBasis: 'Cost Basis',
       metricUnrealizedPnl: 'Unrealized P&L',
+      metricCash: 'Cash',
+      metricTotalAssets: 'Total Assets',
+      sectionNetWorth: 'Net Worth',
+      netWorthFormula: 'cash + market value',
+      /// Shown when the cash figure rests on an anchor rather than on a
+      /// complete deposit history — says which, so a surprising number
+      /// is diagnosable instead of just wrong-looking.
+      cashAnchored: (date: string) => `anchored ${date}`,
+      cashFromLedger: 'from ledger',
+      cashNegativeHint:
+        'Cash is negative because the ledger has buys without matching deposits. Set a cash balance on the account to anchor it.',
+      estimatedHint: (n: number) =>
+        `${n} position${n === 1 ? '' : 's'} without market data, counted at cost`,
       emptyNoActivity: 'No activity yet',
       emptyActivityHint: 'agent writes will surface here',
       emptyNoPositions: 'No open positions',
@@ -98,6 +116,10 @@ const en = {
       /// Per-row link into the transactions that produced the position.
       ledgerLink: 'transactions →',
       ledgerLinkTitle: (symbol: string) => `See the transactions behind ${symbol}`,
+      summaryCash: 'Cash',
+      summaryMarketValue: 'Positions',
+      summaryTotal: 'Total assets',
+      summaryUnrealized: 'Unrealized P&L',
       emptyTitle: 'No open positions',
       emptyHint: 'Add a buy transaction or change the country filter.',
     },
@@ -540,13 +562,26 @@ const en = {
     columnBroker: 'Broker',
     columnNumber: 'Account number',
     columnCurrency: 'Base currency',
+    columnCash: 'Cash',
     columnCreated: 'Created',
     deleteSubmit: 'Delete',
+    cashNotSet: 'from ledger',
+    cashBalanceLabel: 'Cash balance',
+    cashAsOfLabel: 'As of',
+    cashHint:
+      "Cash is worked out from your transactions. If you started recording part-way through, set the balance your broker shows and when — only activity after that point is added on top. Day-to-day deposits and withdrawals go in as transactions, not here.",
+    cashSubmit: 'Save',
+    cashClear: 'Clear',
+    cashClearConfirm:
+      'Clear the cash anchor? Cash goes back to being derived from the full transaction history, which will read negative if deposits are missing.',
     flashCreated: 'Account added.',
     flashDeleted: 'Account deleted.',
+    flashCashSet: 'Cash balance saved.',
+    flashCashCleared: 'Cash anchor cleared — back to ledger-derived cash.',
     errMissingCreate: 'Broker, name, and base currency are required.',
     errBrokerMissing: 'No brokers registered — ask your admin to add one.',
     errInUse: 'Cannot delete — transactions still reference this account.',
+    errCashMissing: 'Both the balance and the as-of time are required.',
     errServer: 'Request failed.',
   },
 
@@ -770,6 +805,9 @@ const zhCN: Messages = {
     sectionAnalysis: '分析',
     sectionAccount: '账号',
     signOut: '退出登录',
+    totalAssets: '总资产',
+    totalAssetsEstimated: (n: number) =>
+      `估算值 —— ${n} 只持仓暂无行情，按成本价计入`,
   },
 
   pages: {
@@ -801,6 +839,15 @@ const zhCN: Messages = {
       metricMarketValue: '市值',
       metricCostBasis: '成本',
       metricUnrealizedPnl: '浮动盈亏',
+      metricCash: '现金',
+      metricTotalAssets: '总资产',
+      sectionNetWorth: '净资产',
+      netWorthFormula: '现金 + 股票市值',
+      cashAnchored: (date: string) => `锚定于 ${date}`,
+      cashFromLedger: '由账本推算',
+      cashNegativeHint:
+        '现金为负，说明账本里有买入却没有对应的入金记录。请在账户上设置现金余额作为锚点。',
+      estimatedHint: (n: number) => `${n} 只持仓暂无行情，按成本价计入`,
       emptyNoActivity: '暂无活动',
       emptyActivityHint: 'Agent 写入后会在此显示',
       emptyNoPositions: '暂无持仓',
@@ -830,6 +877,10 @@ const zhCN: Messages = {
       columnLedger: '交易',
       ledgerLink: '交易记录 →',
       ledgerLinkTitle: (symbol: string) => `查看 ${symbol} 的交易记录`,
+      summaryCash: '现金',
+      summaryMarketValue: '股票市值',
+      summaryTotal: '总资产',
+      summaryUnrealized: '未实现盈亏',
       emptyTitle: '暂无持仓',
       emptyHint: '添加一笔买入交易，或切换国家筛选。',
     },
@@ -1255,13 +1306,26 @@ const zhCN: Messages = {
     columnBroker: '券商',
     columnNumber: '账号',
     columnCurrency: '基础货币',
+    columnCash: '现金',
     columnCreated: '创建时间',
     deleteSubmit: '删除',
+    cashNotSet: '由账本推算',
+    cashBalanceLabel: '现金余额',
+    cashAsOfLabel: '截至时间',
+    cashHint:
+      '现金由你的交易记录推算得出。如果你是中途才开始记账，请填入券商显示的余额和对应时间 —— 只有该时间之后的流水才会往上叠加。日常的入金、出金请作为交易记录录入，不要在这里改。',
+    cashSubmit: '保存',
+    cashClear: '清除',
+    cashClearConfirm:
+      '确认清除现金锚点？现金将恢复为按完整交易记录推算，如果缺少入金记录会显示为负数。',
     flashCreated: '账户已添加。',
     flashDeleted: '账户已删除。',
+    flashCashSet: '现金余额已保存。',
+    flashCashCleared: '现金锚点已清除 —— 恢复为按账本推算。',
     errMissingCreate: '券商、名称和基础货币都是必填项。',
     errBrokerMissing: '尚未注册任何券商 —— 请联系管理员添加。',
     errInUse: '无法删除 —— 仍有交易引用该账户。',
+    errCashMissing: '余额和截至时间都是必填项。',
     errServer: '请求失败。',
   },
 

@@ -33,6 +33,16 @@ pub struct DailyValue {
     /// Sum of `Position::cost_base` for every still-open position on
     /// that date, from the cost-basis FIFO rollup.
     pub cost_basis: Decimal,
+    /// Cash held that day, across every account.
+    ///
+    /// Derived by walking the anchor to that date: `anchor + F(date) -
+    /// F(anchor_as_of)`, where `F` is the running total of ledger cash
+    /// flows. The subtraction is what makes days *before* the anchor
+    /// work — cash back then was the anchor minus everything that
+    /// happened between.
+    pub cash: Decimal,
+    /// `cash + market_value` — net worth that day.
+    pub total_assets: Decimal,
 }
 
 /// Compute the per-day portfolio time series for a user over the last
@@ -67,11 +77,9 @@ pub async fn value_series(
         .collect::<HashSet<_>>()
         .into_iter()
         .collect();
-    if stock_ids.is_empty() {
-        // User only has cash transactions (dividends / deposits) — no
-        // marketable positions to rollup. Series is empty.
-        return Ok(Vec::new());
-    }
+    // A user with only cash transactions still has a net worth worth
+    // plotting, so we no longer bail here — the price fetch below just
+    // finds nothing and the market-value half stays zero.
 
     // Pull OHLCV for those stocks in one query. `ohlcv_daily.trade_date`
     // is text (ISO YYYY-MM-DD), sortable lexicographically.
@@ -120,12 +128,68 @@ pub async fn value_series(
         tx_dates.entry(sid).or_default().push(date);
     }
 
+    // Cash inputs: every flow with its instant, plus each account's
+    // anchor. Kept as a flat list because the per-day step just needs
+    // "sum the flows on one side of a cutoff".
+    let accounts = super::accounts::list(db, user_id).await?;
+    let mut flows: Vec<(i64, jiff::Timestamp, Decimal)> = Vec::with_capacity(txs.len());
+    for tx in &txs {
+        let Ok(kind) = TransactionKind::from_str(&tx.kind) else {
+            continue;
+        };
+        flows.push((
+            tx.account_id,
+            tx.executed_at,
+            cash_delta_base(&CashLot {
+                kind,
+                quantity: tx.quantity,
+                price: tx.price,
+                commission: tx.commission,
+                tax: tx.tax,
+                fx_to_base: tx.fx_rate_to_base,
+            }),
+        ));
+    }
+
     let mut series = Vec::with_capacity(days as usize);
     let mut cursor = start;
     while cursor <= today {
         let date_str = cursor.to_string(); // ISO YYYY-MM-DD
         let mut market_value = Decimal::ZERO;
         let mut cost_basis = Decimal::ZERO;
+
+        // Cash at end-of-day: anchor + F(day) - F(anchor_as_of), where F
+        // is the running flow total. Written as one signed pass so the
+        // before-anchor case (where the correction is a subtraction)
+        // needs no special branch.
+        let day_end = cursor
+            .checked_add(1.day())
+            .map_err(|e| DbError::Validation(format!("date math: {e}")))?
+            .to_zoned(jiff::tz::TimeZone::UTC)
+            .map_err(|e| DbError::Validation(format!("date math: {e}")))?
+            .timestamp();
+        let mut cash = Decimal::ZERO;
+        for account in &accounts {
+            cash += account.cash_balance;
+            let anchor = account.cash_as_of;
+            for (account_id, at, delta) in &flows {
+                if *account_id != account.id {
+                    continue;
+                }
+                let before_day = *at < day_end;
+                let after_anchor = anchor.is_none_or(|a| *at > a);
+                match (before_day, after_anchor) {
+                    // Happened after the anchor and on/before this day:
+                    // already reflected in reality by now, add it.
+                    (true, true) => cash += delta,
+                    // Happened after this day but on/before the anchor:
+                    // the anchor includes it, so back it out to see what
+                    // cash looked like on the earlier date.
+                    (false, false) => cash -= delta,
+                    _ => {}
+                }
+            }
+        }
 
         for (&sid, lots) in &txs_by_stock {
             // Filter the lots to those whose executed_at <= cursor.
@@ -167,6 +231,8 @@ pub async fn value_series(
             date: date_str,
             market_value,
             cost_basis,
+            cash,
+            total_assets: cash + market_value,
         });
         cursor = cursor
             .checked_add(1.day())

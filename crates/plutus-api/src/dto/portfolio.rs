@@ -23,6 +23,14 @@ pub struct DailyValueOut {
     /// Sum of FIFO cost basis for every open position on that date.
     #[schema(value_type = String)]
     pub cost_basis: Decimal,
+    /// Cash held that day, walked back from each account's anchor
+    /// through the ledger. Days before an anchor are computed by backing
+    /// the intervening flows out of it.
+    #[schema(value_type = String)]
+    pub cash: Decimal,
+    /// `cash + market_value` — net worth on that date.
+    #[schema(value_type = String)]
+    pub total_assets: Decimal,
 }
 
 impl From<DailyValue> for DailyValueOut {
@@ -33,6 +41,8 @@ impl From<DailyValue> for DailyValueOut {
             date: v.date,
             market_value: v.market_value.round_dp(4),
             cost_basis: v.cost_basis.round_dp(4),
+            cash: v.cash.round_dp(4),
+            total_assets: v.total_assets.round_dp(4),
         }
     }
 }

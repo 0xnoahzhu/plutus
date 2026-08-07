@@ -82,6 +82,24 @@ export function ambientUnreadCounts(): UnreadCounts {
   return requestUnreadStore.getStore() ?? {}
 }
 
+/// Per-request portfolio summary. Populated by `withAuth` so the
+/// sidebar can show total assets on every page without each controller
+/// fetching it. `null` when the request failed or the caller is
+/// admin/anonymous — the sidebar then renders nothing rather than a
+/// misleading zero.
+const requestPortfolioStore = new AsyncLocalStorage<PortfolioSummary | null>()
+
+export function runWithPortfolioSummary<T>(
+  summary: PortfolioSummary | null,
+  fn: () => T,
+): T {
+  return requestPortfolioStore.run(summary, fn)
+}
+
+export function ambientPortfolioSummary(): PortfolioSummary | null {
+  return requestPortfolioStore.getStore() ?? null
+}
+
 /// Per-request pathname. Populated by `withAuth` so the sidebar can
 /// highlight the section the user is currently on without every
 /// controller threading the URL through to `Layout`.
@@ -119,7 +137,43 @@ export interface Account {
   name: string
   account_number: string | null
   base_currency: string
+  /// Known cash at `cash_as_of`. Cash is derived from the ledger, but a
+  /// ledger recorded from mid-life has buys with no matching deposits
+  /// and rolls up negative — this anchors it. `"0"` with a null
+  /// `cash_as_of` means "the ledger alone is the truth".
+  cash_balance: string
+  cash_as_of: string | null
   created_at: string
+}
+
+/// Cash for one account, split into the anchor the user pinned and the
+/// ledger flow since — so a wrong-looking number says immediately which
+/// half is at fault.
+export interface AccountCash {
+  account_id: number
+  account_name: string
+  base_currency: string
+  anchor: string
+  anchor_as_of: string | null
+  flow: string
+  cash: string
+}
+
+/// `GET /portfolio/summary` — `total_assets = cash + market_value`.
+export interface PortfolioSummary {
+  cash: string
+  market_value: string
+  cost_basis: string
+  unrealized_pnl: string
+  realized_pnl: string
+  total_assets: string
+  method: string
+  position_count: number
+  /// Open positions with no OHLCV bar, valued at cost basis instead.
+  /// Non-zero means `market_value` mixes market and book values and the
+  /// UI should say the total is an estimate.
+  unpriced_count: number
+  accounts: AccountCash[]
 }
 
 export interface Stock {
@@ -251,6 +305,11 @@ export interface DailyValue {
   market_value: string
   /// FIFO cost basis of open positions as of that day. Decimal-string.
   cost_basis: string
+  /// Cash held that day, walked back from each account's anchor through
+  /// the ledger.
+  cash: string
+  /// `cash + market_value` — net worth on that date.
+  total_assets: string
 }
 
 /// Append `?locale=` to a path when the caller passed a non-default locale.
@@ -1059,6 +1118,37 @@ export const api = {
   portfolioValueSeries: (days?: number) => {
     let q = days ? `?days=${days}` : ''
     return get<DailyValue[]>(`/portfolio/value-series${q}`)
+  },
+  /// Net worth: cash + market value. Used by the sidebar (via the
+  /// ambient store), the dashboard and the holdings header.
+  portfolioSummary: (cookie?: string | null, method?: string) => {
+    let q = method ? `?method=${encodeURIComponent(method)}` : ''
+    return get<PortfolioSummary>(`/portfolio/summary${q}`, cookie)
+  },
+
+  /// Rename an account or set its cash anchor. `cash_balance` must be
+  /// accompanied by `cash_as_of` — the server rejects a bare balance
+  /// because it would be applied on top of transactions it already
+  /// includes.
+  updateAccountRaw: (
+    cookie: string | null | undefined,
+    id: number,
+    body: {
+      name?: string
+      cash_balance?: string
+      cash_as_of?: string | null
+    },
+  ) => {
+    let headers: Record<string, string> = {
+      'content-type': 'application/json',
+      accept: 'application/json',
+    }
+    if (cookie) headers.cookie = cookie
+    return fetch(`${BASE}/api/v1/accounts/${id}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(body),
+    })
   },
 
   /// Returns the raw upstream Response so the caller can read the

@@ -13,9 +13,11 @@ import type { RequestHandler } from 'remix/fetch-router'
 
 import {
   api,
+  type PortfolioSummary,
   runWithAllowedCountries,
   runWithCookie,
   runWithPath,
+  runWithPortfolioSummary,
   runWithUnreadCounts,
 } from '../api.ts'
 
@@ -91,10 +93,20 @@ export function withAuth<A>(action: A): A {
     // unread counts are pulled once per request for the sidebar badges;
     // a failure resolves to `{}` so the page still renders.
     return runWithCookie(cookie, async () => {
-      let counts = await api.unreadCounts(cookie)
+      // Both are sidebar chrome, so fetch them together rather than
+      // serially. A failure on either resolves to an empty value and the
+      // page still renders — chrome must never take a page down.
+      let [counts, portfolio] = await Promise.all([
+        api.unreadCounts(cookie),
+        api
+          .portfolioSummary(cookie)
+          .catch(() => null as PortfolioSummary | null),
+      ])
       return runWithAllowedCountries(me.allowed_countries, () =>
         runWithUnreadCounts(counts, () =>
-          runWithPath(new URL(req.url).pathname, () => inner(ctx)),
+          runWithPortfolioSummary(portfolio, () =>
+            runWithPath(new URL(req.url).pathname, () => inner(ctx)),
+          ),
         ),
       )
     })

@@ -3,6 +3,7 @@ import { css, type RemixNode } from 'remix/ui'
 import {
   ambientAllowedCountries,
   ambientPath,
+  ambientPortfolioSummary,
   ambientUnreadCounts,
   type EntityKind,
 } from '../api.ts'
@@ -39,6 +40,7 @@ import { messages, type Messages } from '../i18n/messages.ts'
 import { routes } from '../routes.ts'
 
 import { Document } from './document.tsx'
+import { fmtMoney } from './format.ts'
 import { Icon } from './icon.tsx'
 import { color, font, labelStyle, radius, shadow, space } from './tokens.ts'
 
@@ -516,6 +518,7 @@ function Sidebar() {
           })}
         >
           <BrandMark />
+          <TotalAssets locale={locale} />
         </div>
         <nav
           mix={css({
@@ -552,6 +555,67 @@ function Sidebar() {
         </nav>
         <LogoutLink label={m.nav.signOut} />
       </aside>
+    )
+  }
+}
+
+/// Net worth, parked under the brand so it's on screen from every page.
+///
+/// Deliberately one number. The sidebar is 220px of chrome and the
+/// breakdown already has three fuller homes (dashboard, holdings header,
+/// accounts); repeating it here would just crowd the nav. Renders
+/// nothing at all when the summary is unavailable — a blank space reads
+/// as "not loaded", whereas a zero reads as "you have nothing".
+///
+/// On the ≤900px strip it's hidden: that layout is a horizontal scroller
+/// where a two-line block would push the nav items off screen.
+function TotalAssets() {
+  return ({ locale }: { locale: string }) => {
+    let summary = ambientPortfolioSummary()
+    if (!summary) return null
+    let m = messages(locale).nav
+    let estimated = summary.unpriced_count > 0
+    return (
+      <a
+        href="/holdings"
+        title={estimated ? m.totalAssetsEstimated(summary.unpriced_count) : undefined}
+        mix={css({
+          display: 'block',
+          marginTop: space[4],
+          padding: `${space[2]} ${space[3]}`,
+          background: color.hover,
+          borderRadius: radius.md,
+          boxShadow: shadow.inset,
+          textDecoration: 'none',
+          '&:hover': { boxShadow: shadow.pressed },
+          '@media (max-width: 900px)': { display: 'none' },
+        })}
+      >
+        <div
+          mix={css({
+            ...labelStyle,
+            fontSize: '10px',
+            marginBottom: space[1],
+          })}
+        >
+          {m.totalAssets}
+        </div>
+        <div
+          mix={css({
+            fontFamily: font.mono,
+            fontSize: font.md,
+            fontWeight: 700,
+            color: color.text,
+            fontVariantNumeric: 'tabular-nums',
+            lineHeight: 1.2,
+          })}
+        >
+          {fmtMoney(summary.total_assets)}
+          {estimated && (
+            <span mix={css({ color: color.textDim, fontWeight: 400 })}> ~</span>
+          )}
+        </div>
+      </a>
     )
   }
 }

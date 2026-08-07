@@ -23,6 +23,7 @@ export const routes = route({
   apiKeyDelete: post('/api-keys/:id/delete'),
   accounts: '/accounts',
   accountCreate: post('/accounts/new'),
+  accountCash: post('/accounts/:id/cash'),
   accountDelete: post('/accounts/:id/delete'),
   tradePlans: '/trade-plans',
   tradePlanCreate: post('/trade-plans/new'),

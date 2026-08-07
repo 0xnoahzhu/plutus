@@ -1,7 +1,8 @@
 import type { BuildAction } from 'remix/fetch-router'
-import { css } from 'remix/ui'
+import { css, type RemixNode } from 'remix/ui'
 
 import {
+  ambientPortfolioSummary,
   api,
   type AuditEntry,
   type DailyValue,
@@ -19,9 +20,11 @@ import {
   EmptyState,
   font,
   Layout,
+  radius,
   resolveLocale,
   resolveTheme,
   SectionTitle,
+  shadow,
   space,
   Stat,
   StockBadge,
@@ -342,6 +345,7 @@ function PortfolioSnapshotCard() {
         <SectionTitle hint={snapshot.fully_priced ? p.windowFull : p.windowPartial}>
           {p.portfolioPerformance}
         </SectionTitle>
+        <NetWorthStrip locale={locale} />
         <div
           mix={css({
             display: 'grid',
@@ -367,6 +371,128 @@ function PortfolioSnapshotCard() {
       </Card>
     )
   }
+}
+
+/// `cash + positions = total assets`, above the performance metrics.
+///
+/// Reads from the ambient summary the auth wrapper already fetched for
+/// the sidebar, so the dashboard costs no extra round trip.
+///
+/// The three values are laid out as an equation rather than three peers
+/// — the total is what you came for, and showing the two parts beside it
+/// is what makes it trustworthy. An inset well separates "what am I
+/// worth" from the performance numbers below without adding another
+/// raised card.
+function NetWorthStrip() {
+  return ({ locale }: { locale: string }) => {
+    let summary = ambientPortfolioSummary()
+    if (!summary) return null
+    let p = messages(locale).pages.dashboard
+    let cash = Number.parseFloat(summary.cash)
+    // Negative cash isn't a rendering bug, it's the "ledger has buys but
+    // no deposits" case. Say so, with the fix, instead of showing a
+    // mysterious minus sign.
+    let cashNegative = Number.isFinite(cash) && cash < 0
+    let estimated = summary.unpriced_count > 0
+    return (
+      <div
+        mix={css({
+          padding: space[4],
+          marginBottom: space[4],
+          background: color.hover,
+          borderRadius: radius.md,
+          boxShadow: shadow.inset,
+        })}
+      >
+        <div
+          mix={css({
+            display: 'flex',
+            alignItems: 'flex-end',
+            flexWrap: 'wrap',
+            gap: space[4],
+          })}
+        >
+          <NetWorthPart label={p.metricCash} value={fmtMoney(summary.cash)} />
+          <Operator>+</Operator>
+          <NetWorthPart
+            label={p.metricMarketValue}
+            value={fmtMoney(summary.market_value)}
+          />
+          <Operator>=</Operator>
+          <NetWorthPart
+            label={p.metricTotalAssets}
+            value={fmtMoney(summary.total_assets)}
+            emphasis
+          />
+        </div>
+        {(cashNegative || estimated) && (
+          <div
+            mix={css({
+              marginTop: space[3],
+              fontSize: font.xs,
+              color: cashNegative ? color.warnText : color.textDim,
+              lineHeight: 1.5,
+            })}
+          >
+            {cashNegative ? p.cashNegativeHint : p.estimatedHint(summary.unpriced_count)}
+          </div>
+        )}
+      </div>
+    )
+  }
+}
+
+function NetWorthPart() {
+  return ({
+    label,
+    value,
+    emphasis,
+  }: {
+    label: string
+    value: string
+    emphasis?: boolean
+  }) => (
+    <div>
+      <div
+        mix={css({
+          fontSize: font.xs,
+          textTransform: 'uppercase',
+          letterSpacing: '0.08em',
+          color: color.textMuted,
+          marginBottom: space[1],
+        })}
+      >
+        {label}
+      </div>
+      <div
+        mix={css({
+          fontFamily: font.mono,
+          fontSize: emphasis ? font.xxl : font.lg,
+          fontWeight: 700,
+          color: color.text,
+          fontVariantNumeric: 'tabular-nums',
+          lineHeight: 1.1,
+        })}
+      >
+        {value}
+      </div>
+    </div>
+  )
+}
+
+function Operator() {
+  return ({ children }: { children: RemixNode }) => (
+    <div
+      mix={css({
+        fontFamily: font.mono,
+        fontSize: font.lg,
+        color: color.textDim,
+        paddingBottom: space[1],
+      })}
+    >
+      {children}
+    </div>
+  )
 }
 
 /// Hand-rolled SVG line chart for the portfolio value time series.
@@ -400,8 +526,11 @@ function PortfolioChart() {
       date: d.date,
       mv: Number.parseFloat(d.market_value),
       cb: Number.parseFloat(d.cost_basis),
+      total: Number.parseFloat(d.total_assets),
     }))
-    let allValues = pts.flatMap((p) => [p.mv, p.cb])
+    // Total assets joins the y-range so the new line can't run off the
+    // top of a scale computed for market value alone.
+    let allValues = pts.flatMap((p) => [p.mv, p.cb, p.total])
     let dataMin = Math.min(...allValues)
     let dataMax = Math.max(...allValues)
     // Pad the y-range so the line never glues to the chart edge.
@@ -432,6 +561,11 @@ function PortfolioChart() {
 
     let mvPath = pathFor(pts.map((p, i) => [x(i), y(p.mv)] as const))
     let cbPath = pathFor(pts.map((p, i) => [x(i), y(p.cb)] as const))
+    let totalPath = pathFor(pts.map((p, i) => [x(i), y(p.total)] as const))
+    // Only worth a third line when cash actually moves the number. With
+    // no cash the total sits exactly on market value and the two lines
+    // would overprint, reading as a rendering glitch.
+    let showTotal = pts.some((p) => Math.abs(p.total - p.mv) > 0.005)
 
     // X-axis labels: first, middle, last date (in browser TZ — those
     // are calendar dates, no conversion needed but locale formatting
@@ -495,6 +629,20 @@ function PortfolioChart() {
           stroke-linecap="round"
           stroke-linejoin="round"
         />
+        {/* Total assets — market value plus cash, so it rides above the
+            brand line by exactly the cash on hand. Drawn last and
+            lighter so it frames the position curve rather than
+            competing with it. */}
+        {showTotal && (
+          <path
+            d={totalPath}
+            fill="none"
+            stroke={color.info}
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        )}
 
         {/* X-axis labels */}
         {labelIdxs.map((i) => (
