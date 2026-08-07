@@ -15,7 +15,7 @@ use serde_json::{json, Map, Value};
 use utoipa::OpenApi;
 
 use crate::dto::{
-    account::{AccountIn, AccountOut},
+    account::{AccountIn, AccountOut, AccountPatch},
     analyst::{
         AnalystEstimateBatchIn, AnalystEstimateBatchOut, AnalystEstimateIn,
         AnalystEstimateOut, AnalystRatingBatchIn, AnalystRatingBatchOut,
@@ -33,7 +33,7 @@ use crate::dto::{
     fundamentals::{FundamentalsIn, FundamentalsOut},
     fx::{FxIn, FxOut},
     holding::HoldingOut,
-    portfolio::DailyValueOut,
+    portfolio::{AccountCashOut, DailyValueOut, PortfolioSummaryOut},
     insider::{InsiderTxnBatchIn, InsiderTxnBatchOut, InsiderTxnIn, InsiderTxnOut},
     macro_event::{MacroEventBatchIn, MacroEventBatchOut, MacroEventIn, MacroEventOut},
     macros::{MacroIndicatorIn, MacroIndicatorOut, MacroObservationIn, MacroObservationOut},
@@ -70,7 +70,8 @@ use crate::handlers::admin::brokers::{AdminCreateBrokerIn, AdminUpdateBrokerIn};
 /// schemas for every DTO listed below.
 #[derive(OpenApi)]
 #[openapi(components(schemas(
-    AccountIn, AccountOut,
+    AccountIn, AccountOut, AccountPatch,
+    AccountCashOut, PortfolioSummaryOut,
     AdminCreateBrokerIn, AdminUpdateBrokerIn,
     AnalystEstimateIn, AnalystEstimateOut, AnalystEstimateBatchIn, AnalystEstimateBatchOut,
     AnalystRatingIn, AnalystRatingOut, AnalystRatingBatchIn, AnalystRatingBatchOut,
@@ -557,6 +558,12 @@ fn paths() -> Value {
     paths.insert("/accounts/{id}".into(), json!({
         "parameters": [id_param()],
         "get": get_op("reference", "Fetch one account.", "AccountOut"),
+        "patch": patch_op(
+            "reference",
+            "Rename the account or set its cash anchor. `cash_balance` must be sent with `cash_as_of` — a balance without a timestamp would be applied on top of transactions it already includes, so that combination is rejected.",
+            "AccountPatch",
+            "AccountOut"
+        ),
         "delete": delete_op("reference", "Delete an account (refused while any transaction references it).")
     }));
     paths.insert("/sectors".into(), json!({
@@ -786,6 +793,18 @@ fn paths() -> Value {
                 "schema": { "type": "integer", "minimum": 1, "maximum": 365, "default": 30 }
             })],
             "responses": ok_list("DailyValueOut")
+        }
+    }));
+    paths.insert("/portfolio/summary".into(), json!({
+        "get": {
+            "tags": ["holdings"],
+            "summary": "Total assets: cash + market value of open positions.",
+            "description": "`total_assets = cash + market_value`.\n\nCash is each account's anchor (`accounts.cash_balance` as of `accounts.cash_as_of`) plus every ledger cash flow after it — buys, fees, taxes and withdrawals out; sells, deposits, dividends and interest in. `FX` and `CORPORATE_ACTION` rows are cash-neutral apart from their costs. Accounts with no anchor count their whole ledger, which is correct only for an account recorded from day one; otherwise set the anchor from a broker statement via `PATCH /accounts/{id}`.\n\nMarket value prices open positions at their latest `ohlcv_daily` close. A stock with no bar on file falls back to its cost basis so a real position never reads as zero — `unpriced_count` reports how many did, and a non-zero value means the total mixes market and book values.",
+            "parameters": [json!({
+                "name": "method", "in": "query",
+                "schema": { "type": "string", "enum": ["fifo", "lifo", "average"], "default": "fifo" }
+            })],
+            "responses": ok_item("PortfolioSummaryOut")
         }
     }));
 

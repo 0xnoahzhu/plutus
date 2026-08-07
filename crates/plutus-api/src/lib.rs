@@ -241,7 +241,9 @@ pub fn build_router(state: AppState) -> Router {
         )
         .route(
             "/accounts/:id",
-            get(handlers::accounts::get).delete(handlers::accounts::delete),
+            get(handlers::accounts::get)
+                .patch(handlers::accounts::update)
+                .delete(handlers::accounts::delete),
         )
         // Transactions
         .route(
@@ -267,11 +269,12 @@ pub fn build_router(state: AppState) -> Router {
         )
         // Holdings (derived)
         .route("/holdings", get(handlers::holdings::list))
-        // Portfolio time-series (derived from transactions + ohlcv)
+        // Portfolio rollups (derived from transactions + ohlcv)
         .route(
             "/portfolio/value-series",
             get(handlers::portfolio::value_series),
         )
+        .route("/portfolio/summary", get(handlers::portfolio::summary))
         // FX
         .route("/fx", get(handlers::fx::list).post(handlers::fx::insert))
         // Audit

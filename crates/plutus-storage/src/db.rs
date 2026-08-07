@@ -197,6 +197,14 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS allowed_countries TEXT NOT NULL DEFAU
 
 -- Toasty-managed tables: ensure user_id exists for older deployments.
 ALTER TABLE accounts          ADD COLUMN IF NOT EXISTS user_id BIGINT NOT NULL DEFAULT 0;
+-- Cash anchor. Holdings are derived from the ledger and cash wants to be
+-- too, but a ledger that starts mid-life has buys with no matching
+-- deposits and would roll up negative. These two columns pin a known
+-- balance at a known time; the rollup adds only the flows after it.
+-- Default 0 + NULL as-of reproduces the pure-ledger behavior, so
+-- existing rows keep meaning exactly what they meant before.
+ALTER TABLE accounts          ADD COLUMN IF NOT EXISTS cash_balance NUMERIC NOT NULL DEFAULT 0;
+ALTER TABLE accounts          ADD COLUMN IF NOT EXISTS cash_as_of TIMESTAMPTZ;
 ALTER TABLE transactions      ADD COLUMN IF NOT EXISTS user_id BIGINT NOT NULL DEFAULT 0;
 -- Canonicalize `transactions.kind` to upper SCREAMING_SNAKE_CASE. Agents
 -- following an earlier version of the OpenAPI docs wrote lowercase values

@@ -7,6 +7,7 @@
 #![allow(clippy::module_name_repetitions)]
 
 pub mod audit;
+pub mod cash;
 pub mod cost_basis;
 pub mod currency;
 pub mod error;

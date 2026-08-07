@@ -13,6 +13,7 @@ use jiff::civil::Date;
 use jiff::ToSpan;
 use rust_decimal::Decimal;
 
+use plutus_core::cash::{cash_delta_base, CashLot};
 use plutus_core::cost_basis::{compute_position, CostBasisMethod, TxLot};
 use plutus_core::transaction::TransactionKind;
 
@@ -193,4 +194,145 @@ fn latest_close_on_or_before(
     } else {
         Some(prices[idx - 1].1)
     }
+}
+
+// ── Total assets ─────────────────────────────────────────────────────────
+
+/// Cash for one account: the anchor the user set, plus everything the
+/// ledger did after it.
+#[derive(Debug, Clone)]
+pub struct AccountCash {
+    pub account_id: i64,
+    pub account_name: String,
+    pub base_currency: String,
+    /// The balance the user pinned, verbatim.
+    pub anchor: Decimal,
+    /// When the anchor was true. `None` = no anchor, so `flow` covers
+    /// the whole ledger.
+    pub anchor_as_of: Option<jiff::Timestamp>,
+    /// Net cash the ledger moved after `anchor_as_of`.
+    pub flow: Decimal,
+    /// `anchor + flow` — what's actually on hand.
+    pub cash: Decimal,
+}
+
+/// Everything needed to answer "what am I worth". Cash sits beside the
+/// market value of the open positions; the two add up to total assets.
+#[derive(Debug, Clone)]
+pub struct PortfolioSummary {
+    pub cash: Decimal,
+    /// Market value of open positions, base currency.
+    pub market_value: Decimal,
+    pub cost_basis: Decimal,
+    /// `market_value - cost_basis`.
+    pub unrealized_pnl: Decimal,
+    /// Lifetime realized P&L across every closed leg.
+    pub realized_pnl: Decimal,
+    /// `cash + market_value`.
+    pub total_assets: Decimal,
+    /// Open positions counted, and how many of them had no OHLCV bar to
+    /// price against. Unpriced positions fall back to cost basis, which
+    /// keeps the total stable but means it's an estimate — the caller
+    /// should say so when this is non-zero rather than presenting a
+    /// number that quietly mixes market and book values.
+    pub position_count: i64,
+    pub unpriced_count: i64,
+    pub accounts: Vec<AccountCash>,
+}
+
+/// Round monetary output to cents. The inputs are already exact
+/// decimals; this just stops `1234.5600000001`-style tails from
+/// weighted-average division reaching the UI.
+const MONEY_DP: u32 = 2;
+
+/// Compute cash, market value and total assets for a user.
+pub async fn summary(db: &Db, user_id: i64, method: CostBasisMethod) -> Result<PortfolioSummary> {
+    let accounts = super::accounts::list(db, user_id).await?;
+    let txs = super::transactions::list(db, user_id).await?;
+
+    // ── Cash, per account ────────────────────────────────────────────
+    let mut per_account: Vec<AccountCash> = Vec::with_capacity(accounts.len());
+    for account in &accounts {
+        let flow: Decimal = txs
+            .iter()
+            .filter(|t| t.account_id == account.id)
+            // Flows at or before the anchor are already baked into the
+            // balance the user pinned; counting them again would double
+            // every trade made before they set it.
+            .filter(|t| {
+                account
+                    .cash_as_of
+                    .is_none_or(|anchored_at| t.executed_at > anchored_at)
+            })
+            .filter_map(|t| {
+                let kind = TransactionKind::from_str(&t.kind).ok()?;
+                Some(cash_delta_base(&CashLot {
+                    kind,
+                    quantity: t.quantity,
+                    price: t.price,
+                    commission: t.commission,
+                    tax: t.tax,
+                    fx_to_base: t.fx_rate_to_base,
+                }))
+            })
+            .sum();
+        per_account.push(AccountCash {
+            account_id: account.id,
+            account_name: account.name.clone(),
+            base_currency: account.base_currency.clone(),
+            anchor: account.cash_balance.round_dp(MONEY_DP),
+            anchor_as_of: account.cash_as_of,
+            flow: flow.round_dp(MONEY_DP),
+            cash: (account.cash_balance + flow).round_dp(MONEY_DP),
+        });
+    }
+    // Transactions on an account that no longer exists still moved cash,
+    // but there's no anchor or currency to attribute them to, so they're
+    // deliberately dropped rather than folded into an arbitrary account.
+    let cash: Decimal = per_account.iter().map(|a| a.cash).sum();
+
+    // ── Positions ────────────────────────────────────────────────────
+    let holdings = super::holdings::compute_all(db, user_id, method).await?;
+    let stock_ids: Vec<i64> = holdings.iter().map(|h| h.stock_id).collect();
+    let closes = super::ohlcv::latest_closes(db, &stock_ids).await?;
+
+    let mut market_value = Decimal::ZERO;
+    let mut cost_basis = Decimal::ZERO;
+    let mut realized_pnl = Decimal::ZERO;
+    let mut position_count = 0_i64;
+    let mut unpriced_count = 0_i64;
+    for h in &holdings {
+        // `compute_all` keeps fully-closed positions around so their
+        // realized P&L still counts; only open ones carry value.
+        realized_pnl += h.position.realized_pnl_base;
+        if h.position.quantity == Decimal::ZERO {
+            continue;
+        }
+        position_count += 1;
+        cost_basis += h.position.cost_base;
+        match closes.get(&h.stock_id) {
+            Some(close) => market_value += h.position.quantity * close,
+            None => {
+                // No bar ever recorded. Falling back to cost basis keeps
+                // the total from dropping a real position to zero; the
+                // count tells the caller the number is an estimate.
+                unpriced_count += 1;
+                market_value += h.position.cost_base;
+            }
+        }
+    }
+
+    let market_value = market_value.round_dp(MONEY_DP);
+    let cost_basis = cost_basis.round_dp(MONEY_DP);
+    Ok(PortfolioSummary {
+        cash,
+        market_value,
+        cost_basis,
+        unrealized_pnl: market_value - cost_basis,
+        realized_pnl: realized_pnl.round_dp(MONEY_DP),
+        total_assets: cash + market_value,
+        position_count,
+        unpriced_count,
+        accounts: per_account,
+    })
 }

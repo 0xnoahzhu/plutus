@@ -1,3 +1,5 @@
+use rust_decimal::Decimal;
+
 use crate::db::{Db, DbError, Result};
 use crate::models::Account;
 
@@ -75,6 +77,10 @@ pub async fn create(db: &Db, input: NewAccount<'_>) -> Result<Account> {
                 name: name,
                 account_number: account_number,
                 base_currency: base_currency,
+                // No anchor by default: a brand-new account starts empty,
+                // so the ledger alone tells the truth about its cash.
+                cash_balance: Decimal::ZERO,
+                cash_as_of: None::<jiff::Timestamp>,
                 created_at: now,
             })
             .exec(d)
@@ -82,6 +88,44 @@ pub async fn create(db: &Db, input: NewAccount<'_>) -> Result<Account> {
         })
         .await?;
     Ok(row)
+}
+
+/// Fields an account owner may change after creation. `broker_id`,
+/// `base_currency` and `account_number` are deliberately absent —
+/// changing them would silently re-denominate or re-key an account that
+/// transactions already point at.
+#[derive(Debug, Clone, Default)]
+pub struct AccountPatch<'a> {
+    pub name: Option<&'a str>,
+    /// Known cash at `cash_as_of`, in the account's base currency.
+    pub cash_balance: Option<Decimal>,
+    /// Outer `None` leaves the anchor time alone; `Some(None)` clears it
+    /// so the whole ledger counts again.
+    pub cash_as_of: Option<Option<jiff::Timestamp>>,
+}
+
+pub async fn update(
+    db: &Db,
+    user_id: i64,
+    id: i64,
+    patch: AccountPatch<'_>,
+) -> Result<Account> {
+    let mut row = get(db, user_id, id).await?;
+    db.with(async |d| {
+        let mut q = row.update();
+        if let Some(name) = patch.name {
+            q = q.name(name.to_string());
+        }
+        if let Some(cash_balance) = patch.cash_balance {
+            q = q.cash_balance(cash_balance);
+        }
+        if let Some(cash_as_of) = patch.cash_as_of {
+            q = q.cash_as_of(cash_as_of);
+        }
+        q.exec(d).await
+    })
+    .await?;
+    get(db, user_id, id).await
 }
 
 /// Delete a user-owned account. Refuses (`Conflict`) when any transaction
