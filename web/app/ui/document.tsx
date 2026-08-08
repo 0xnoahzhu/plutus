@@ -26,6 +26,24 @@ const DEFAULT_TITLE = 'Plutus'
 /// rendered at the bottom of `<body>`. Hidden by default; the submit-guard
 /// script flips `data-open="true"` on `#confirm-modal` to show it.
 const GLOBAL_CSS = `
+  /* Layer order. The css() styling system emits every component rule
+     into @layer rmx.<class>, and unlayered CSS beats layered CSS no
+     matter the specificity — so a bare \`a { color: inherit }\` here
+     silently killed the \`color\` on every styled link in the app
+     (brand-teal actions rendered as body text, and chip active/inactive
+     states were distinguishable only by their shadow).
+
+     Declaring the order puts the reset behind rmx so components can
+     override it. Only rules that components legitimately override
+     belong in this layer: box-sizing, the body defaults and the
+     focus-visible ring stay unlayered on purpose, so nothing can
+     accidentally weaken them. */
+  @layer reset, rmx;
+  @layer reset {
+    a { color: inherit; }
+    button { font-family: inherit; }
+  }
+
   *, *::before, *::after { box-sizing: border-box; }
   html, body {
     margin: 0;
@@ -39,8 +57,6 @@ const GLOBAL_CSS = `
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
   }
-  a { color: inherit; }
-  button { font-family: inherit; }
   table { border-collapse: collapse; }
 
   /* Timestamps are data: render them in the data voice, digits aligned. */
