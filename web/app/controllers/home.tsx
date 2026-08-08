@@ -1073,6 +1073,7 @@ function PortfolioChart() {
       </div>
 
       <ChartLegend series={seriesDefs} />
+      <ChartTable dates={hoverData.dates} series={hoverData.series} locale={locale} />
 
       <script
         type="application/json"
@@ -1132,6 +1133,145 @@ function ChartLegend() {
         </span>
       ))}
     </div>
+  )
+}
+
+/// The same numbers as the chart, as text.
+///
+/// This is the accessibility floor the tooltip rests on: hover and
+/// arrow-keys give per-day precision, but a screen reader, a printout,
+/// or anyone who just wants to read down a column needs the values
+/// without an interaction. Server-rendered inside a collapsed
+/// `<details>` so it costs nothing visually until asked for.
+///
+/// Every row ships in the HTML rather than being windowed — a truncated
+/// fallback isn't a fallback. At the default 30-day range that's 30
+/// rows; the widest allowed window would be heavier, which is a fair
+/// trade for the one view that never hides a value.
+function ChartTable() {
+  return ({
+    dates,
+    series,
+    locale,
+  }: {
+    dates: string[]
+    series: Array<{ label: string; color: string; vals: string[] }>
+    locale: string
+  }) => {
+    let p = messages(locale).pages.dashboard
+    return (
+      <details mix={css({ marginTop: space[3] })}>
+        <summary
+          mix={css({
+            cursor: 'pointer',
+            fontSize: font.xs,
+            color: color.textMuted,
+            '&:hover': { color: color.text },
+          })}
+        >
+          {p.chartTableToggle(dates.length)}
+        </summary>
+        <div
+          mix={css({
+            marginTop: space[2],
+            maxHeight: '260px',
+            overflowY: 'auto',
+            // Table is wide on a narrow card; let it scroll rather than
+            // push the page sideways.
+            overflowX: 'auto',
+            boxShadow: shadow.inset,
+            background: color.hover,
+            borderRadius: radius.md,
+          })}
+        >
+          <table
+            mix={css({
+              width: '100%',
+              borderCollapse: 'collapse',
+              fontSize: font.xs,
+            })}
+          >
+            <thead>
+              <tr>
+                <TableHead>{p.chartTableDate}</TableHead>
+                {series.map((s) => (
+                  <TableHead key={s.label} align="right">
+                    {s.label}
+                  </TableHead>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {dates.map((d, i) => (
+                <tr
+                  key={d}
+                  mix={css({ '&:hover td': { background: color.surface } })}
+                >
+                  <TableCell mono>{d}</TableCell>
+                  {series.map((s) => (
+                    <TableCell key={s.label} align="right" mono>
+                      {s.vals[i]}
+                    </TableCell>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
+    )
+  }
+}
+
+function TableHead() {
+  return ({
+    children,
+    align = 'left',
+  }: {
+    children: RemixNode
+    align?: 'left' | 'right'
+  }) => (
+    <th
+      scope="col"
+      mix={css({
+        position: 'sticky',
+        top: 0,
+        textAlign: align,
+        padding: `${space[2]} ${space[3]}`,
+        background: color.hover,
+        color: color.textMuted,
+        fontWeight: 600,
+        whiteSpace: 'nowrap',
+        borderBottom: `1px solid ${color.border}`,
+      })}
+    >
+      {children}
+    </th>
+  )
+}
+
+function TableCell() {
+  return ({
+    children,
+    align = 'left',
+    mono,
+  }: {
+    children: RemixNode
+    align?: 'left' | 'right'
+    mono?: boolean
+  }) => (
+    <td
+      mix={css({
+        padding: `${space[1]} ${space[3]}`,
+        textAlign: align,
+        color: color.text,
+        fontFamily: mono ? font.mono : 'inherit',
+        fontVariantNumeric: 'tabular-nums',
+        whiteSpace: 'nowrap',
+      })}
+    >
+      {children}
+    </td>
   )
 }
 

@@ -113,6 +113,8 @@ const en = {
       legendTotalAssets: 'Total assets',
       chartAriaLabel: (from: string, to: string) =>
         `Portfolio value from ${from} to ${to}. Focus the chart and use the left and right arrow keys to read each day.`,
+      chartTableToggle: (n: number) => `View data (${n} days)`,
+      chartTableDate: 'Date',
       emptyPositionsHint:
         'Post buy transactions to /api/v1/transactions and the rollup lands here.',
     },
@@ -888,6 +890,8 @@ const zhCN: Messages = {
       legendTotalAssets: '总资产',
       chartAriaLabel: (from: string, to: string) =>
         `${from} 至 ${to} 的组合价值曲线。聚焦图表后可用左右方向键逐日查看。`,
+      chartTableToggle: (n: number) => `查看数据表（${n} 天）`,
+      chartTableDate: '日期',
       emptyPositionsHint:
         '通过 POST /api/v1/transactions 添加买入交易，汇总会在这里显示。',
     },
