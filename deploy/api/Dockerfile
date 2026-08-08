@@ -26,14 +26,45 @@ RUN apt-get update \
         ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
-# Copy the workspace. Bring in the lockfile + every member crate so
-# cargo can resolve and build from the same graph it uses locally.
+# ── Dependency fetch ─────────────────────────────────────────────────────
+# Manifests only. This layer is keyed on the lockfile and the member
+# Cargo.tomls, so it survives ordinary source edits.
+#
+# It exists because the previous layout copied all of `crates/` before
+# building, which meant every code change invalidated the build layer and
+# re-downloaded the entire crate graph. On a flaky link that turns a
+# one-line change into a coin flip — two deploys in a row died here with
+# "Timeout was reached (less than 10 bytes/sec)" partway through the
+# download.
 COPY Cargo.toml Cargo.lock ./
-COPY crates ./crates
+COPY crates/plutus-core/Cargo.toml    crates/plutus-core/Cargo.toml
+COPY crates/plutus-storage/Cargo.toml crates/plutus-storage/Cargo.toml
+COPY crates/plutus-api/Cargo.toml     crates/plutus-api/Cargo.toml
+COPY crates/plutus-server/Cargo.toml  crates/plutus-server/Cargo.toml
 
-# Release build. The binary name is `plutus` (declared in
-# plutus-server/Cargo.toml as `[[bin]] name = "plutus"`).
-RUN cargo build --release --bin plutus \
+# Cargo won't parse a workspace member whose target file is missing, and
+# `cargo fetch` parses before it downloads. Stubs satisfy that; the real
+# sources land in the next layer and overwrite them.
+RUN mkdir -p crates/plutus-core/src crates/plutus-storage/src \
+             crates/plutus-api/src crates/plutus-server/src \
+ && touch crates/plutus-core/src/lib.rs \
+          crates/plutus-storage/src/lib.rs \
+          crates/plutus-api/src/lib.rs \
+ && echo 'fn main() {}' > crates/plutus-server/src/main.rs \
+ && cargo fetch --locked
+
+# ── Build ────────────────────────────────────────────────────────────────
+# Real sources replace the stubs. `--offline` makes the network
+# irrelevant from here on: everything needed is already in the registry
+# cache from the layer above, so a compile can't die halfway through on a
+# download. If something genuinely is missing it fails immediately with a
+# clear message instead of hanging on a 30-second timeout.
+#
+# Compilation itself deliberately is NOT cached across source changes —
+# a stale-artifact bug would ship a binary that doesn't match the source,
+# which is far worse than the couple of minutes it saves.
+COPY crates ./crates
+RUN cargo build --release --offline --bin plutus \
  && strip target/release/plutus
 
 # ── Runtime ──────────────────────────────────────────────────────────────
