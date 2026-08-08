@@ -1115,9 +1115,21 @@ export const api = {
 
   audit: () => get<AuditEntry[]>('/audit'),
   stockOhlcv: (stockId: number) => get<Ohlcv[]>(`/stocks/${stockId}/ohlcv`),
-  portfolioValueSeries: (days?: number) => {
-    let q = days ? `?days=${days}` : ''
-    return get<DailyValue[]>(`/portfolio/value-series${q}`)
+  /// Daily portfolio series. Pass `days` for a trailing window, or
+  /// `from`/`to` for an explicit range (the only form that can express
+  /// month-to-date, a fixed quarter, or the full history).
+  portfolioValueSeries: (
+    params: number | { days?: number; from?: string; to?: string } = {},
+  ) => {
+    let p = typeof params === 'number' ? { days: params } : params
+    let q = new URLSearchParams()
+    if (p.from) q.set('from', p.from)
+    if (p.to) q.set('to', p.to)
+    // `days` is redundant once `from` is set and the server ignores it
+    // anyway; leaving it off keeps the URL honest about what was asked.
+    if (p.days !== undefined && !p.from) q.set('days', String(p.days))
+    let suffix = q.toString() ? `?${q.toString()}` : ''
+    return get<DailyValue[]>(`/portfolio/value-series${suffix}`)
   },
   /// Net worth: cash + market value. Used by the sidebar (via the
   /// ambient store), the dashboard and the holdings header.

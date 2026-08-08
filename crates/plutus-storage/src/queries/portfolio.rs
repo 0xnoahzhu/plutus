@@ -45,28 +45,31 @@ pub struct DailyValue {
     pub total_assets: Decimal,
 }
 
-/// Compute the per-day portfolio time series for a user over the last
-/// `days` calendar days (inclusive of today). Implementation runs in
-/// `O(stocks × days)` after the constant-time DB fetches — fine for
-/// the current account sizes.
+/// Compute the per-day portfolio time series over an explicit date
+/// window, inclusive of both ends.
+///
+/// Takes dates rather than a trailing day count so callers can ask for
+/// an arbitrary range (a custom picker, month-to-date, the whole
+/// history) — a `days`-only contract can only ever express a window
+/// ending today.
+///
+/// Runs in `O(stocks × days × lots)`: each day re-folds every lot up to
+/// that date. Fine at the current scale, and the handler caps the span
+/// so a wide range can't turn into an unbounded fold.
 pub async fn value_series(
     db: &Db,
     user_id: i64,
-    days: i64,
+    start: Date,
+    end: Date,
 ) -> Result<Vec<DailyValue>> {
-    if days <= 0 {
+    if start > end {
         return Ok(Vec::new());
     }
     let txs = super::transactions::list(db, user_id).await?;
     if txs.is_empty() {
         return Ok(Vec::new());
     }
-
-    // Window: today (server-side) − (days-1) ... today.
-    let today = jiff::Zoned::now().date();
-    let start = today
-        .checked_sub(((days - 1) as i64).days())
-        .map_err(|e| DbError::Validation(format!("date math: {e}")))?;
+    let today = end;
 
     // Collect the unique stock_ids appearing in transactions. We only
     // need OHLCV for those — everything else in the catalog is
@@ -151,7 +154,7 @@ pub async fn value_series(
         ));
     }
 
-    let mut series = Vec::with_capacity(days as usize);
+    let mut series = Vec::new();
     let mut cursor = start;
     while cursor <= today {
         let date_str = cursor.to_string(); // ISO YYYY-MM-DD

@@ -786,12 +786,24 @@ fn paths() -> Value {
     paths.insert("/portfolio/value-series".into(), json!({
         "get": {
             "tags": ["holdings"],
-            "summary": "Daily portfolio market value + cost basis over a window.",
-            "description": "Derived from `transactions` (FIFO cost basis) and `ohlcv_daily` (latest close on or before the date, carried forward across weekends and holidays). One row per calendar day. Default window is 30 days; capped at 365.",
-            "parameters": [json!({
-                "name": "days", "in": "query",
-                "schema": { "type": "integer", "minimum": 1, "maximum": 365, "default": 30 }
-            })],
+            "summary": "Daily portfolio value, cost basis, cash and total assets over a window.",
+            "description": "Derived from `transactions` (FIFO cost basis) and `ohlcv_daily` (latest close on or before the date, carried forward across weekends and holidays). One row per calendar day.\n\nTwo ways to pick the window. `days=N` is a trailing window ending today (default 30, max 365). `from`/`to` is an explicit range — use it for anything a trailing count can't express: month-to-date, a fixed quarter, the whole history. `to` defaults to today. When both forms are sent, `from`/`to` wins.\n\nThe range is capped at 3653 days (10 years): the series re-folds every lot per day, so an unbounded window is an unbounded fold.",
+            "parameters": [
+                json!({
+                    "name": "days", "in": "query",
+                    "schema": { "type": "integer", "minimum": 1, "maximum": 365, "default": 30 }
+                }),
+                json!({
+                    "name": "from", "in": "query",
+                    "description": "Inclusive window start, YYYY-MM-DD. Overrides `days`.",
+                    "schema": { "type": "string", "format": "date" }
+                }),
+                json!({
+                    "name": "to", "in": "query",
+                    "description": "Inclusive window end, YYYY-MM-DD. Defaults to today.",
+                    "schema": { "type": "string", "format": "date" }
+                })
+            ],
             "responses": ok_list("DailyValueOut")
         }
     }));

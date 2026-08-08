@@ -98,6 +98,16 @@ const en = {
       portfolioPerformance: 'Portfolio Performance',
       windowFull: '30-day window',
       windowPartial: 'partial — missing prices',
+      range7d: '7D',
+      range30d: '30D',
+      rangeMtd: 'MTD',
+      rangeYtd: 'YTD',
+      range1y: '1Y',
+      rangeAll: 'All',
+      rangeApply: 'Apply',
+      /// Replaces the fixed "30-day window" hint once the range is
+      /// user-controlled — the old label lied for every other choice.
+      rangeSpan: (days: number) => `${days}-day window`,
       emptyPositionsHint:
         'Post buy transactions to /api/v1/transactions and the rollup lands here.',
     },
@@ -860,6 +870,14 @@ const zhCN: Messages = {
       portfolioPerformance: '组合表现',
       windowFull: '30 天窗口',
       windowPartial: '部分 — 缺少价格',
+      range7d: '7天',
+      range30d: '30天',
+      rangeMtd: '本月',
+      rangeYtd: '今年',
+      range1y: '1年',
+      rangeAll: '全部',
+      rangeApply: '应用',
+      rangeSpan: (days: number) => `${days} 天窗口`,
       emptyPositionsHint:
         '通过 POST /api/v1/transactions 添加买入交易，汇总会在这里显示。',
     },

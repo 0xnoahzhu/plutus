@@ -61,6 +61,91 @@ interface PortfolioSnapshot {
   fully_priced: boolean
 }
 
+/// Chart window presets, in the order they're offered.
+///
+/// `mtd` / `ytd` / `all` are why the API grew `from`/`to`: none of them
+/// is a fixed number of trailing days, so `?days=N` can't express them.
+const RANGE_PRESETS = ['7d', '30d', 'mtd', 'ytd', '1y', 'all'] as const
+type RangePreset = (typeof RANGE_PRESETS)[number]
+
+const DEFAULT_RANGE: RangePreset = '30d'
+
+/// The resolved chart window plus what produced it, so the chip row can
+/// show which option is live and the custom inputs can prefill.
+interface ChartRange {
+  from: string
+  to: string
+  /// `null` when the window came from explicit from/to rather than a
+  /// preset — no chip is active in that case.
+  preset: RangePreset | null
+}
+
+/// Shift an ISO `YYYY-MM-DD` by whole days, in UTC.
+///
+/// UTC throughout: the series dates the API returns are UTC calendar
+/// days, so resolving the window in local time would slide the window
+/// off the data by one day for anyone east or west of Greenwich.
+function shiftDays(iso: string, delta: number): string {
+  let d = new Date(`${iso}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + delta)
+  return d.toISOString().slice(0, 10)
+}
+
+/// Turn `?range=` / `?from=&to=` into a concrete window.
+///
+/// `earliest` is the first transaction date, used for `all`. It comes
+/// from the transactions the dashboard already fetches for its counters,
+/// so resolving "all" costs nothing extra.
+function resolveRange(
+  params: URLSearchParams,
+  today: string,
+  earliest: string | null,
+): ChartRange {
+  let from = (params.get('from') ?? '').trim()
+  let to = (params.get('to') ?? '').trim()
+  // An explicit range wins over a preset — it's the more specific ask.
+  // Both ends required: a half-open custom range is almost always a
+  // half-filled form, and guessing the other end would silently answer
+  // a question the user didn't finish asking.
+  if (isIsoDate(from) && isIsoDate(to) && from <= to) {
+    return { from, to, preset: null }
+  }
+
+  let raw = (params.get('range') ?? '').trim().toLowerCase()
+  let preset: RangePreset = (RANGE_PRESETS as readonly string[]).includes(raw)
+    ? (raw as RangePreset)
+    : DEFAULT_RANGE
+
+  let start: string
+  switch (preset) {
+    case '7d':
+      start = shiftDays(today, -6)
+      break
+    case '30d':
+      start = shiftDays(today, -29)
+      break
+    case 'mtd':
+      start = `${today.slice(0, 7)}-01`
+      break
+    case 'ytd':
+      start = `${today.slice(0, 4)}-01-01`
+      break
+    case '1y':
+      start = shiftDays(today, -364)
+      break
+    case 'all':
+      // No transactions yet → fall back to the default window rather
+      // than an empty range, so the card still renders its hint.
+      start = earliest ?? shiftDays(today, -29)
+      break
+  }
+  return { from: start, to: today, preset }
+}
+
+function isIsoDate(s: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(`${s}T00:00:00Z`))
+}
+
 export const home: BuildAction<'GET', typeof routes.home> = {
   async handler({ request }) {
     let url = new URL(request.url)
@@ -79,7 +164,6 @@ export const home: BuildAction<'GET', typeof routes.home> = {
       plans,
       openOrders,
       auditEntries,
-      valueSeries,
     ] = await Promise.all([
       api.markets().catch(() => []),
       api.brokers().catch(() => []),
@@ -91,8 +175,20 @@ export const home: BuildAction<'GET', typeof routes.home> = {
       api.tradePlans({ status: 'active' }).catch(() => []),
       api.pendingOrders({ status: 'open' }).catch(() => []),
       api.audit().catch(() => [] as AuditEntry[]),
-      api.portfolioValueSeries(30).catch(() => [] as DailyValue[]),
     ])
+
+    // The chart window can't be resolved until the transactions are in:
+    // `all` starts at the earliest one. Everything the second wave needs
+    // is now known, so the series joins the OHLCV fetch below rather
+    // than costing its own round trip.
+    let today = new Date().toISOString().slice(0, 10)
+    let earliest =
+      transactions.length > 0
+        ? transactions
+            .map((t) => t.executed_at.slice(0, 10))
+            .reduce((a, b) => (a < b ? a : b))
+        : null
+    let range = resolveRange(url.searchParams, today, earliest)
 
     let stockMap = new Map<number, Stock>(stocks.map((s) => [s.id, s]))
     // Top up the map with any held stocks not present in the default
@@ -113,20 +209,21 @@ export const home: BuildAction<'GET', typeof routes.home> = {
     // the user accumulates a long tail we'd add a `?days=N` parameter
     // or a batched endpoint.
     let ohlcvByStock = new Map<number, Ohlcv[]>()
-    if (holdings.length > 0) {
-      let results = await Promise.all(
-        holdings.map((h) =>
-          api.stockOhlcv(h.stock_id).catch(() => [] as Ohlcv[]),
-        ),
+    let [valueSeries, ohlcvResults] = await Promise.all([
+      api
+        .portfolioValueSeries({ from: range.from, to: range.to })
+        .catch(() => [] as DailyValue[]),
+      Promise.all(
+        holdings.map((h) => api.stockOhlcv(h.stock_id).catch(() => [] as Ohlcv[])),
+      ),
+    ])
+    holdings.forEach((h, i) => {
+      // Sort ascending so the "latest" is at the end.
+      let series = [...(ohlcvResults[i] ?? [])].sort((a, b) =>
+        a.trade_date.localeCompare(b.trade_date),
       )
-      holdings.forEach((h, i) => {
-        // Sort ascending so the "latest" is at the end.
-        let series = [...results[i]].sort((a, b) =>
-          a.trade_date.localeCompare(b.trade_date),
-        )
-        ohlcvByStock.set(h.stock_id, series)
-      })
-    }
+      ohlcvByStock.set(h.stock_id, series)
+    })
 
     let snapshot = buildSnapshot(holdings, ohlcvByStock)
     let movers = buildMovers(holdings, stockMap, ohlcvByStock)
@@ -153,6 +250,8 @@ export const home: BuildAction<'GET', typeof routes.home> = {
         movers={movers}
         recentActivity={recentActivity}
         valueSeries={valueSeries}
+        range={range}
+        search={url.searchParams}
       />,
       request,
       { locale, theme },
@@ -240,6 +339,10 @@ interface DashboardProps {
   movers: Mover[]
   recentActivity: AuditEntry[]
   valueSeries: DailyValue[]
+  range: ChartRange
+  /// The incoming query string, so the range controls can rebuild the
+  /// URL without dropping locale / theme / country.
+  search: URLSearchParams
 }
 
 function DashboardPage() {
@@ -252,6 +355,8 @@ function DashboardPage() {
     movers,
     recentActivity,
     valueSeries,
+    range,
+    search,
   }: DashboardProps) => {
     let p = messages(locale).pages.dashboard
     return (
@@ -293,6 +398,8 @@ function DashboardPage() {
             snapshot={snapshot}
             series={valueSeries}
             locale={locale}
+            range={range}
+            search={search}
           />
 
           <div mix={css({ display: 'flex', flexDirection: 'column', gap: space[4] })}>
@@ -320,10 +427,14 @@ function PortfolioSnapshotCard() {
     snapshot,
     series,
     locale,
+    range,
+    search,
   }: {
     snapshot: PortfolioSnapshot
     series: DailyValue[]
     locale: string
+    range: ChartRange
+    search: URLSearchParams
   }) => {
     let p = messages(locale).pages.dashboard
     if (snapshot.cost_basis === 0 && snapshot.market_value === 0) {
@@ -342,7 +453,14 @@ function PortfolioSnapshotCard() {
     let tone: BadgeTone = upTrend ? 'success' : 'danger'
     return (
       <Card>
-        <SectionTitle hint={snapshot.fully_priced ? p.windowFull : p.windowPartial}>
+        {/* The hint used to read "30-day window" unconditionally, which
+            stopped being true the moment the range became selectable.
+            Report the span actually plotted. */}
+        <SectionTitle
+          hint={
+            snapshot.fully_priced ? p.rangeSpan(series.length) : p.windowPartial
+          }
+        >
           {p.portfolioPerformance}
         </SectionTitle>
         <NetWorthStrip locale={locale} />
@@ -368,9 +486,157 @@ function PortfolioSnapshotCard() {
           />
         </div>
         <PortfolioChart series={series} />
+        <RangeControls locale={locale} range={range} search={search} />
       </Card>
     )
   }
+}
+
+/// Preset chips plus a custom from/to picker, under the chart.
+///
+/// Below rather than above: the chart is the answer, these are how you
+/// change the question. Putting them on top pushes the number people
+/// came for further down the card.
+///
+/// Both controls are plain links / a GET form — no client JS, matching
+/// how every other filter in this app works, and leaving the window in
+/// the URL so a range is shareable and survives a refresh.
+function RangeControls() {
+  return ({
+    locale,
+    range,
+    search,
+  }: {
+    locale: string
+    range: ChartRange
+    search: URLSearchParams
+  }) => {
+    let p = messages(locale).pages.dashboard
+    let labels: Record<RangePreset, string> = {
+      '7d': p.range7d,
+      '30d': p.range30d,
+      mtd: p.rangeMtd,
+      ytd: p.rangeYtd,
+      '1y': p.range1y,
+      all: p.rangeAll,
+    }
+    return (
+      <div
+        mix={css({
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: space[3],
+          flexWrap: 'wrap',
+          marginTop: space[4],
+        })}
+      >
+        <div
+          mix={css({
+            display: 'inline-flex',
+            gap: space[1],
+            // Carved track with a raised pill for the active option —
+            // the same soft-active read as the country / theme chips.
+            background: color.hover,
+            boxShadow: shadow.inset,
+            padding: '3px',
+            borderRadius: radius.pill,
+          })}
+        >
+          {RANGE_PRESETS.map((r) => (
+            <RangeChip
+              href={rangeHref(search, { range: r })}
+              active={range.preset === r}
+              label={labels[r]}
+            />
+          ))}
+        </div>
+
+        <form
+          method="get"
+          action="/"
+          mix={css({
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: space[2],
+            flexWrap: 'wrap',
+          })}
+        >
+          {/* Carry the chrome params through the GET form, which would
+              otherwise replace the whole query string with its own
+              fields and reset language / theme. */}
+          {carryParams(search).map(([k, v]) => (
+            <input type="hidden" name={k} value={v} />
+          ))}
+          <input
+            type="date"
+            name="from"
+            value={range.from}
+            max={range.to}
+            required
+            mix={css(dateFieldStyle)}
+          />
+          <span mix={css({ color: color.textDim, fontSize: font.sm })}>→</span>
+          <input
+            type="date"
+            name="to"
+            value={range.to}
+            min={range.from}
+            required
+            mix={css(dateFieldStyle)}
+          />
+          <button type="submit" mix={css(applyButton)}>
+            {p.rangeApply}
+          </button>
+        </form>
+      </div>
+    )
+  }
+}
+
+function RangeChip() {
+  return ({ href, active, label }: { href: string; active: boolean; label: string }) => (
+    <a
+      href={href}
+      mix={css({
+        display: 'inline-flex',
+        alignItems: 'center',
+        padding: `${space[1]} ${space[3]}`,
+        fontSize: font.sm,
+        fontWeight: 600,
+        borderRadius: radius.pill,
+        textDecoration: 'none',
+        color: active ? color.text : color.textMuted,
+        background: active ? color.surface : 'transparent',
+        boxShadow: active ? shadow.card : 'none',
+        transition: 'background 120ms ease, color 120ms ease, transform 120ms ease',
+        '&:hover': active ? undefined : { color: color.text },
+        '&:active': { transform: 'scale(0.97)' },
+      })}
+    >
+      {label}
+    </a>
+  )
+}
+
+/// Query-string keys that describe the *page chrome* rather than the
+/// chart window. Flipping a range must not reset the user's language,
+/// theme or market scope.
+const CARRY_KEYS = ['locale', 'theme', 'country'] as const
+
+function carryParams(search: URLSearchParams): Array<[string, string]> {
+  return CARRY_KEYS.flatMap((k) => {
+    let v = search.get(k)
+    return v ? [[k, v] as [string, string]] : []
+  })
+}
+
+/// Build a dashboard href that sets the range and drops any stale
+/// custom window, while keeping the chrome params.
+function rangeHref(search: URLSearchParams, next: { range: RangePreset }): string {
+  let qs = new URLSearchParams(carryParams(search))
+  qs.set('range', next.range)
+  return `/?${qs.toString()}`
 }
 
 /// `cash + positions = total assets`, above the performance metrics.
@@ -901,3 +1167,31 @@ function actionTone(action: string): BadgeTone {
   return 'neutral'
 }
 
+
+const dateFieldStyle = {
+  padding: `${space[1]} ${space[2]}`,
+  background: color.hover,
+  border: `1px solid ${color.border}`,
+  borderRadius: radius.md,
+  fontSize: font.sm,
+  color: color.text,
+  fontFamily: font.mono,
+  boxShadow: shadow.inset,
+  outline: 'none',
+  '&:focus': { borderColor: color.brand },
+}
+
+const applyButton = {
+  padding: `${space[1]} ${space[3]}`,
+  background: color.surface,
+  border: `1px solid ${color.edge}`,
+  borderRadius: radius.md,
+  color: color.text,
+  fontSize: font.sm,
+  fontWeight: 600,
+  fontFamily: 'inherit',
+  cursor: 'pointer',
+  boxShadow: shadow.card,
+  '&:hover': { boxShadow: shadow.cardHover },
+  '&:active': { boxShadow: shadow.pressed, transform: 'scale(0.98)' },
+}
