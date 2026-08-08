@@ -505,6 +505,154 @@ const CONFIRM_SUBMIT_JS = `
   })();
 `
 
+/// Crosshair + tooltip for the portfolio chart.
+///
+/// Lives here, delegated off `document`, rather than beside the chart in
+/// home.tsx — and that placement is the whole point.
+///
+/// This app navigates client-side: a range chip fetches HTML and swaps
+/// it into the DOM, and scripts introduced that way never execute. A
+/// per-chart init script therefore runs exactly once, on the first full
+/// page load, and after that either goes stale (the node was reused and
+/// the closure still held the previous range's data, so the tooltip
+/// reported a date outside the window you'd selected) or goes dead (the
+/// node was replaced and the listeners went with it). Both were observed
+/// switching ranges.
+///
+/// A listener bound once to `document` survives every swap, and reading
+/// the payload out of the DOM at event time means it can't disagree with
+/// what's drawn.
+const CHART_HOVER_JS = `
+(function () {
+  // Parsed payloads keyed by their <script type="application/json">
+  // element, re-parsed whenever its text changes — so a node morphed in
+  // place can't keep serving the previous range's numbers.
+  var cache = new WeakMap();
+
+  function payloadFor(root) {
+    var el = root.querySelector('[data-chart-data]');
+    if (!el) return null;
+    var text = el.textContent || '';
+    var hit = cache.get(el);
+    if (hit && hit.text === text) return hit.data;
+    var data;
+    try { data = JSON.parse(text); } catch (e) { return null; }
+    if (!data.xs || !data.xs.length) return null;
+    cache.set(el, { text: text, data: data });
+    return data;
+  }
+
+  function parts(root) {
+    return {
+      svg: root.querySelector('[data-chart-svg]'),
+      cursor: root.querySelector('[data-chart-cursor]'),
+      tip: root.querySelector('[data-chart-tip]')
+    };
+  }
+
+  function hide(root) {
+    var p = parts(root);
+    if (p.cursor) p.cursor.setAttribute('hidden', '');
+    if (p.tip) p.tip.hidden = true;
+    root.removeAttribute('data-chart-at');
+  }
+
+  function show(root, i) {
+    var d = payloadFor(root);
+    var p = parts(root);
+    if (!d || !p.svg || !p.cursor || !p.tip) return;
+    i = Math.max(0, Math.min(d.xs.length - 1, i));
+    if (root.getAttribute('data-chart-at') === String(i)) return;
+    root.setAttribute('data-chart-at', String(i));
+
+    var vx = d.xs[i];
+    var line = p.cursor.querySelector('[data-chart-crosshair]');
+    if (line) { line.setAttribute('x1', vx); line.setAttribute('x2', vx); }
+    var dots = p.cursor.querySelectorAll('[data-chart-dot]');
+    for (var s = 0; s < d.series.length && s < dots.length; s++) {
+      dots[s].setAttribute('cx', vx);
+      dots[s].setAttribute('cy', d.series[s].ys[i]);
+    }
+    p.cursor.removeAttribute('hidden');
+
+    var dateEl = p.tip.querySelector('[data-chart-tip-date]');
+    // textContent, never innerHTML — these strings come from the API.
+    if (dateEl) dateEl.textContent = d.dates[i];
+    var vals = p.tip.querySelectorAll('[data-chart-tip-val]');
+    for (var t = 0; t < d.series.length && t < vals.length; t++) {
+      vals[t].textContent = d.series[t].vals[i];
+    }
+
+    var box = p.svg.getBoundingClientRect();
+    var px = (vx / d.w) * box.width;
+    p.tip.hidden = false;
+    var left = px + 12;
+    // Flip past the crosshair near the right edge so the readout never
+    // hangs off the card.
+    if (left + p.tip.offsetWidth > box.width) left = px - p.tip.offsetWidth - 12;
+    p.tip.style.left = Math.max(0, left) + 'px';
+    p.tip.style.top = '8px';
+  }
+
+  function indexFor(root, clientX) {
+    var d = payloadFor(root);
+    var svg = root.querySelector('[data-chart-svg]');
+    if (!d || !svg) return 0;
+    var box = svg.getBoundingClientRect();
+    if (!box.width) return 0;
+    var vx = ((clientX - box.left) / box.width) * d.w;
+    var best = 0, bestDist = Infinity;
+    for (var i = 0; i < d.xs.length; i++) {
+      var dist = Math.abs(d.xs[i] - vx);
+      if (dist < bestDist) { bestDist = dist; best = i; }
+    }
+    return best;
+  }
+
+  function rootOf(target) {
+    if (!target || !target.closest) return null;
+    var svg = target.closest('[data-chart-svg]');
+    return svg ? svg.closest('[data-chart-root]') : null;
+  }
+
+  document.addEventListener('pointermove', function (e) {
+    var root = rootOf(e.target);
+    if (root) show(root, indexFor(root, e.clientX));
+  }, true);
+
+  document.addEventListener('pointerleave', function (e) {
+    var root = rootOf(e.target);
+    if (root) hide(root);
+  }, true);
+
+  // Keyboard parity: focus lands on the latest day, arrows walk it.
+  document.addEventListener('focusin', function (e) {
+    var root = rootOf(e.target);
+    if (!root) return;
+    var d = payloadFor(root);
+    if (d) show(root, d.xs.length - 1);
+  });
+
+  document.addEventListener('focusout', function (e) {
+    var root = rootOf(e.target);
+    if (root) hide(root);
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    var root = rootOf(e.target);
+    if (!root) return;
+    var d = payloadFor(root);
+    if (!d) return;
+    e.preventDefault();
+    var at = parseInt(root.getAttribute('data-chart-at') || '', 10);
+    if (isNaN(at)) at = d.xs.length - 1;
+    show(root, at + (e.key === 'ArrowRight' ? 1 : -1));
+  });
+})();
+`
+
+
 export function Document() {
   return ({ title = DEFAULT_TITLE, lang = 'en', theme = 'system', children }: DocumentProps) => {
     // `data-theme="dark"|"light"` pins the palette; `system` omits the attr
@@ -567,6 +715,7 @@ export function Document() {
           </div>
           <script type="module" src={routes.assets.href({ path: 'app/assets/entry.ts' })}></script>
           <script innerHTML={CONFIRM_SUBMIT_JS}></script>
+          <script innerHTML={CHART_HOVER_JS}></script>
         </body>
       </html>
     )

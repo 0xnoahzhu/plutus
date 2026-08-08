@@ -1080,7 +1080,6 @@ function PortfolioChart() {
         data-chart-data
         innerHTML={JSON.stringify(hoverData)}
       />
-      <script innerHTML={CHART_HOVER_JS} />
       </div>
     )
   }
@@ -1275,97 +1274,6 @@ function TableCell() {
   )
 }
 
-/// Crosshair + tooltip for the portfolio chart.
-///
-/// Inline rather than a module because it's ~40 lines and the page is
-/// server-rendered — the same call the confirm-dialog script makes in
-/// document.tsx.
-///
-/// The chart is fully readable before this runs: axes, gridlines and the
-/// legend are all server-rendered. This only adds per-day precision.
-const CHART_HOVER_JS = `
-(function () {
-  var root = document.currentScript && document.currentScript.parentElement;
-  if (!root) return;
-  var svg = root.querySelector('[data-chart-svg]');
-  var payload = root.querySelector('[data-chart-data]');
-  var cursor = root.querySelector('[data-chart-cursor]');
-  var tip = root.querySelector('[data-chart-tip]');
-  if (!svg || !payload || !cursor || !tip) return;
-
-  var d;
-  try { d = JSON.parse(payload.textContent || '{}'); } catch (e) { return; }
-  if (!d.xs || d.xs.length === 0) return;
-
-  var line = cursor.querySelector('[data-chart-crosshair]');
-  var dots = cursor.querySelectorAll('[data-chart-dot]');
-  var tipDate = tip.querySelector('[data-chart-tip-date]');
-  var tipVals = tip.querySelectorAll('[data-chart-tip-val]');
-  var current = -1;
-
-  // Nearest index by viewBox x. The pointer aims at a date, never at a
-  // 2px line.
-  function indexFor(clientX) {
-    var box = svg.getBoundingClientRect();
-    if (!box.width) return 0;
-    var vx = ((clientX - box.left) / box.width) * d.w;
-    var best = 0, bestDist = Infinity;
-    for (var i = 0; i < d.xs.length; i++) {
-      var dist = Math.abs(d.xs[i] - vx);
-      if (dist < bestDist) { bestDist = dist; best = i; }
-    }
-    return best;
-  }
-
-  function show(i) {
-    if (i === current) return;
-    current = i;
-    var vx = d.xs[i];
-    line.setAttribute('x1', vx);
-    line.setAttribute('x2', vx);
-    for (var s = 0; s < d.series.length && s < dots.length; s++) {
-      dots[s].setAttribute('cx', vx);
-      dots[s].setAttribute('cy', d.series[s].ys[i]);
-    }
-    cursor.removeAttribute('hidden');
-
-    // textContent, never innerHTML — these strings come from the API.
-    tipDate.textContent = d.dates[i];
-    for (var t = 0; t < d.series.length && t < tipVals.length; t++) {
-      tipVals[t].textContent = d.series[t].vals[i];
-    }
-
-    // Flip the tooltip to the other side of the crosshair near the right
-    // edge so it never hangs off the card.
-    var box = svg.getBoundingClientRect();
-    var px = (vx / d.w) * box.width;
-    tip.hidden = false;
-    var tw = tip.offsetWidth;
-    var left = px + 12;
-    if (left + tw > box.width) left = px - tw - 12;
-    tip.style.left = Math.max(0, left) + 'px';
-    tip.style.top = '8px';
-  }
-
-  function hide() {
-    current = -1;
-    cursor.setAttribute('hidden', '');
-    tip.hidden = true;
-  }
-
-  svg.addEventListener('pointermove', function (e) { show(indexFor(e.clientX)); });
-  svg.addEventListener('pointerleave', hide);
-  // Keyboard parity: focus lands on the latest day, arrows walk it.
-  svg.addEventListener('focus', function () { show(d.xs.length - 1); });
-  svg.addEventListener('blur', hide);
-  svg.addEventListener('keydown', function (e) {
-    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-    e.preventDefault();
-    var next = (current < 0 ? d.xs.length - 1 : current) + (e.key === 'ArrowRight' ? 1 : -1);
-    show(Math.max(0, Math.min(d.xs.length - 1, next)));
-  });
-})();
-`
 
 /// Build an SVG path `d` string from a list of (x, y) points.
 function pathFor(points: ReadonlyArray<readonly [number, number]>): string {
