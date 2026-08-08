@@ -485,7 +485,7 @@ function PortfolioSnapshotCard() {
             }
           />
         </div>
-        <PortfolioChart series={series} />
+        <PortfolioChart series={series} locale={locale} />
         <RangeControls locale={locale} range={range} search={search} />
       </Card>
     )
@@ -769,7 +769,7 @@ function Operator() {
 /// middle / latest) — denser labels overlap at 30 days. Empty / too-
 /// short series → a friendly hint instead of a one-pixel line.
 function PortfolioChart() {
-  return ({ series }: { series: DailyValue[] }) => {
+  return ({ series, locale }: { series: DailyValue[]; locale: string }) => {
     if (series.length < 2) {
       return (
         <p
@@ -804,7 +804,9 @@ function PortfolioChart() {
     let span = Math.max(dataMax - dataMin, 1)
     let yMin = dataMin - span * padFrac
     let yMax = dataMax + span * padFrac
-    let ticks = niceTicks(yMin, yMax, 4)
+    // Six gridlines rather than four. The old count left the reader
+    // interpolating across a third of the plot height to read a value.
+    let ticks = niceTicks(yMin, yMax, 6)
     let plotMin = Math.min(yMin, ticks[0])
     let plotMax = Math.max(yMax, ticks[ticks.length - 1])
 
@@ -825,28 +827,98 @@ function PortfolioChart() {
     let y = (v: number) =>
       padT + plotH - ((v - plotMin) / (plotMax - plotMin || 1)) * plotH
 
-    let mvPath = pathFor(pts.map((p, i) => [x(i), y(p.mv)] as const))
-    let cbPath = pathFor(pts.map((p, i) => [x(i), y(p.cb)] as const))
-    let totalPath = pathFor(pts.map((p, i) => [x(i), y(p.total)] as const))
     // Only worth a third line when cash actually moves the number. With
     // no cash the total sits exactly on market value and the two lines
     // would overprint, reading as a rendering glitch.
     let showTotal = pts.some((p) => Math.abs(p.total - p.mv) > 0.005)
 
-    // X-axis labels: first, middle, last date (in browser TZ — those
-    // are calendar dates, no conversion needed but locale formatting
-    // shortens them).
-    let labelIdxs = pts.length >= 3 ? [0, Math.floor(pts.length / 2), pts.length - 1] : [0, pts.length - 1]
+    // One definition per series drives the paths, the legend and the
+    // tooltip together, so the three can't drift into disagreeing about
+    // what a colour means.
+    //
+    // Drawn back-to-front: cost basis is the reference the other two are
+    // read against, so it sits behind them.
+    let cp = messages(locale).pages.dashboard
+    let seriesDefs = [
+      {
+        key: 'cost',
+        label: cp.legendCostBasis,
+        color: color.chartCost,
+        width: 1.5,
+        dash: '4 4',
+        values: pts.map((q) => q.cb),
+      },
+      {
+        key: 'market',
+        label: cp.legendMarketValue,
+        color: color.chartMarket,
+        width: 2,
+        dash: undefined as string | undefined,
+        values: pts.map((q) => q.mv),
+      },
+      ...(showTotal
+        ? [
+            {
+              key: 'total',
+              label: cp.legendTotalAssets,
+              color: color.chartTotal,
+              width: 2,
+              dash: undefined as string | undefined,
+              values: pts.map((q) => q.total),
+            },
+          ]
+        : []),
+    ]
+
+    // Payload the hover script reads. Pixel coordinates are computed
+    // here rather than in the browser so the script stays a positioner
+    // and never re-derives the scale — one source of geometry.
+    let hoverData = {
+      w,
+      h,
+      padT,
+      plotH,
+      xs: pts.map((_, i) => Number(x(i).toFixed(2))),
+      dates: pts.map((q) => q.date),
+      series: seriesDefs.map((s) => ({
+        label: s.label,
+        color: s.color,
+        ys: s.values.map((v) => Number(y(v).toFixed(2))),
+        vals: s.values.map((v) => fmtMoney(v)),
+      })),
+    }
+
+    // X-axis labels. Three (first / middle / last) was too sparse to
+    // locate a date on a 30-day window, let alone a 220-day one. Aim for
+    // one label per ~90px of plot width, capped so the labels can't
+    // collide: at 10px mono a `MM-DD` label is ~30px, so ~7 labels
+    // across 532px of plot is the tightest that still breathes.
+    let labelCount = Math.max(2, Math.min(7, Math.floor(plotW / 90) + 2))
+    let labelIdxs =
+      pts.length <= labelCount
+        ? pts.map((_, i) => i)
+        : Array.from({ length: labelCount }, (_, k) =>
+            Math.round((k / (labelCount - 1)) * (pts.length - 1)),
+          )
+    // Dedupe — the rounding above can land twice on the same index on
+    // very short series.
+    labelIdxs = [...new Set(labelIdxs)]
 
     return (
+      <div data-chart-root mix={css({ position: 'relative' })}>
       <svg
+        data-chart-svg
         viewBox={`0 0 ${w} ${h}`}
         preserveAspectRatio="none"
+        tabindex={0}
+        role="img"
+        aria-label={cp.chartAriaLabel(pts[0].date, pts[pts.length - 1].date)}
         mix={css({
           display: 'block',
           width: '100%',
           height: 'auto',
           marginBottom: space[2],
+          '&:focus-visible': { outline: `2px solid ${color.brand}`, outlineOffset: '2px' },
         })}
       >
         {/* Horizontal grid + y-axis labels */}
@@ -876,39 +948,42 @@ function PortfolioChart() {
           )
         })}
 
-        {/* Cost basis (dashed, behind) */}
-        <path
-          d={cbPath}
-          fill="none"
-          stroke={color.textMuted}
-          stroke-width="1.5"
-          stroke-dasharray="4 4"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        />
-        {/* Market value (solid, in front) */}
-        <path
-          d={mvPath}
-          fill="none"
-          stroke={color.brand}
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        />
-        {/* Total assets — market value plus cash, so it rides above the
-            brand line by exactly the cash on hand. Drawn last and
-            lighter so it frames the position curve rather than
-            competing with it. */}
-        {showTotal && (
+        {seriesDefs.map((s) => (
           <path
-            d={totalPath}
+            key={s.key}
+            d={pathFor(s.values.map((v, i) => [x(i), y(v)] as const))}
             fill="none"
-            stroke={color.info}
-            stroke-width="1.5"
+            stroke={s.color}
+            stroke-width={String(s.width)}
+            stroke-dasharray={s.dash}
             stroke-linecap="round"
             stroke-linejoin="round"
           />
-        )}
+        ))}
+
+        {/* Crosshair + per-series markers. Hidden until the script
+            positions them, so a no-JS reader sees the plain chart
+            rather than a stray line at x=0. */}
+        <g data-chart-cursor hidden>
+          <line
+            data-chart-crosshair
+            y1={padT}
+            y2={padT + plotH}
+            stroke={color.textDim}
+            stroke-width="1"
+            stroke-dasharray="3 3"
+          />
+          {seriesDefs.map((s) => (
+            <circle
+              key={s.key}
+              data-chart-dot
+              r="4"
+              fill={s.color}
+              stroke={color.surface}
+              stroke-width="2"
+            />
+          ))}
+        </g>
 
         {/* X-axis labels */}
         {labelIdxs.map((i) => (
@@ -927,9 +1002,230 @@ function PortfolioChart() {
           </text>
         ))}
       </svg>
+
+      {/* Readout. Positioned by the script; invisible without JS, which
+          is why the legend below carries the series identity on its own
+          rather than relying on this. */}
+      <div
+        data-chart-tip
+        hidden
+        mix={css({
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          pointerEvents: 'none',
+          minWidth: '132px',
+          padding: `${space[2]} ${space[3]}`,
+          background: color.surface,
+          border: `1px solid ${color.edge}`,
+          borderRadius: radius.md,
+          boxShadow: shadow.popover,
+          fontSize: font.xs,
+          zIndex: 2,
+        })}
+      >
+        <div
+          data-chart-tip-date
+          mix={css({
+            fontFamily: font.mono,
+            color: color.textMuted,
+            marginBottom: space[1],
+          })}
+        />
+        {seriesDefs.map((s) => (
+          <div
+            key={s.key}
+            data-chart-tip-row
+            mix={css({
+              display: 'flex',
+              alignItems: 'center',
+              gap: space[2],
+              marginTop: '2px',
+            })}
+          >
+            {/* Line key, not a filled box — at this density a block of
+                series colour reads as data-weight ink. */}
+            <span
+              mix={css({
+                width: '10px',
+                height: '2px',
+                background: s.color,
+                flexShrink: 0,
+                borderRadius: '1px',
+              })}
+            />
+            {/* Value first: the reader already knows the series from the
+                colour, what they came for is the number. */}
+            <span
+              data-chart-tip-val
+              mix={css({
+                fontFamily: font.mono,
+                fontVariantNumeric: 'tabular-nums',
+                fontWeight: 600,
+                color: color.text,
+                marginLeft: 'auto',
+                order: 2,
+              })}
+            />
+            <span mix={css({ color: color.textMuted })}>{s.label}</span>
+          </div>
+        ))}
+      </div>
+
+      <ChartLegend series={seriesDefs} />
+
+      <script
+        type="application/json"
+        data-chart-data
+        innerHTML={JSON.stringify(hoverData)}
+      />
+      <script innerHTML={CHART_HOVER_JS} />
+      </div>
     )
   }
 }
+
+/// Always-on series key. The tooltip is an enhancement — this is what
+/// makes the lines legible without a pointer, on a touch screen, or with
+/// JS off, and it's why colour is never the only carrier of identity.
+function ChartLegend() {
+  return ({
+    series,
+  }: {
+    series: Array<{ key: string; label: string; color: string; dash?: string }>
+  }) => (
+    <div
+      mix={css({
+        display: 'flex',
+        alignItems: 'center',
+        gap: space[4],
+        flexWrap: 'wrap',
+        marginTop: space[1],
+      })}
+    >
+      {series.map((s) => (
+        <span
+          key={s.key}
+          mix={css({
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: space[2],
+            fontSize: font.xs,
+            // Label ink stays a text token — the swatch beside it is
+            // what carries the series colour.
+            color: color.textMuted,
+          })}
+        >
+          <svg width="16" height="8" aria-hidden="true" mix={css({ flexShrink: 0 })}>
+            <line
+              x1="0"
+              y1="4"
+              x2="16"
+              y2="4"
+              stroke={s.color}
+              stroke-width="2"
+              stroke-dasharray={s.dash}
+              stroke-linecap="round"
+            />
+          </svg>
+          {s.label}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+/// Crosshair + tooltip for the portfolio chart.
+///
+/// Inline rather than a module because it's ~40 lines and the page is
+/// server-rendered — the same call the confirm-dialog script makes in
+/// document.tsx.
+///
+/// The chart is fully readable before this runs: axes, gridlines and the
+/// legend are all server-rendered. This only adds per-day precision.
+const CHART_HOVER_JS = `
+(function () {
+  var root = document.currentScript && document.currentScript.parentElement;
+  if (!root) return;
+  var svg = root.querySelector('[data-chart-svg]');
+  var payload = root.querySelector('[data-chart-data]');
+  var cursor = root.querySelector('[data-chart-cursor]');
+  var tip = root.querySelector('[data-chart-tip]');
+  if (!svg || !payload || !cursor || !tip) return;
+
+  var d;
+  try { d = JSON.parse(payload.textContent || '{}'); } catch (e) { return; }
+  if (!d.xs || d.xs.length === 0) return;
+
+  var line = cursor.querySelector('[data-chart-crosshair]');
+  var dots = cursor.querySelectorAll('[data-chart-dot]');
+  var tipDate = tip.querySelector('[data-chart-tip-date]');
+  var tipVals = tip.querySelectorAll('[data-chart-tip-val]');
+  var current = -1;
+
+  // Nearest index by viewBox x. The pointer aims at a date, never at a
+  // 2px line.
+  function indexFor(clientX) {
+    var box = svg.getBoundingClientRect();
+    if (!box.width) return 0;
+    var vx = ((clientX - box.left) / box.width) * d.w;
+    var best = 0, bestDist = Infinity;
+    for (var i = 0; i < d.xs.length; i++) {
+      var dist = Math.abs(d.xs[i] - vx);
+      if (dist < bestDist) { bestDist = dist; best = i; }
+    }
+    return best;
+  }
+
+  function show(i) {
+    if (i === current) return;
+    current = i;
+    var vx = d.xs[i];
+    line.setAttribute('x1', vx);
+    line.setAttribute('x2', vx);
+    for (var s = 0; s < d.series.length && s < dots.length; s++) {
+      dots[s].setAttribute('cx', vx);
+      dots[s].setAttribute('cy', d.series[s].ys[i]);
+    }
+    cursor.removeAttribute('hidden');
+
+    // textContent, never innerHTML — these strings come from the API.
+    tipDate.textContent = d.dates[i];
+    for (var t = 0; t < d.series.length && t < tipVals.length; t++) {
+      tipVals[t].textContent = d.series[t].vals[i];
+    }
+
+    // Flip the tooltip to the other side of the crosshair near the right
+    // edge so it never hangs off the card.
+    var box = svg.getBoundingClientRect();
+    var px = (vx / d.w) * box.width;
+    tip.hidden = false;
+    var tw = tip.offsetWidth;
+    var left = px + 12;
+    if (left + tw > box.width) left = px - tw - 12;
+    tip.style.left = Math.max(0, left) + 'px';
+    tip.style.top = '8px';
+  }
+
+  function hide() {
+    current = -1;
+    cursor.setAttribute('hidden', '');
+    tip.hidden = true;
+  }
+
+  svg.addEventListener('pointermove', function (e) { show(indexFor(e.clientX)); });
+  svg.addEventListener('pointerleave', hide);
+  // Keyboard parity: focus lands on the latest day, arrows walk it.
+  svg.addEventListener('focus', function () { show(d.xs.length - 1); });
+  svg.addEventListener('blur', hide);
+  svg.addEventListener('keydown', function (e) {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault();
+    var next = (current < 0 ? d.xs.length - 1 : current) + (e.key === 'ArrowRight' ? 1 : -1);
+    show(Math.max(0, Math.min(d.xs.length - 1, next)));
+  });
+})();
+`
 
 /// Build an SVG path `d` string from a list of (x, y) points.
 function pathFor(points: ReadonlyArray<readonly [number, number]>): string {

@@ -108,6 +108,11 @@ const en = {
       /// Replaces the fixed "30-day window" hint once the range is
       /// user-controlled — the old label lied for every other choice.
       rangeSpan: (days: number) => `${days}-day window`,
+      legendCostBasis: 'Cost basis',
+      legendMarketValue: 'Market value',
+      legendTotalAssets: 'Total assets',
+      chartAriaLabel: (from: string, to: string) =>
+        `Portfolio value from ${from} to ${to}. Focus the chart and use the left and right arrow keys to read each day.`,
       emptyPositionsHint:
         'Post buy transactions to /api/v1/transactions and the rollup lands here.',
     },
@@ -878,6 +883,11 @@ const zhCN: Messages = {
       rangeAll: '全部',
       rangeApply: '应用',
       rangeSpan: (days: number) => `${days} 天窗口`,
+      legendCostBasis: '成本基础',
+      legendMarketValue: '股票市值',
+      legendTotalAssets: '总资产',
+      chartAriaLabel: (from: string, to: string) =>
+        `${from} 至 ${to} 的组合价值曲线。聚焦图表后可用左右方向键逐日查看。`,
       emptyPositionsHint:
         '通过 POST /api/v1/transactions 添加买入交易，汇总会在这里显示。',
     },

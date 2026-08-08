@@ -88,6 +88,24 @@ export const color = {
   // Active nav highlight
   navActiveBg: 'var(--color-nav-active-bg)',
   navActiveText: 'var(--color-nav-active-text)',
+
+  /// Chart series. Categorical identity — one fixed hue per measure,
+  /// assigned in this order and never cycled.
+  ///
+  /// Separate from the semantic tokens above because the UI palette
+  /// can't do this job: the portfolio chart originally drew cost basis
+  /// in `textMuted` and market value in `brand`, a pair that measures
+  /// ΔE 7.6 in normal vision and 1.4 under protanopia — indistinguishable
+  /// even before colorblindness enters into it. These steps are
+  /// validated against the real chart surface in both themes (lightness
+  /// band, chroma floor, all-pairs CVD separation, contrast); see the
+  /// commit that introduced them for the run.
+  ///
+  /// Adding a fourth series means re-running that validation, not
+  /// picking a fourth colour that looks nice.
+  chartCost: 'var(--chart-cost)',
+  chartMarket: 'var(--chart-market)',
+  chartTotal: 'var(--chart-total)',
 } as const
 
 type Palette = Record<string, string>
@@ -132,6 +150,11 @@ const lightPalette: Palette = {
 
   '--color-nav-active-bg': 'rgba(0, 102, 102, 0.12)',
   '--color-nav-active-text': '#00585a',
+
+  // Chart series, validated against the #e7e5e4 surface.
+  '--chart-cost': '#8a5300',
+  '--chart-market': '#008f87',
+  '--chart-total': '#2563eb',
 
   // Neumorphic depth. Dark shadow is the surface tone deepened; light
   // shadow is the same surface catching light. Raised pairs for cards and
@@ -188,6 +211,13 @@ const darkPalette: Palette = {
 
   '--color-nav-active-bg': 'rgba(0, 191, 179, 0.14)',
   '--color-nav-active-text': '#5eded4',
+
+  // Chart series, re-stepped for the #26282c surface rather than
+  // flipped: dark's lightness band is 0.48–0.67, and the UI's dark
+  // tokens all sit above it.
+  '--chart-cost': '#c47d1a',
+  '--chart-market': '#00a89c',
+  '--chart-total': '#4a86e8',
 
   '--shadow-card':
     '5px 5px 10px rgba(0, 0, 0, 0.45), -5px -5px 10px rgba(255, 255, 255, 0.04)',
